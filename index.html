@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Góc học của em</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FFF6E9;
+    --ink: #332B52;
+    --ink-soft: #6B6289;
+    --coral: #FF6B5B;
+    --coral-soft: #FFE1DC;
+    --grape: #8B5CF6;
+    --grape-soft: #EBE1FF;
+    --teal: #17B8A6;
+    --teal-soft: #D6F5F0;
+    --sun: #FFB627;
+    --sun-soft: #FFF0D1;
+    --leaf: #4CB963;
+    --white: #FFFFFF;
+    --shadow: 0 6px 0 rgba(51,43,82,0.12);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--cream); font-family: 'Quicksand', sans-serif; color: var(--ink); display: flex; justify-content: center; }
+  .phone { width: 100%; max-width: 400px; min-height: 100vh; padding: 20px 18px 40px; position: relative; overflow-x: hidden; }
+
+  /* ---------- Loading ---------- */
+  .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 70vh; gap: 14px; }
+  .loading .spin { font-size: 40px; animation: spin 1.2s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+  .loading p { font-family: 'Baloo 2', sans-serif; font-weight: 600; color: var(--ink-soft); }
+
+  /* ---------- Kid picker screen ---------- */
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }
+
+  .picker-title { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 26px; text-align: center; margin: 30px 0 6px; }
+  .picker-sub { text-align: center; color: var(--ink-soft); font-weight: 600; margin-bottom: 28px; }
+  .kid-list { display: flex; flex-direction: column; gap: 14px; }
+  .kid-card {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--white); border: none; border-radius: 22px;
+    padding: 16px 18px; box-shadow: var(--shadow); cursor: pointer;
+    font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 19px; color: var(--ink);
+    text-align: left; transition: transform 0.12s ease;
+  }
+  .kid-card:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
+  .kid-avatar {
+    width: 52px; height: 52px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+  }
+
+  /* ---------- Header ---------- */
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .back-btn { background: none; border: none; font-size: 20px; color: var(--ink-soft); cursor: pointer; padding: 6px; }
+  .greet { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px; }
+  .greet span.wave { display: inline-block; animation: wave 2.2s ease-in-out infinite; transform-origin: 70% 70%; }
+  @keyframes wave { 0%,60%,100%{transform:rotate(0deg);} 10%{transform:rotate(14deg);} 20%{transform:rotate(-8deg);} 30%{transform:rotate(14deg);} 40%{transform:rotate(-4deg);} }
+  .streak { display: flex; align-items: center; gap: 6px; background: var(--white); border-radius: 999px; padding: 8px 14px 8px 10px; box-shadow: var(--shadow); font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; color: var(--coral); }
+  .streak .flame { font-size: 18px; animation: flicker 1.6s ease-in-out infinite; }
+  @keyframes flicker { 0%,100%{transform:scale(1) rotate(-2deg);} 50%{transform:scale(1.12) rotate(3deg);} }
+
+  .section-label { font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 15px; color: var(--ink-soft); margin: 4px 0 10px 2px; }
+
+  /* ---------- Subject grid ---------- */
+  .subjects { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 26px; }
+  .tile {
+    border: none; border-radius: 22px; padding: 18px 14px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+    cursor: pointer; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px;
+    text-align: left; box-shadow: var(--shadow); transition: transform 0.12s ease;
+  }
+  .tile:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
+  .tile .emoji { font-size: 28px; }
+  .tile .progress-track { width: 100%; height: 8px; background: rgba(255,255,255,0.6); border-radius: 99px; overflow: hidden; }
+  .tile .progress-fill { height: 100%; border-radius: 99px; background: rgba(51,43,82,0.35); }
+  .tile .progress-text { font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 12px; opacity: 0.85; }
+  .no-data { text-align: center; padding: 40px 20px; color: var(--ink-soft); font-weight: 600; }
+
+  /* ---------- Lesson list screen ---------- */
+  .lesson-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--white); border-radius: 18px; padding: 14px 16px; margin-bottom: 10px;
+    box-shadow: var(--shadow); cursor: pointer; transition: transform 0.12s ease;
+  }
+  .lesson-item:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
+  .lesson-item .name { font-family: 'Quicksand', sans-serif; font-weight: 700; font-size: 15px; }
+  .lesson-item .unit { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+  .lesson-item .check { font-size: 20px; }
+
+  /* ---------- Quiz card ---------- */
+  .quiz-card { background: var(--white); border-radius: 26px; padding: 20px 18px 18px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .quiz-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .quiz-chip { background: var(--sun-soft); color: #A66A00; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; }
+  .quiz-question { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; line-height: 1.4; margin-bottom: 16px; }
+  .quiz-img { width: 100%; border-radius: 14px; margin-bottom: 14px; display: block; }
+  .answers { display: flex; flex-direction: column; gap: 10px; }
+  .answer-btn { text-align: left; border: 2px solid #EFECF6; background: var(--white); border-radius: 16px; padding: 14px 16px; font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 15px; color: var(--ink); cursor: pointer; transition: all 0.15s ease; }
+  .answer-btn:active { transform: scale(0.98); }
+  .answer-btn.correct { background: #E7F7EA; border-color: var(--leaf); color: #226B37; }
+  .answer-btn.wrong { background: #FFEBEA; border-color: var(--coral); color: #A83226; }
+  .answer-btn[disabled] { cursor: default; }
+  .feedback { margin-top: 14px; padding: 12px 14px; border-radius: 14px; font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 14px; display: none; align-items: center; gap: 8px; }
+  .feedback.show { display: flex; }
+  .feedback.good { background: #E7F7EA; color: #226B37; }
+  .feedback.retry { background: #FFF0D1; color: #8A5A00; }
+  .no-quiz { text-align: center; padding: 30px 20px; color: var(--ink-soft); font-weight: 600; }
+
+  .mark-done-btn {
+    width: 100%; border: none; background: var(--leaf); color: white;
+    font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px;
+    padding: 16px; border-radius: 18px; cursor: pointer; box-shadow: 0 6px 0 rgba(76,185,99,0.4);
+    margin-bottom: 20px; transition: transform 0.12s ease;
+  }
+  .mark-done-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(76,185,99,0.4); }
+  .mark-done-btn:disabled { background: #C7DFC9; box-shadow: none; }
+
+  /* ---------- Mood ---------- */
+  .mood-section { display: none; }
+  .mood-section.show { display: block; animation: fadeUp 0.3s ease; }
+  .mood-label { font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 15px; margin-bottom: 10px; }
+  .mood-row { display: flex; gap: 10px; }
+  .mood-btn { flex: 1; border: none; background: var(--white); border-radius: 16px; padding: 14px 0; font-size: 24px; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.12s ease; }
+  .mood-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
+  .mood-btn.picked { background: var(--sun-soft); }
+
+  .done-banner { display: none; background: linear-gradient(135deg, var(--leaf), #6FD98A); color: white; border-radius: 20px; padding: 18px; text-align: center; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; margin-top: 16px; }
+  .done-banner.show { display: block; animation: fadeUp 0.35s ease; }
+
+  .demo-tag { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-family: 'Quicksand', sans-serif; font-size: 11px; color: var(--ink-soft); opacity: 0.5; }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div id="loadingScreen" class="loading">
+    <div class="spin">🌀</div>
+    <p>Đang tải dữ liệu...</p>
+  </div>
+
+  <!-- SCREEN 1: chọn con -->
+  <div id="screenPickKid" class="screen">
+    <div class="picker-title">Chào bạn! 👋</div>
+    <div class="picker-sub">Hôm nay ai đang học nhỉ?</div>
+    <div class="kid-list" id="kidList"></div>
+  </div>
+
+  <!-- SCREEN 2: chọn môn -->
+  <div id="screenSubjects" class="screen">
+    <div class="header">
+      <div class="greet"><span class="wave">👋</span> <span id="greetName">Chào bạn</span></div>
+      <div class="streak"><span class="flame">🔥</span><span id="streakCount">0</span> ngày</div>
+    </div>
+    <div class="section-label">Hôm nay học môn gì?</div>
+    <div class="subjects" id="subjectGrid"></div>
+    <button class="back-btn" onclick="showScreen('screenPickKid')">← Đổi bạn học khác</button>
+  </div>
+
+  <!-- SCREEN 3: chọn bài -->
+  <div id="screenLessons" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screenSubjects')">←</button>
+      <div class="greet" id="subjectTitle">Môn học</div>
+      <div></div>
+    </div>
+    <div id="lessonList"></div>
+  </div>
+
+  <!-- SCREEN 4: quiz -->
+  <div id="screenQuiz" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screenLessons')">←</button>
+      <div class="greet" id="lessonTitle" style="font-size:17px;">Bài học</div>
+      <div></div>
+    </div>
+
+    <div id="quizArea"></div>
+
+    <button class="mark-done-btn" id="markDoneBtn" onclick="markDone()">✅ Đánh dấu đã học xong</button>
+
+    <div class="mood-section" id="moodSection">
+      <div class="mood-label">Bài này con thấy sao?</div>
+      <div class="mood-row">
+        <button class="mood-btn" onclick="pickMood(this,'😄')">😄</button>
+        <button class="mood-btn" onclick="pickMood(this,'🙂')">🙂</button>
+        <button class="mood-btn" onclick="pickMood(this,'😕')">😕</button>
+        <button class="mood-btn" onclick="pickMood(this,'😣')">😣</button>
+      </div>
+    </div>
+
+    <div class="done-banner" id="doneBanner">🎉 Xong rồi! Hẹn gặp lại nhé!</div>
+  </div>
+
+  <div class="demo-tag">Family OS · dữ liệu thật</div>
+</div>
+
+<script>
+// ===== CẤU HÌNH LINK - THAY ĐÚNG LINK CỦA BẠN =====
+const CSV_LESSONS = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQva3xNdOTntl65oP2jDQnValUJKdYWgvkRh85PFqi4YfoiIvy34Yz4cet5xcxruHXOCrtnMQmZ01EX/pub?gid=1899295567&single=true&output=csv";
+const CSV_KIDS    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQva3xNdOTntl65oP2jDQnValUJKdYWgvkRh85PFqi4YfoiIvy34Yz4cet5xcxruHXOCrtnMQmZ01EX/pub?gid=1721888103&single=true&output=csv";
+const CSV_QUIZ    = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQva3xNdOTntl65oP2jDQnValUJKdYWgvkRh85PFqi4YfoiIvy34Yz4cet5xcxruHXOCrtnMQmZ01EX/pub?gid=1076715050&single=true&output=csv";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
+
+const SUBJECT_META = {
+  "Toán 6 Tập 1":     { emoji: "🔢", bg: "#FFE1DC", color: "#C43F2E", short: "Toán" },
+  "Ngữ văn 6 Tập 1":  { emoji: "📖", bg: "#EBE1FF", color: "#5B3BA6", short: "Ngữ văn" },
+  "Anh ngữ 6 Tập 1":  { emoji: "🗣️", bg: "#D6F5F0", color: "#0E8577", short: "Tiếng Anh" }
+};
+
+let allLessons = [];
+let allKids = [];
+let allQuiz = [];
+let currentKid = null;
+let currentSubject = null;
+let currentLesson = null;
+let pickedMood = null;
+
+// ---------- CSV parser (đơn giản, đủ dùng cho dữ liệu không có xuống dòng trong ô) ----------
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const headers = splitCSVLine(lines[0]);
+  return lines.slice(1).map(line => {
+    const cells = splitCSVLine(line);
+    const obj = {};
+    headers.forEach((h, i) => obj[h.trim()] = (cells[i] || "").trim());
+    return obj;
+  });
+}
+function splitCSVLine(line) {
+  const result = [];
+  let cur = "", inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (c === ',' && !inQuotes) {
+      result.push(cur); cur = "";
+    } else cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+async function loadAll() {
+  try {
+    const [lText, kText, qText] = await Promise.all([
+      fetch(CSV_LESSONS).then(r => r.text()),
+      fetch(CSV_KIDS).then(r => r.text()),
+      fetch(CSV_QUIZ).then(r => r.text())
+    ]);
+    allLessons = parseCSV(lText);
+    allKids = parseCSV(kText);
+    allQuiz = parseCSV(qText);
+    renderKidPicker();
+    document.getElementById('loadingScreen').style.display = 'none';
+    showScreen('screenPickKid');
+  } catch (err) {
+    document.getElementById('loadingScreen').innerHTML =
+      '<p style="color:#C43F2E;">Không tải được dữ liệu 😢<br>Kiểm tra lại kết nối mạng nhé</p>';
+    console.error(err);
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ---------- Screen 1: chọn con ----------
+function renderKidPicker() {
+  const list = document.getElementById('kidList');
+  list.innerHTML = '';
+  allKids.forEach(kid => {
+    const btn = document.createElement('button');
+    btn.className = 'kid-card';
+    btn.innerHTML = `
+      <div class="kid-avatar" style="background:${kid['Màu']}22;">${kid['Icon']}</div>
+      <span>${kid['Tên con']}</span>
+    `;
+    btn.onclick = () => selectKid(kid);
+    list.appendChild(btn);
+  });
+}
+
+function selectKid(kid) {
+  currentKid = kid;
+  document.getElementById('greetName').textContent = 'Chào ' + kid['Tên con'];
+  document.getElementById('streakCount').textContent = '0'; // demo: streak tính sau
+  renderSubjects();
+  showScreen('screenSubjects');
+}
+
+// ---------- Screen 2: chọn môn (lọc theo Grade của con) ----------
+function renderSubjects() {
+  const grade = currentKid['Grade'];
+  const lessonsForGrade = allLessons.filter(l => l['Grade'] === grade);
+  const subjects = [...new Set(lessonsForGrade.map(l => l['Subject']))];
+
+  const grid = document.getElementById('subjectGrid');
+  grid.innerHTML = '';
+
+  if (subjects.length === 0) {
+    grid.innerHTML = `<div class="no-data" style="grid-column:1/3;">Chưa có nội dung học cho lớp ${grade} 🌱<br>Sắp có sớm thôi!</div>`;
+    return;
+  }
+
+  subjects.forEach(subj => {
+    const meta = SUBJECT_META[subj] || { emoji: "📚", bg: "#EFECF6", color: "#6B6289", short: subj };
+    const lessonsInSubj = lessonsForGrade.filter(l => l['Subject'] === subj && l['Lesson name'] && l['Lesson name'] !== 'Mục lục');
+    const total = lessonsInSubj.length;
+
+    const tile = document.createElement('button');
+    tile.className = 'tile';
+    tile.style.background = meta.bg;
+    tile.style.color = meta.color;
+    tile.innerHTML = `
+      <span class="emoji">${meta.emoji}</span>
+      <span>${meta.short}</span>
+      <div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>
+      <span class="progress-text">0/${total} bài</span>
+    `;
+    tile.onclick = () => selectSubject(subj, lessonsInSubj);
+    grid.appendChild(tile);
+  });
+}
+
+// ---------- Screen 3: chọn bài ----------
+function selectSubject(subj, lessons) {
+  currentSubject = subj;
+  const meta = SUBJECT_META[subj] || { short: subj };
+  document.getElementById('subjectTitle').textContent = meta.short;
+
+  const listEl = document.getElementById('lessonList');
+  listEl.innerHTML = '';
+  lessons.forEach(lesson => {
+    const item = document.createElement('div');
+    item.className = 'lesson-item';
+    item.innerHTML = `
+      <div>
+        <div class="name">${lesson['Lesson name']}</div>
+        <div class="unit">${lesson['Unit']}</div>
+      </div>
+      <div class="check">▶️</div>
+    `;
+    item.onclick = () => selectLesson(lesson);
+    listEl.appendChild(item);
+  });
+  showScreen('screenLessons');
+}
+
+// ---------- Screen 4: quiz ----------
+function selectLesson(lesson) {
+  currentLesson = lesson;
+  document.getElementById('lessonTitle').textContent = lesson['Lesson name'];
+  pickedMood = null;
+
+  document.getElementById('markDoneBtn').style.display = 'block';
+  document.getElementById('markDoneBtn').disabled = false;
+  document.getElementById('markDoneBtn').textContent = '✅ Đánh dấu đã học xong';
+  document.getElementById('moodSection').classList.remove('show');
+  document.getElementById('doneBanner').classList.remove('show');
+
+  const quizArea = document.getElementById('quizArea');
+  const questions = allQuiz.filter(q => q['Mã bài'] === lesson['Lesson code'] && q['Câu hỏi']);
+
+  if (questions.length === 0) {
+    quizArea.innerHTML = `<div class="no-quiz">📝 Bài này chưa có câu hỏi<br>Con có thể đọc lại nội dung rồi đánh dấu đã học nhé</div>`;
+  } else {
+    const q = questions[0]; // demo: hiện câu đầu tiên
+    let optionsHtml = '';
+    ['A','B','C','D'].forEach(letter => {
+      const val = q['Đáp án ' + letter];
+      if (val) {
+        optionsHtml += `<button class="answer-btn" data-letter="${letter}" onclick="answerQuiz(this,'${letter}','${q['Đáp án đúng']}')">${letter}. ${val}</button>`;
+      }
+    });
+    quizArea.innerHTML = `
+      <div class="quiz-card">
+        <div class="quiz-top"><span class="quiz-chip">${lesson['Unit'] || ''}</span></div>
+        ${q['Link ảnh'] ? `<img class="quiz-img" src="${toDirectDriveLink(q['Link ảnh'])}">` : ''}
+        <div class="quiz-question">${q['Câu hỏi']}</div>
+        <div class="answers">${optionsHtml}</div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+    `;
+  }
+  showScreen('screenQuiz');
+}
+
+function toDirectDriveLink(url) {
+  const match = url.match(/\/d\/(.+?)\//);
+  if (match) return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  return url;
+}
+
+function answerQuiz(btn, letter, correctLetter) {
+  document.querySelectorAll('#quizArea .answer-btn').forEach(b => b.disabled = true);
+  const fb = document.getElementById('feedback');
+  if (letter === correctLetter) {
+    btn.classList.add('correct');
+    fb.className = 'feedback show good';
+    fb.innerHTML = '🌟 Chính xác luôn!';
+  } else {
+    btn.classList.add('wrong');
+    fb.className = 'feedback show retry';
+    fb.innerHTML = '💡 Gần đúng rồi, xem lại bài nhé';
+    document.querySelectorAll('#quizArea .answer-btn').forEach(b => {
+      if (b.dataset.letter === correctLetter) b.classList.add('correct');
+    });
+  }
+}
+
+function markDone() {
+  const btn = document.getElementById('markDoneBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang lưu...';
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      tenCon: currentKid['Tên con'],
+      maBai: currentLesson['Lesson code'],
+      trangThai: 'Đã học',
+      mood: ''
+    })
+  }).then(() => {
+    btn.textContent = '✅ Đã lưu!';
+    document.getElementById('moodSection').classList.add('show');
+  }).catch(() => {
+    btn.textContent = '⚠️ Lỗi lưu, thử lại';
+    btn.disabled = false;
+  });
+}
+
+function pickMood(btn, emoji) {
+  document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('picked'));
+  btn.classList.add('picked');
+  pickedMood = emoji;
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      tenCon: currentKid['Tên con'],
+      maBai: currentLesson['Lesson code'],
+      trangThai: 'Mood',
+      mood: emoji
+    })
+  }).then(() => {
+    document.getElementById('doneBanner').classList.add('show');
+  });
+}
+
+loadAll();
+</script>
+</body>
+</html>
