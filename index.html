@@ -105,6 +105,9 @@
   .ds-buttons { display: flex; gap: 8px; }
   .ds-btn { flex: 1; border: 2px solid #EFECF6; background: var(--white); border-radius: 12px; padding: 8px 0; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; }
   .ds-btn[disabled] { cursor: default; opacity: 0.7; }
+  .explain-btn { margin-top: 14px; background: #F3F0FA; border: none; border-radius: 14px; padding: 10px 14px; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 13px; color: #5B3BA6; cursor: pointer; width: 100%; }
+  .explain-box { margin-top: 10px; background: #FFFBEA; border-radius: 14px; padding: 12px 14px; font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 13.5px; line-height: 1.5; color: #6B5900; }
+  .explain-box div + div { margin-top: 8px; }
   .feedback { margin-top: 14px; padding: 12px 14px; border-radius: 14px; font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 14px; display: none; align-items: center; gap: 8px; }
   .feedback.show { display: flex; }
   .feedback.good { background: #E7F7EA; color: #226B37; }
@@ -426,20 +429,36 @@ function selectLesson(lesson) {
 
   const quizArea = document.getElementById('quizArea');
 
-  // Ưu tiên: kiểm tra có nhóm câu Đúng/Sai (Toán) khớp mã bài này không
+  // Kiểm tra dữ liệu ở cả 2 nguồn cho bài này
   const toanRows = allQuizToan.filter(r => r['Mã bài'] === lesson['Lesson code']);
-  if (toanRows.length > 0) {
+  const abcQuestions = allQuiz.filter(q => q['Mã bài'] === lesson['Lesson code'] && q['Câu hỏi']);
+
+  const hasToan = toanRows.length > 0;
+  const hasAbc = abcQuestions.length > 0;
+
+  let showToan;
+  if (hasToan && hasAbc) {
+    // Cả 2 nguồn đều có: random mỗi lần vào bài, tỉ lệ 60% cơ bản (ABC) / 40% năng lực (Đúng-Sai)
+    showToan = Math.random() < 0.4;
+  } else if (hasToan) {
+    showToan = true;
+  } else if (hasAbc) {
+    showToan = false;
+  } else {
+    quizArea.innerHTML = `<div class="no-quiz">📝 Bài này chưa có câu hỏi<br>Con có thể đọc lại nội dung rồi đánh dấu đã học nhé</div>`;
+    showScreen('screenQuiz');
+    return;
+  }
+
+  if (showToan) {
     renderToanQuizGroup(toanRows, quizArea);
     showScreen('screenQuiz');
     return;
   }
 
-  // Ngược lại: giữ nguyên hành vi cũ (A/B/C/D, dùng cho Anh)
-  const questions = allQuiz.filter(q => q['Mã bài'] === lesson['Lesson code'] && q['Câu hỏi']);
-
-  if (questions.length === 0) {
-    quizArea.innerHTML = `<div class="no-quiz">📝 Bài này chưa có câu hỏi<br>Con có thể đọc lại nội dung rồi đánh dấu đã học nhé</div>`;
-  } else {
+  // Dạng A/B/C/D (cơ bản)
+  const questions = abcQuestions;
+  {
     const q = questions[0];
     let optionsHtml = '';
     ['A','B','C','D'].forEach(letter => {
@@ -453,8 +472,11 @@ function selectLesson(lesson) {
         <div class="quiz-question">${q['Câu hỏi']}</div>
         <div class="answers">${optionsHtml}</div>
         <div class="feedback" id="feedback"></div>
+        <button class="explain-btn" id="explainBtn" style="display:none" onclick="toggleExplain('abc')">👀 Xem giải thích</button>
+        <div class="explain-box" id="explainBox" style="display:none"></div>
       </div>
     `;
+    window._currentAbcQ = q;
   }
   showScreen('screenQuiz');
 }
@@ -482,6 +504,8 @@ function renderToanQuizGroup(rows, quizArea) {
       ${context ? `<div class="ds-context">${context['Bối cảnh']}</div>` : ''}
       <div class="ds-list">${stmtHtml}</div>
       <div class="feedback" id="feedback"></div>
+      <button class="explain-btn" id="explainBtn" style="display:none" onclick="toggleExplain('ds')">👀 Xem giải thích</button>
+      <div class="explain-box" id="explainBox" style="display:none"></div>
     </div>
   `;
 
@@ -489,6 +513,7 @@ function renderToanQuizGroup(rows, quizArea) {
   window._dsAnswers = new Array(statements.length).fill(null);
   window._dsCorrect = statements.map(s => s['Đúng/Sai']);
   window._dsSkills = statements.map(s => s['Năng lực']);
+  window._dsExplain = statements.map(s => s['Giải thích'] || '');
 }
 
 function answerDS(idx, chosen, correct) {
@@ -509,6 +534,18 @@ function answerDS(idx, chosen, correct) {
     const fb = document.getElementById('feedback');
     fb.className = 'feedback show ' + (soDung === window._dsAnswers.length ? 'good' : 'retry');
     fb.innerHTML = `🎯 Đúng ${soDung}/${window._dsAnswers.length} ý — điểm: ${diem}`;
+    document.getElementById('explainBtn').style.display = 'block';
+
+    // ghi Progress chi tiết từng phát biểu (mỗi phát biểu 1 dòng)
+    window._dsAnswers.forEach((correct, i) => {
+      fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Trả lời câu hỏi', mood: '',
+          dang: 'Năng lực', skill: window._dsSkills[i] || '', level: '', dungSai: correct ? 'Đúng' : 'Sai'
+        })
+      }).catch(() => {});
+    });
   }
 }
 
@@ -522,7 +559,8 @@ function toDirectDriveLink(url) {
 function answerQuiz(btn, letter, correctLetter) {
   document.querySelectorAll('#quizArea .answer-btn').forEach(b => b.disabled = true);
   const fb = document.getElementById('feedback');
-  if (letter === correctLetter) {
+  const isRight = letter === correctLetter;
+  if (isRight) {
     btn.classList.add('correct');
     fb.className = 'feedback show good';
     fb.innerHTML = '🌟 Chính xác luôn!';
@@ -534,6 +572,29 @@ function answerQuiz(btn, letter, correctLetter) {
       if (b.dataset.letter === correctLetter) b.classList.add('correct');
     });
   }
+  document.getElementById('explainBtn').style.display = 'block';
+
+  const q = window._currentAbcQ;
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Trả lời câu hỏi', mood: '',
+      dang: 'Cơ bản', skill: q['Skill'] || '', level: q['Level'] || '', dungSai: isRight ? 'Đúng' : 'Sai'
+    })
+  }).catch(() => {});
+}
+
+function toggleExplain(kind) {
+  const box = document.getElementById('explainBox');
+  if (box.style.display === 'block') { box.style.display = 'none'; return; }
+  if (kind === 'abc') {
+    const q = window._currentAbcQ;
+    box.innerHTML = q['Giải thích'] ? `💡 ${q['Giải thích']}` : 'Chưa có giải thích cho câu này.';
+  } else {
+    const items = window._dsExplain || [];
+    box.innerHTML = items.map((t,i) => `<div><b>${String.fromCharCode(97+i)})</b> ${t || 'Chưa có giải thích'}</div>`).join('');
+  }
+  box.style.display = 'block';
 }
 
 function markDone() {
