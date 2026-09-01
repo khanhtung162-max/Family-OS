@@ -95,6 +95,16 @@
   .answer-btn.correct { background: #E7F7EA; border-color: var(--leaf); color: #226B37; }
   .answer-btn.wrong { background: #FFEBEA; border-color: var(--coral); color: #A83226; }
   .answer-btn[disabled] { cursor: default; }
+
+  .ds-context { background: #F3F0FA; border-radius: 16px; padding: 14px 16px; font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 14.5px; line-height: 1.5; color: var(--ink); margin-bottom: 16px; }
+  .ds-list { display: flex; flex-direction: column; gap: 12px; }
+  .ds-statement { border: 2px solid #EFECF6; border-radius: 16px; padding: 12px 14px; transition: all 0.15s ease; }
+  .ds-statement.ds-right { background: #E7F7EA; border-color: var(--leaf); }
+  .ds-statement.ds-wrong { background: #FFEBEA; border-color: var(--coral); }
+  .ds-text { font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 14.5px; line-height: 1.4; margin-bottom: 10px; }
+  .ds-buttons { display: flex; gap: 8px; }
+  .ds-btn { flex: 1; border: 2px solid #EFECF6; background: var(--white); border-radius: 12px; padding: 8px 0; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .ds-btn[disabled] { cursor: default; opacity: 0.7; }
   .feedback { margin-top: 14px; padding: 12px 14px; border-radius: 14px; font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 14px; display: none; align-items: center; gap: 8px; }
   .feedback.show { display: flex; }
   .feedback.good { background: #E7F7EA; color: #226B37; }
@@ -179,16 +189,20 @@
 const CSV_LESSONS = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1899295567";
 const CSV_KIDS    = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1721888103";
 const CSV_QUIZ    = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1076715050";
+const CSV_QUIZ_TOAN = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=884854779";
 const CSV_PROGRESS = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1514932059";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
 
 const SUBJECT_META = {
   "Toán 6 Tập 1":     { emoji: "🔢", bg: "#FFE1DC", color: "#C43F2E", short: "Toán" },
   "Ngữ văn 6 Tập 1":  { emoji: "📖", bg: "#EBE1FF", color: "#5B3BA6", short: "Ngữ văn" },
-  "Anh ngữ 6 Tập 1":  { emoji: "🗣️", bg: "#D6F5F0", color: "#0E8577", short: "Tiếng Anh" }
+  "Anh ngữ 6 Tập 1":  { emoji: "🗣️", bg: "#D6F5F0", color: "#0E8577", short: "Tiếng Anh" },
+  "Toán 4 Tập 1":     { emoji: "🔢", bg: "#FFE1DC", color: "#C43F2E", short: "Toán" },
+  "Tiếng việt 4 Tập 1": { emoji: "📖", bg: "#EBE1FF", color: "#5B3BA6", short: "Tiếng Việt" },
+  "Anh ngữ 4 Tập 1":  { emoji: "🗣️", bg: "#D6F5F0", color: "#0E8577", short: "Tiếng Anh" }
 };
 
-let allLessons = [], allKids = [], allQuiz = [], allProgress = [];
+let allLessons = [], allKids = [], allQuiz = [], allProgress = [], allQuizToan = [];
 let currentKid = null, currentSubject = null, currentLesson = null, currentTerm = 'HK1';
 let learnedThisSession = new Set(); // theo dõi tạm trong phiên (client-side)
 const TERM_LIST = [
@@ -252,6 +266,16 @@ async function loadAll() {
     allKids = parseCSV(kText);
     allQuiz = parseCSV(qText);
     allProgress = parseCSV(pText);
+
+    // Tải Quiz Toán riêng, không chặn app nếu lỗi (link chưa gắn đúng gid hoặc chưa có dữ liệu)
+    try {
+      const tText = await fetch(CSV_QUIZ_TOAN).then(r => r.text());
+      allQuizToan = parseCSV(tText);
+    } catch (e) {
+      console.warn('Chưa tải được Quiz Toán, bỏ qua:', e);
+      allQuizToan = [];
+    }
+
     renderKidPicker();
     document.getElementById('loadingScreen').style.display = 'none';
     showScreen('screenPickKid');
@@ -401,6 +425,16 @@ function selectLesson(lesson) {
   document.getElementById('doneBanner').classList.remove('show');
 
   const quizArea = document.getElementById('quizArea');
+
+  // Ưu tiên: kiểm tra có nhóm câu Đúng/Sai (Toán) khớp mã bài này không
+  const toanRows = allQuizToan.filter(r => r['Mã bài'] === lesson['Lesson code']);
+  if (toanRows.length > 0) {
+    renderToanQuizGroup(toanRows, quizArea);
+    showScreen('screenQuiz');
+    return;
+  }
+
+  // Ngược lại: giữ nguyên hành vi cũ (A/B/C/D, dùng cho Anh)
   const questions = allQuiz.filter(q => q['Mã bài'] === lesson['Lesson code'] && q['Câu hỏi']);
 
   if (questions.length === 0) {
@@ -424,6 +458,60 @@ function selectLesson(lesson) {
   }
   showScreen('screenQuiz');
 }
+
+// ==== QUIZ TOÁN: nhóm Đúng/Sai nhiều phát biểu, chấm điểm từng phần theo đúng thang Bộ GD-ĐT ====
+function renderToanQuizGroup(rows, quizArea) {
+  const context = rows.find(r => r['Loại'] === 'Context');
+  const statements = rows.filter(r => r['Loại'] === 'Statement');
+
+  let stmtHtml = '';
+  statements.forEach((s, i) => {
+    stmtHtml += `
+      <div class="ds-statement" id="ds-stmt-${i}">
+        <div class="ds-text"><b>${String.fromCharCode(97+i)})</b> ${s['Phát biểu']}</div>
+        <div class="ds-buttons">
+          <button class="ds-btn" onclick="answerDS(${i},'Đúng','${s['Đúng/Sai']}')">Đúng</button>
+          <button class="ds-btn" onclick="answerDS(${i},'Sai','${s['Đúng/Sai']}')">Sai</button>
+        </div>
+      </div>`;
+  });
+
+  quizArea.innerHTML = `
+    <div class="quiz-card">
+      <div class="quiz-top"><span class="quiz-chip">${currentLesson['Unit'] || ''}</span></div>
+      ${context ? `<div class="ds-context">${context['Bối cảnh']}</div>` : ''}
+      <div class="ds-list">${stmtHtml}</div>
+      <div class="feedback" id="feedback"></div>
+    </div>
+  `;
+
+  // lưu trạng thái chấm điểm phiên này
+  window._dsAnswers = new Array(statements.length).fill(null);
+  window._dsCorrect = statements.map(s => s['Đúng/Sai']);
+  window._dsSkills = statements.map(s => s['Năng lực']);
+}
+
+function answerDS(idx, chosen, correct) {
+  const el = document.getElementById('ds-stmt-' + idx);
+  el.querySelectorAll('.ds-btn').forEach(b => b.disabled = true);
+  const isRight = chosen === correct;
+  el.classList.add(isRight ? 'ds-right' : 'ds-wrong');
+  window._dsAnswers[idx] = isRight;
+
+  // khi đủ tất cả các phát biểu đã trả lời, tính điểm theo thang Bộ GD-ĐT
+  if (window._dsAnswers.every(a => a !== null)) {
+    const soDung = window._dsAnswers.filter(a => a === true).length;
+    let diem = 0;
+    if (soDung === 1) diem = 0.1;
+    else if (soDung === 2) diem = 0.25;
+    else if (soDung === 3) diem = 0.5;
+    else if (soDung === 4) diem = 1;
+    const fb = document.getElementById('feedback');
+    fb.className = 'feedback show ' + (soDung === window._dsAnswers.length ? 'good' : 'retry');
+    fb.innerHTML = `🎯 Đúng ${soDung}/${window._dsAnswers.length} ý — điểm: ${diem}`;
+  }
+}
+
 
 function toDirectDriveLink(url) {
   const match = url.match(/\/d\/(.+?)\//);
