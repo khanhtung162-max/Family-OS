@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family OS — Bố mẹ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --ink:#2b2a28; --paper:#f7f4ee; --paper-raised:#fffdf9;
+    --line:#e3ddd0; --moss:#4f6152; --moss-soft:#e7ede7;
+    --clay:#a85a3d; --clay-soft:#f3e3da; --gold:#b6862c; --gold-soft:#f4ebd6;
+    --muted:#8a8478; --danger:#a34848;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:32px 16px 80px;}
+  .wrap{max-width:900px;margin:0 auto;}
+
+  .top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;border-bottom:1px solid var(--line);padding-bottom:20px;flex-wrap:wrap;gap:12px;}
+  .top h1{font-family:'Source Serif 4',serif;font-weight:600;font-size:28px;margin:0 0 4px;}
+  .top p{margin:0;color:var(--muted);font-size:14px;}
+  .kidpicker{display:flex;gap:8px;flex-wrap:wrap;}
+  .kidpill{padding:7px 16px;border-radius:999px;font-size:14px;font-weight:500;border:1px solid var(--line);background:var(--paper-raised);color:var(--muted);cursor:pointer;}
+  .kidpill.active{background:var(--moss);border-color:var(--moss);color:#fff;}
+
+  section{margin-bottom:36px;}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;gap:16px;flex-wrap:wrap;}
+  .sec-head h2{font-family:'Source Serif 4',serif;font-size:19px;font-weight:600;margin:0;}
+  .sec-head .why{font-size:12.5px;color:var(--muted);max-width:340px;text-align:right;line-height:1.4;}
+
+  .overview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  @media (max-width:640px){.overview-grid{grid-template-columns:1fr;}}
+  .ov-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .ov-card .label{font-size:12.5px;color:var(--muted);margin-bottom:6px;}
+  .ov-card .value{font-family:'Source Serif 4',serif;font-size:24px;font-weight:600;}
+  .ov-card .sub{font-size:12px;color:var(--muted);margin-top:4px;}
+  .ov-card.warn .value,.ov-card.warn .sub{color:var(--danger);}
+
+  .subject-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+  .subj-tab{font-size:13px;padding:6px 14px;border-radius:8px;border:1px solid var(--line);color:var(--muted);background:var(--paper-raised);cursor:pointer;}
+  .subj-tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .skill-table{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  .skill-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 90px;align-items:center;padding:13px 18px;border-bottom:1px solid var(--line);gap:10px;}
+  .skill-row:last-child{border-bottom:none;}
+  .skill-row.head{background:var(--paper);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:9px 18px;}
+  .skill-name{font-weight:600;font-size:14px;}
+  .lvl-cell{display:flex;flex-direction:column;gap:4px;}
+  .bar-track{background:var(--line);height:6px;border-radius:4px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:4px;background:var(--moss);}
+  .lvl-pct{font-size:12px;font-weight:600;}
+  .empty-note{padding:24px;text-align:center;color:var(--muted);font-size:13.5px;}
+
+  .creative-card{background:var(--gold-soft);border:1px solid #e2cd97;border-radius:14px;padding:22px 24px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;}
+  .creative-ring{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;}
+  .creative-ring::after{content:"";position:absolute;width:66px;height:66px;border-radius:50%;background:var(--gold-soft);}
+  .creative-ring span{position:relative;font-family:'Source Serif 4',serif;font-size:20px;font-weight:700;color:var(--gold);}
+  .creative-text h3{font-family:'Source Serif 4',serif;margin:0 0 6px;font-size:17px;}
+  .creative-text p{margin:0;font-size:13.5px;color:#6b5323;line-height:1.5;}
+  .creative-locked{background:var(--paper-raised);border:1px dashed var(--line);border-radius:14px;padding:20px 24px;color:var(--muted);font-size:13.5px;line-height:1.5;}
+  .creative-locked b{color:var(--ink);}
+
+  .mood-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .mood-strip{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .mood-day{flex:1;min-width:36px;text-align:center;}
+  .mood-day .dow{font-size:10.5px;color:var(--muted);margin-bottom:6px;}
+  .mood-day .emoji{font-size:20px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;background:var(--paper);border:1px solid var(--line);}
+  .mood-day.none .emoji{opacity:.3;font-size:14px;}
+  .mood-flag{margin-top:12px;background:var(--clay-soft);border:1px solid #e3c3af;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#7a3d24;line-height:1.5;}
+
+  .behavior-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:640px){.behavior-grid{grid-template-columns:1fr;}}
+  .explain-card{background:var(--moss-soft);border:1px solid #cdddcc;border-radius:12px;padding:18px 20px;}
+  .explain-card .big{font-family:'Source Serif 4',serif;font-size:30px;font-weight:700;color:var(--moss);}
+  .explain-card .lbl{font-size:13px;color:#3f4f41;margin-top:2px;}
+
+  .recent-wrong{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+  .recent-wrong .lbl{font-size:13px;font-weight:600;margin-bottom:10px;}
+  .wrong-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px;flex-wrap:wrap;}
+  .wrong-item:last-child{border-bottom:none;}
+  .wrong-item .code{font-size:11px;color:var(--muted);background:var(--paper);padding:2px 7px;border-radius:5px;}
+
+  .actionbar{display:flex;justify-content:flex-end;margin-bottom:14px;}
+  .btn{font-size:13px;padding:8px 16px;border-radius:8px;border:1px solid var(--line);background:var(--paper-raised);cursor:pointer;color:var(--ink);}
+  .btn.danger{background:var(--clay-soft);border-color:#e3c3af;color:var(--clay);}
+  .btn.small{font-size:12px;padding:4px 10px;}
+
+  .recent-log{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+  .log-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px;flex-wrap:wrap;}
+  .log-item:last-child{border-bottom:none;}
+  .log-item .time{font-size:11px;color:var(--muted);}
+
+  .baoloi-item{padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .baoloi-item:last-child{border-bottom:none;}
+  .baoloi-item .meta{font-size:11px;color:var(--muted);margin-top:2px;}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--clay-soft);color:var(--clay);}
+  .badge.done{background:var(--moss-soft);color:var(--moss);}
+
+  .loading{text-align:center;padding:60px 0;color:var(--muted);}
+  footer{text-align:center;font-size:12px;color:var(--muted);margin-top:40px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="loading" class="loading">Đang tải dữ liệu...</div>
+
+  <div id="app" style="display:none;">
+    <div class="top">
+      <div>
+        <h1>Bố mẹ</h1>
+        <p id="updated-at"></p>
+      </div>
+      <div class="kidpicker" id="kidpicker"></div>
+    </div>
+
+    <section>
+      <div class="sec-head">
+        <h2>Tổng quan</h2>
+        <div class="why">Trước khi đọc chi tiết bên dưới — biết đủ dữ liệu chưa và con có đang bỏ bẵng không.</div>
+      </div>
+      <div class="overview-grid" id="overview"></div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Con mạnh / yếu ở đâu</h2>
+        <div class="why">Tách riêng theo Level — sai ở Level 3 khác ý nghĩa với sai ở Level 1, không gộp chung một con số.</div>
+      </div>
+      <div class="subject-tabs" id="subject-tabs"></div>
+      <div class="skill-table" id="skill-table"></div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Dấu hiệu cảm xúc</h2>
+        <div class="why">Con tự chọn biểu tượng sau mỗi lần học — không phải điểm số, nhưng là tín hiệu sớm nếu con đang gượng ép hoặc chán.</div>
+      </div>
+      <div class="mood-card" id="mood-card"></div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Sáng tạo (thử nghiệm)</h2>
+        <div class="why">Dựa trên % đúng ở Level 3 toàn bộ các môn — cần tối thiểu 20 câu Level 3 trong tháng mới đủ tin cậy để hiển thị.</div>
+      </div>
+      <div id="creative-block"></div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Con có đang học từ cái sai không</h2>
+        <div class="why">Đúng/sai không nói hết — tín hiệu này cho biết con có tự tìm hiểu khi vấp hay chỉ lướt qua.</div>
+      </div>
+      <div class="behavior-grid">
+        <div class="explain-card" id="explain-rate"></div>
+        <div class="recent-wrong" id="recent-wrong"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Bài đã học gần đây (hoàn tác trong 24h)</h2>
+        <div class="why">Bấm nhầm "Đã học"? Xoá được trong vòng 24 giờ kể từ lúc bấm — sau đó cần báo lỗi bên dưới.</div>
+      </div>
+      <div class="recent-log" id="recent-log"></div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Báo lỗi</h2>
+        <div class="why">Ghi lại bất thường (VD trạng thái nhảy bài không rõ lý do) để xử lý sau, không lẫn vào dữ liệu học thật.</div>
+      </div>
+      <div class="actionbar">
+        <button class="btn danger" onclick="openReportForm()">+ Báo lỗi mới</button>
+      </div>
+      <div id="baoloi-list"></div>
+    </section>
+
+    <footer>Dữ liệu tổng hợp từ Progress — dùng để hiểu con, không phải để chấm điểm.</footer>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CẤU HÌNH — thay đúng 4 nguồn dữ liệu đã lấy
+// ============================================================
+const PROGRESS_CSV = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1514932059";
+const SKILLS_CSV   = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=963482137";
+const BAOLOI_CSV   = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1540528384";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
+
+// Mapping tiền tố mã bài -> môn học (mở rộng thêm khi có Bài mới)
+const SUBJECT_PREFIX = {
+  "HK1-TO6": "Toán", "HK1-TO4": "Toán",
+  "HK1-NV6": "Ngữ văn",
+  "HK1-AN6": "Tiếng Anh", "HK1-AN4": "Tiếng Anh"
+};
+function subjectOf(maBai){
+  for (const prefix in SUBJECT_PREFIX){
+    if (maBai && maBai.startsWith(prefix)) return SUBJECT_PREFIX[prefix];
+  }
+  return "Khác";
+}
+
+const MOOD_LABEL = {
+  "\ud83d\ude04":"vui", "\ud83d\ude42":"binh-thuong", "\ud83d\ude05":"kho",
+  "\ud83d\ude25":"buon", "\ud83d\ude1e":"buon"
+};
+
+let PROGRESS = [], SKILLS = [], BAOLOI = [];
+let currentKid = null;
+let currentSubject = null;
+
+// ============================================================
+// CSV PARSER (xử lý đúng dấu phẩy trong ô có ngoặc kép)
+// ============================================================
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i], next = text[i+1];
+    if (inQuotes){
+      if (c === '"' && next === '"'){ field += '"'; i++; }
+      else if (c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"'){ inQuotes = true; }
+      else if (c === ','){ row.push(field); field = ""; }
+      else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c === '\r'){ /* skip */ }
+      else { field += c; }
+    }
+  }
+  if (field.length || row.length){ row.push(field); rows.push(row); }
+  const header = rows.shift().map(h => h.trim());
+  return rows.filter(r => r.length > 1 || r[0] !== "").map(r => {
+    const obj = {};
+    header.forEach((h, idx) => obj[h] = (r[idx] || "").trim());
+    return obj;
+  });
+}
+
+async function fetchCSV(url){
+  const res = await fetch(url);
+  const text = await res.text();
+  return parseCSV(text);
+}
+
+// ============================================================
+// LOAD DATA
+// ============================================================
+async function loadAll(){
+  try {
+    [PROGRESS, SKILLS, BAOLOI] = await Promise.all([
+      fetchCSV(PROGRESS_CSV), fetchCSV(SKILLS_CSV), fetchCSV(BAOLOI_CSV)
+    ]);
+  } catch (err){
+    document.getElementById('loading').textContent = "Không tải được dữ liệu — kiểm tra lại quyền chia sẻ Sheet. (" + err.message + ")";
+    return;
+  }
+
+  const kids = [...new Set(PROGRESS.map(r => r["Tên con"]).filter(Boolean))];
+  currentKid = kids[0];
+  renderKidPicker(kids);
+  renderAll();
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('updated-at').textContent =
+    "Cập nhật lúc " + new Date().toLocaleString('vi-VN');
+}
+
+function renderKidPicker(kids){
+  const el = document.getElementById('kidpicker');
+  el.innerHTML = kids.map(k =>
+    `<div class="kidpill ${k===currentKid?'active':''}" onclick="selectKid('${k}')">${k}</div>`
+  ).join('');
+}
+function selectKid(k){ currentKid = k; renderKidPicker([...new Set(PROGRESS.map(r=>r["Tên con"]))]); renderAll(); }
+
+function renderAll(){
+  const rows = PROGRESS.filter(r => r["Tên con"] === currentKid);
+  renderOverview(rows);
+  renderSubjectTabsAndSkills(rows);
+  renderMood(rows);
+  renderCreative(rows);
+  renderBehavior(rows);
+  renderRecentLog(rows);
+  renderBaoLoi();
+}
+
+// ============================================================
+// 1. TỔNG QUAN
+// ============================================================
+function renderOverview(rows){
+  const learned = new Set(rows.filter(r => r["Trạng thái"] === "Đã học").map(r => r["Mã bài"]));
+  const dates = rows.map(r => new Date(r["Ngày giờ"])).filter(d => !isNaN(d));
+  const lastDate = dates.length ? new Date(Math.max(...dates)) : null;
+
+  const daysSince = lastDate ? Math.floor((new Date() - lastDate) / 86400000) : null;
+  const warn = daysSince !== null && daysSince >= 3;
+
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const answered7d = rows.filter(r => r["Dạng"] && new Date(r["Ngày giờ"]) >= weekAgo).length;
+
+  document.getElementById('overview').innerHTML = `
+    <div class="ov-card">
+      <div class="label">Bài đã đánh dấu "Đã học"</div>
+      <div class="value">${learned.size}</div>
+      <div class="sub">Tính theo mã bài duy nhất</div>
+    </div>
+    <div class="ov-card ${warn?'warn':''}">
+      <div class="label">Học gần nhất</div>
+      <div class="value">${lastDate ? formatRelativeDay(lastDate) : 'Chưa có dữ liệu'}</div>
+      <div class="sub">${lastDate ? lastDate.toLocaleString('vi-VN') : ''}</div>
+    </div>
+    <div class="ov-card">
+      <div class="label">Câu đã trả lời (7 ngày)</div>
+      <div class="value">${answered7d}</div>
+      <div class="sub">${answered7d < 15 ? 'Còn ít, các số bên dưới có thể chưa ổn định' : 'Đủ để đọc xu hướng tuần này'}</div>
+    </div>
+  `;
+}
+function formatRelativeDay(d){
+  const days = Math.floor((new Date() - d) / 86400000);
+  if (days === 0) return "Hôm nay";
+  if (days === 1) return "Hôm qua";
+  return days + " ngày trước";
+}
+
+// ============================================================
+// 2. SKILL BREAKDOWN theo môn, Level 1/2/3 (chỉ tính Dạng=Cơ bản, có Level)
+// ============================================================
+function renderSubjectTabsAndSkills(rows){
+  const subjects = [...new Set(rows.map(r => subjectOf(r["Mã bài"])).filter(s => s !== "Khác"))];
+  if (!subjects.length){ subjects.push("Toán"); }
+  if (!currentSubject || !subjects.includes(currentSubject)) currentSubject = subjects[0];
+
+  document.getElementById('subject-tabs').innerHTML = subjects.map(s =>
+    `<div class="subj-tab ${s===currentSubject?'active':''}" onclick="selectSubject('${s}', event)">${s}</div>`
+  ).join('');
+
+  renderSkillTable(rows, currentSubject);
+}
+function selectSubject(s){ currentSubject = s; renderAll(); }
+
+function renderSkillTable(rows, subject){
+  const cb = rows.filter(r =>
+    r["Dạng"] === "Cơ bản" && r["Skill/Năng lực"] && r["Level"] &&
+    subjectOf(r["Mã bài"]) === subject
+  );
+
+  if (!cb.length){
+    document.getElementById('skill-table').innerHTML =
+      `<div class="empty-note">Chưa có đủ dữ liệu quiz Cơ bản cho môn ${subject} của con này.</div>`;
+    return;
+  }
+
+  const bySkill = {};
+  cb.forEach(r => {
+    const sk = r["Skill/Năng lực"];
+    const lv = r["Level"];
+    if (!bySkill[sk]) bySkill[sk] = {1:{d:0,t:0},2:{d:0,t:0},3:{d:0,t:0}};
+    if (!bySkill[sk][lv]) return;
+    bySkill[sk][lv].t++;
+    if (r["Đúng/Sai"] === "Đúng") bySkill[sk][lv].d++;
+  });
+
+  let html = `<div class="skill-row head">
+    <div>Skill</div><div>Lv1 · Nhận biết</div><div>Lv2 · Hiểu &amp; áp dụng</div><div>Lv3 · Chuyển hoá</div><div></div>
+  </div>`;
+
+  Object.keys(bySkill).forEach(sk => {
+    const lv = bySkill[sk];
+    html += `<div class="skill-row">
+      <div class="skill-name">${sk}</div>
+      ${[1,2,3].map(l => lvCell(lv[l])).join('')}
+      <div></div>
+    </div>`;
+  });
+
+  document.getElementById('skill-table').innerHTML = html;
+}
+function lvCell(v){
+  if (!v || v.t === 0) return `<div class="lvl-cell"><div class="bar-track"></div><span class="lvl-pct">— chưa có</span></div>`;
+  const pct = Math.round((v.d / v.t) * 100);
+  return `<div class="lvl-cell">
+    <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+    <span class="lvl-pct">${pct}% (${v.d}/${v.t})</span>
+  </div>`;
+}
+
+// ============================================================
+// 3. CẢM XÚC — 7 ngày gần nhất
+// ============================================================
+function renderMood(rows){
+  const moods = rows.filter(r => r["Trạng thái"] === "Mood" && r["Mood"]);
+  const days = [];
+  for (let i = 6; i >= 0; i--){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    const dow = ["CN","T2","T3","T4","T5","T6","T7"][d.getDay()];
+    const found = moods.filter(m => m["Ngày giờ"].slice(0,10) === key);
+    days.push({dow, emoji: found.length ? found[found.length-1]["Mood"] : null});
+  }
+
+  const strip = days.map(d => `
+    <div class="mood-day ${d.emoji?'':'none'}">
+      <div class="dow">${d.dow}</div>
+      <div class="emoji">${d.emoji || '–'}</div>
+    </div>`).join('');
+
+  const noDataDays = days.filter(d => !d.emoji).length;
+  const hardDays = days.filter(d => d.emoji === "\ud83d\ude05" || d.emoji === "\ud83d\ude25").length;
+
+  let flag = "";
+  if (hardDays >= 2){
+    flag = `<div class="mood-flag">Có ${hardDays} ngày trong tuần con chọn biểu tượng "hơi khó/mệt" — đáng để hỏi han con xem đang vướng ở đâu.</div>`;
+  }
+
+  document.getElementById('mood-card').innerHTML = `
+    <div class="mood-strip">${strip}</div>
+    <div style="font-size:12px;color:var(--muted)">${noDataDays} ngày không có dữ liệu mood trong 7 ngày qua.</div>
+    ${flag}
+  `;
+}
+
+// ============================================================
+// 4. SÁNG TẠO — % đúng Level 3, ngưỡng tối thiểu 20 câu, theo tháng
+// ============================================================
+function renderCreative(rows){
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lv3 = rows.filter(r => r["Level"] === "3" && new Date(r["Ngày giờ"]) >= monthStart);
+
+  if (lv3.length < 20){
+    document.getElementById('creative-block').innerHTML = `
+      <div class="creative-locked">
+        Chưa đủ dữ liệu để hiển thị — con mới làm <b>${lv3.length}/20</b> câu Level 3 cần thiết trong tháng này.
+        Chỉ số sẽ xuất hiện khi đạt đủ ngưỡng.
+      </div>`;
+    return;
+  }
+
+  const correct = lv3.filter(r => r["Đúng/Sai"] === "Đúng").length;
+  const pct = Math.round((correct / lv3.length) * 100);
+
+  document.getElementById('creative-block').innerHTML = `
+    <div class="creative-card">
+      <div class="creative-ring" style="background:conic-gradient(var(--gold) 0% ${pct}%, #e9dcb8 ${pct}% 100%);">
+        <span>${pct}%</span>
+      </div>
+      <div class="creative-text">
+        <h3>Dựa trên ${lv3.length} câu Level 3 trong tháng này</h3>
+        <p>Đúng ${correct}/${lv3.length} câu — đây là proxy tạm thời, xem theo xu hướng tháng qua tháng, không phải điểm đánh giá tuyệt đối.</p>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// 5. HÀNH VI — tỷ lệ xem giải thích + câu sai gần đây
+// Lưu ý: Progress hiện CHƯA có cột ghi lại việc bấm "Xem giải thích".
+// Phần % bên dưới tạm ẩn cho tới khi cột đó được thêm — chỉ hiện câu sai gần đây trước.
+// ============================================================
+function renderBehavior(rows){
+  document.getElementById('explain-rate').innerHTML = `
+    <div class="big">—</div>
+    <div class="lbl">Chưa có dữ liệu "Xem giải thích"</div>
+    <div class="note" style="font-size:12px;color:#5c6b5e;margin-top:10px;line-height:1.5;">
+      Progress hiện chưa ghi lại việc con có bấm nút này hay không — cần thêm 1 cột log riêng ở app trước khi hiển thị được chỉ số này.
+    </div>`;
+
+  const wrong = rows.filter(r => r["Đúng/Sai"] === "Sai")
+    .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
+    .slice(0, 6);
+
+  if (!wrong.length){
+    document.getElementById('recent-wrong').innerHTML = `<div class="lbl">Sai gần đây</div><div class="empty-note">Chưa có câu nào ghi nhận sai.</div>`;
+    return;
+  }
+
+  document.getElementById('recent-wrong').innerHTML = `
+    <div class="lbl">Sai gần đây</div>
+    ${wrong.map(r => `
+      <div class="wrong-item">
+        <span>${r["Skill/Năng lực"] || r["Mã bài"]}</span>
+        <span class="code">${r["Mã bài"]}</span>
+      </div>`).join('')}
+  `;
+}
+
+// ============================================================
+// 6. BÀI ĐÃ HỌC GẦN ĐÂY — hoàn tác trong 24h
+// ============================================================
+function renderRecentLog(rows){
+  const now = new Date();
+  const learned = rows.filter(r => r["Trạng thái"] === "Đã học")
+    .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
+    .slice(0, 8);
+
+  if (!learned.length){
+    document.getElementById('recent-log').innerHTML = `<div class="empty-note">Chưa có dữ liệu.</div>`;
+    return;
+  }
+
+  document.getElementById('recent-log').innerHTML = learned.map(r => {
+    const t = new Date(r["Ngày giờ"]);
+    const hoursSince = (now - t) / 3600000;
+    const canUndo = hoursSince <= 24;
+    return `<div class="log-item">
+      <div>
+        <div>${r["Mã bài"]}</div>
+        <div class="time">${t.toLocaleString('vi-VN')}</div>
+      </div>
+      ${canUndo
+        ? `<button class="btn small danger" onclick="undoEntry('${r["Tên con"]}','${r["Mã bài"]}','${r["Ngày giờ"]}', this)">Xoá (bấm nhầm)</button>`
+        : `<span style="font-size:11px;color:var(--muted)">Quá 24h — báo lỗi bên dưới nếu cần</span>`}
+    </div>`;
+  }).join('');
+}
+
+async function undoEntry(tenCon, maBai, ngayGio, btnEl){
+  btnEl.disabled = true; btnEl.textContent = "Đang xoá...";
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "undo", tenCon, maBai, ngayGio })
+    });
+    const data = await res.json();
+    if (data.success){
+      loadAll(); // tải lại toàn bộ để phản ánh đúng dữ liệu mới
+    } else {
+      alert(data.error === 'qua_han' ? data.message : "Không xoá được — thử lại hoặc dùng Báo lỗi.");
+      btnEl.disabled = false; btnEl.textContent = "Xoá (bấm nhầm)";
+    }
+  } catch(err){
+    alert("Lỗi kết nối: " + err.message);
+    btnEl.disabled = false; btnEl.textContent = "Xoá (bấm nhầm)";
+  }
+}
+
+// ============================================================
+// 7. BÁO LỖI
+// ============================================================
+function renderBaoLoi(){
+  const mine = BAOLOI.filter(r => r["Tên con"] === currentKid);
+  if (!mine.length){
+    document.getElementById('baoloi-list').innerHTML = `<div class="empty-note">Chưa có báo lỗi nào.</div>`;
+    return;
+  }
+  document.getElementById('baoloi-list').innerHTML = mine
+    .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
+    .map(r => `
+      <div class="baoloi-item">
+        <div>${r["Mô tả"]} <span class="badge ${r["Trạng thái"]==='Đã xử lý'?'done':''}">${r["Trạng thái"] || "Chưa xử lý"}</span></div>
+        <div class="meta">${r["Loại lỗi"]} · ${r["Mã bài liên quan"]} · ${r["Ngày giờ"]}</div>
+      </div>`).join('');
+}
+
+async function openReportForm(){
+  const loaiLoi = prompt("Loại lỗi (VD: nhảy bài, sai điểm, khác):");
+  if (!loaiLoi) return;
+  const maBai = prompt("Mã bài liên quan (nếu có, để trống nếu không rõ):") || "";
+  const moTa = prompt("Mô tả chi tiết:");
+  if (!moTa) return;
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "baoLoi", tenCon: currentKid, maBai, loaiLoi, moTa })
+    });
+    alert("Đã ghi lại báo lỗi.");
+    loadAll();
+  } catch(err){
+    alert("Lỗi kết nối: " + err.message);
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>
