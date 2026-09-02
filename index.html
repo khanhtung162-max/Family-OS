@@ -306,6 +306,14 @@ function renderKidPicker() {
     btn.onclick = () => selectKid(kid);
     list.appendChild(btn);
   });
+
+  // Lựa chọn "Bố mẹ" — ngang hàng với các con, sẽ khoá bằng mã PIN riêng khi làm tính năng đó
+  const parentBtn = document.createElement('button');
+  parentBtn.className = 'kid-card';
+  parentBtn.style.opacity = '0.8';
+  parentBtn.innerHTML = `<div class="kid-avatar" style="background:#e3ddd022;">👨‍👩‍👧</div><span>Bố mẹ</span>`;
+  parentBtn.onclick = () => { window.location.href = 'bo-me.html'; };
+  list.appendChild(parentBtn);
 }
 
 function selectKid(kid) {
