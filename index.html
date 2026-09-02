@@ -172,7 +172,7 @@
       <div class="greet" id="lessonTitle" style="font-size:16px; flex:1;">Bài học</div>
     </div>
     <div id="quizArea"></div>
-    <button class="mark-done-btn" id="markDoneBtn" onclick="markDone()">✅ Đánh dấu đã học xong</button>
+    <button class="mark-done-btn" id="markDoneBtn">✅ Đánh dấu đã học xong</button>
     <div class="mood-section" id="moodSection">
       <div class="mood-label">Bài này con thấy sao?</div>
       <div class="mood-row">
@@ -316,16 +316,42 @@ function renderKidPicker() {
   list.appendChild(parentBtn);
 }
 
+function computeStreak(tenCon) {
+  const days = new Set(
+    allProgress
+      .filter(p => p['Tên con'] === tenCon && (p['Trạng thái'] === 'Đã học' || p['Trạng thái'] === 'Trả lời câu hỏi'))
+      .map(p => new Date(p['Ngày giờ']).toISOString().slice(0, 10))
+      .filter(d => d !== 'Invalid') // phòng dữ liệu ngày lỗi
+  );
+  let streak = 0;
+  let cursor = new Date();
+  const todayStr = cursor.toISOString().slice(0, 10);
+  if (!days.has(todayStr)) cursor.setDate(cursor.getDate() - 1); // hôm nay chưa học thì tính từ hôm qua, không cắt chuỗi ngay
+  while (days.has(cursor.toISOString().slice(0, 10))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 function selectKid(kid) {
   currentKid = kid;
   document.getElementById('greetName').textContent = 'Chào ' + kid['Tên con'];
-  document.getElementById('streakCount').textContent = '0';
+  document.getElementById('streakCount').textContent = computeStreak(kid['Tên con']);
 
-  // Nạp lại các bài đã học của đúng con này từ Progress (sống sót qua lần mở lại trang)
+  // Trạng thái "đã học" tính theo DÒNG GẦN NHẤT của mỗi mã bài (không phải chỉ cần tồn tại 1 dòng)
+  // — để xử lý đúng khi con bấm nhầm rồi bấm "Bỏ đánh dấu" sau đó
+  const statusRows = allProgress.filter(p =>
+    p['Tên con'] === kid['Tên con'] &&
+    (p['Trạng thái'] === 'Đã học' || p['Trạng thái'] === 'Bỏ đánh dấu')
+  );
+  const latestStatusByLesson = {};
+  statusRows
+    .sort((a, b) => new Date(a['Ngày giờ']) - new Date(b['Ngày giờ']))
+    .forEach(p => { latestStatusByLesson[p['Mã bài']] = p['Trạng thái']; });
+
   learnedThisSession = new Set(
-    allProgress
-      .filter(p => p['Tên con'] === kid['Tên con'] && p['Trạng thái'] === 'Đã học')
-      .map(p => p['Mã bài'])
+    Object.keys(latestStatusByLesson).filter(maBai => latestStatusByLesson[maBai] === 'Đã học')
   );
 
   renderTermRow();
@@ -434,7 +460,7 @@ function selectLesson(lesson) {
 
   document.getElementById('markDoneBtn').style.display = 'block';
   document.getElementById('markDoneBtn').disabled = false;
-  document.getElementById('markDoneBtn').textContent = '✅ Đánh dấu đã học xong';
+  updateMarkDoneBtn();
   document.getElementById('moodSection').classList.remove('show');
   document.getElementById('doneBanner').classList.remove('show');
 
@@ -660,7 +686,26 @@ function toggleExplain(kind) {
   box.style.display = 'block';
 }
 
+function updateMarkDoneBtn() {
+  const btn = document.getElementById('markDoneBtn');
+  const isLearned = learnedThisSession.has(currentLesson['Lesson code']);
+  if (isLearned) {
+    btn.textContent = '↩️ Bỏ đánh dấu (đã học)';
+    btn.style.background = '#B08A3E';
+    btn.style.boxShadow = '0 6px 0 #8A6A2C';
+    btn.onclick = unmarkDone;
+  } else {
+    btn.textContent = '✅ Đánh dấu đã học xong';
+    btn.style.background = 'var(--leaf)';
+    btn.style.boxShadow = '0 6px 0 rgba(76,185,99,0.4)';
+    btn.onclick = markDone;
+  }
+}
+
 function markDone() {
+  const ok = confirm('Xác nhận: con đã học xong bài này rồi phải không?');
+  if (!ok) return;
+
   const btn = document.getElementById('markDoneBtn');
   btn.disabled = true;
   btn.textContent = '⏳ Đang lưu...';
@@ -669,9 +714,31 @@ function markDone() {
     method: 'POST',
     body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Đã học', mood: '' })
   }).then(() => {
-    btn.textContent = '✅ Đã lưu!';
     learnedThisSession.add(currentLesson['Lesson code']);
+    btn.disabled = false;
+    updateMarkDoneBtn();
     document.getElementById('moodSection').classList.add('show');
+  }).catch(() => {
+    btn.textContent = '⚠️ Lỗi lưu, thử lại';
+    btn.disabled = false;
+  });
+}
+
+function unmarkDone() {
+  const ok = confirm('Bỏ đánh dấu "đã học" cho bài này? (VD nếu vừa bấm nhầm)');
+  if (!ok) return;
+
+  const btn = document.getElementById('markDoneBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang lưu...';
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Bỏ đánh dấu', mood: '' })
+  }).then(() => {
+    learnedThisSession.delete(currentLesson['Lesson code']);
+    btn.disabled = false;
+    updateMarkDoneBtn();
   }).catch(() => {
     btn.textContent = '⚠️ Lỗi lưu, thử lại';
     btn.disabled = false;

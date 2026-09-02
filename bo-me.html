@@ -29,8 +29,8 @@
   .sec-head h2{font-family:'Source Serif 4',serif;font-size:19px;font-weight:600;margin:0;}
   .sec-head .why{font-size:12.5px;color:var(--muted);max-width:340px;text-align:right;line-height:1.4;}
 
-  .overview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-  @media (max-width:640px){.overview-grid{grid-template-columns:1fr;}}
+  .overview-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  @media (max-width:640px){.overview-grid{grid-template-columns:1fr 1fr;}}
   .ov-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
   .ov-card .label{font-size:12.5px;color:var(--muted);margin-bottom:6px;}
   .ov-card .value{font-family:'Source Serif 4',serif;font-size:24px;font-weight:600;}
@@ -305,6 +305,8 @@ function renderOverview(rows){
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
   const answered7d = rows.filter(r => r["Dạng"] && new Date(r["Ngày giờ"]) >= weekAgo).length;
 
+  const streak = computeStreak(rows);
+
   document.getElementById('overview').innerHTML = `
     <div class="ov-card">
       <div class="label">Bài đã đánh dấu "Đã học"</div>
@@ -321,7 +323,28 @@ function renderOverview(rows){
       <div class="value">${answered7d}</div>
       <div class="sub">${answered7d < 15 ? 'Còn ít, các số bên dưới có thể chưa ổn định' : 'Đủ để đọc xu hướng tuần này'}</div>
     </div>
+    <div class="ov-card">
+      <div class="label">Chuỗi ngày học liên tục</div>
+      <div class="value">🔥 ${streak}</div>
+      <div class="sub">${streak === 0 ? 'Chưa có chuỗi ngày nào' : 'Khác với "học gần nhất" — đo độ đều đặn'}</div>
+    </div>
   `;
+}
+function computeStreak(rows){
+  const days = new Set(
+    rows
+      .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Trả lời câu hỏi")
+      .map(r => new Date(r["Ngày giờ"]).toISOString().slice(0, 10))
+  );
+  let streak = 0;
+  let cursor = new Date();
+  const todayStr = cursor.toISOString().slice(0, 10);
+  if (!days.has(todayStr)) cursor.setDate(cursor.getDate() - 1);
+  while (days.has(cursor.toISOString().slice(0, 10))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 function formatRelativeDay(d){
   const days = Math.floor((new Date() - d) / 86400000);
