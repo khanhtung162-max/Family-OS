@@ -456,29 +456,78 @@ function selectLesson(lesson) {
     return;
   }
 
-  // Dạng A/B/C/D (cơ bản)
+  // Dạng A/B/C/D (cơ bản) — lấy ngẫu nhiên tối đa 5 câu, hỏi tuần tự
   const questions = abcQuestions;
-  {
-    const q = questions[0];
-    let optionsHtml = '';
-    ['A','B','C','D'].forEach(letter => {
-      const val = q['Đáp án ' + letter];
-      if (val) optionsHtml += `<button class="answer-btn" data-letter="${letter}" onclick="answerQuiz(this,'${letter}','${q['Đáp án đúng']}')">${letter}. ${val}</button>`;
-    });
-    quizArea.innerHTML = `
-      <div class="quiz-card">
-        <div class="quiz-top"><span class="quiz-chip">${lesson['Unit'] || ''}</span></div>
-        ${q['Link ảnh'] ? `<img class="quiz-img" src="${toDirectDriveLink(q['Link ảnh'])}">` : ''}
-        <div class="quiz-question">${q['Câu hỏi']}</div>
-        <div class="answers">${optionsHtml}</div>
-        <div class="feedback" id="feedback"></div>
-        <button class="explain-btn" id="explainBtn" style="display:none" onclick="toggleExplain('abc')">👀 Xem giải thích</button>
-        <div class="explain-box" id="explainBox" style="display:none"></div>
-      </div>
-    `;
-    window._currentAbcQ = q;
-  }
+  const shuffled = [...questions].sort(() => Math.random() - 0.5);
+  window._abcSet = shuffled.slice(0, 5);
+  window._abcIndex = 0;
+  window._abcResults = []; // { skill, level, correct: true/false }
+  renderAbcQuestion();
   showScreen('screenQuiz');
+}
+
+function renderAbcQuestion() {
+  const quizArea = document.getElementById('quizArea');
+  const q = window._abcSet[window._abcIndex];
+  const soCau = window._abcSet.length;
+  const viTri = window._abcIndex + 1;
+
+  let optionsHtml = '';
+  ['A','B','C','D'].forEach(letter => {
+    const val = q['Đáp án ' + letter];
+    if (val) optionsHtml += `<button class="answer-btn" data-letter="${letter}" onclick="answerQuiz(this,'${letter}','${q['Đáp án đúng']}')">${letter}. ${val}</button>`;
+  });
+
+  quizArea.innerHTML = `
+    <div class="quiz-card">
+      <div class="quiz-top">
+        <span class="quiz-chip">${currentLesson['Unit'] || ''}</span>
+        <span class="quiz-chip" style="background:#EBE1FF;color:#5B3BA6;">Câu ${viTri}/${soCau}</span>
+      </div>
+      ${q['Link ảnh'] ? `<img class="quiz-img" src="${toDirectDriveLink(q['Link ảnh'])}">` : ''}
+      <div class="quiz-question">${q['Câu hỏi']}</div>
+      <div class="answers">${optionsHtml}</div>
+      <div class="feedback" id="feedback"></div>
+      <button class="explain-btn" id="explainBtn" style="display:none" onclick="toggleExplain('abc')">👀 Xem giải thích</button>
+      <div class="explain-box" id="explainBox" style="display:none"></div>
+      <button class="mark-done-btn" id="nextQBtn" style="display:none;background:var(--grape);box-shadow:0 6px 0 #6D3FD1;" onclick="nextAbcQuestion()">
+        ${viTri === soCau ? 'Xem kết quả →' : 'Câu tiếp theo →'}
+      </button>
+    </div>
+  `;
+  window._currentAbcQ = q;
+}
+
+function nextAbcQuestion() {
+  window._abcIndex++;
+  if (window._abcIndex < window._abcSet.length) {
+    renderAbcQuestion();
+  } else {
+    renderAbcResults();
+  }
+}
+
+function renderAbcResults() {
+  const results = window._abcResults;
+  const soDung = results.filter(r => r.correct).length;
+  const tong = results.length;
+
+  const rowsHtml = results.map((r, i) => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #F2EFFA;font-size:14px;">
+      <span>Câu ${i + 1}${r.skill ? ' · ' + r.skill : ''}</span>
+      <span style="font-weight:700;color:${r.correct ? '#226B37' : '#A83226'};">${r.correct ? '✓ Đúng' : '✗ Sai'}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('quizArea').innerHTML = `
+    <div class="quiz-card">
+      <div style="text-align:center;margin-bottom:6px;">
+        <div style="font-size:40px;">${soDung === tong ? '🏆' : soDung >= tong / 2 ? '🎉' : '💪'}</div>
+        <div style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:22px;">Đúng ${soDung}/${tong} câu</div>
+      </div>
+      <div style="margin-top:10px;">${rowsHtml}</div>
+    </div>
+  `;
 }
 
 // ==== QUIZ TOÁN: nhóm Đúng/Sai nhiều phát biểu, chấm điểm từng phần theo đúng thang Bộ GD-ĐT ====
@@ -573,8 +622,11 @@ function answerQuiz(btn, letter, correctLetter) {
     });
   }
   document.getElementById('explainBtn').style.display = 'block';
+  document.getElementById('nextQBtn').style.display = 'block';
 
   const q = window._currentAbcQ;
+  window._abcResults.push({ skill: q['Skill'] || '', level: q['Level'] || '', correct: isRight });
+
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     body: JSON.stringify({
