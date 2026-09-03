@@ -68,6 +68,16 @@
   .mood-day .emoji{font-size:20px;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto;background:var(--paper);border:1px solid var(--line);}
   .mood-day.none .emoji{opacity:.3;font-size:14px;}
   .mood-flag{margin-top:12px;background:var(--clay-soft);border:1px solid #e3c3af;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#7a3d24;line-height:1.5;}
+  .mood-grid{display:flex;flex-direction:column;gap:2px;}
+  .mood-grid-row{display:grid;grid-template-columns:76px repeat(7,1fr);align-items:center;gap:4px;padding:6px 0;}
+  .mood-grid-row.head{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:2px;}
+  .mood-grid-row.head .mood-grid-cell{font-weight:600;font-size:11px;color:var(--muted);text-align:center;}
+  .mood-grid-label{font-size:12.5px;font-weight:600;color:var(--ink);}
+  .mood-grid-cell{text-align:center;font-size:18px;}
+  .mood-grid-cell.none{opacity:.25;font-size:12px;}
+  .mood-grid-row.extra-row{display:none;}
+  .mood-grid-row.extra-row.show{display:grid;}
+  .mood-more-btn{margin-top:10px;font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--paper);cursor:pointer;color:var(--muted);}
 
   .behavior-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   @media (max-width:640px){.behavior-grid{grid-template-columns:1fr;}}
@@ -649,32 +659,59 @@ function lvCell(v){
 // ============================================================
 function renderMood(rows){
   const moods = rows.filter(r => r["Trạng thái"] === "Mood" && r["Mood"]);
+
   const days = [];
   for (let i = 6; i >= 0; i--){
     const d = new Date(); d.setDate(d.getDate() - i);
-    const key = toDateKey(d);
-    const dow = ["CN","T2","T3","T4","T5","T6","T7"][d.getDay()];
-    const found = moods.filter(m => toDateKey(parseVNDate(m["Ngày giờ"])) === key);
-    days.push({dow, emoji: found.length ? found[found.length-1]["Mood"] : null});
+    days.push({ key: toDateKey(d), dow: ["CN","T2","T3","T4","T5","T6","T7"][d.getDay()] });
   }
 
-  const strip = days.map(d => `
-    <div class="mood-day ${d.emoji?'':'none'}">
-      <div class="dow">${d.dow}</div>
-      <div class="emoji">${d.emoji || '–'}</div>
-    </div>`).join('');
+  const fixedSubjects = ['Toán', 'Ngữ văn', 'Tiếng Anh'];
+  const subjectsInData = [...new Set(LESSONS.map(l => l["Subject"]).filter(Boolean))];
+  const extraSubjects = subjectsInData.filter(s => !fixedSubjects.includes(s));
+  const subjectsToShow = [...fixedSubjects, ...extraSubjects];
 
-  const noDataDays = days.filter(d => !d.emoji).length;
-  const hardDays = days.filter(d => d.emoji === "\ud83d\ude05" || d.emoji === "\ud83d\ude25").length;
+  const worstOrder = ['😣', '😕', '🙂', '😄']; // đầu mảng = xấu nhất, ưu tiên hiện trước nếu trong ngày có nhiều mood
 
-  let flag = "";
-  if (hardDays >= 2){
-    flag = `<div class="mood-flag">Có ${hardDays} ngày trong tuần con chọn biểu tượng "hơi khó/mệt" — đáng để hỏi han con xem đang vướng ở đâu.</div>`;
+  function worstMoodFor(subject, dayKey){
+    const matches = moods.filter(m =>
+      subjectOf(m["Mã bài"]) === subject && toDateKey(parseVNDate(m["Ngày giờ"])) === dayKey
+    );
+    if (!matches.length) return null;
+    for (const emo of worstOrder){
+      if (matches.some(m => m["Mood"] === emo)) return emo;
+    }
+    return matches[matches.length - 1]["Mood"];
+  }
+
+  const headRow = `<div class="mood-grid-row head">
+    <div class="mood-grid-label"></div>
+    ${days.map(d => `<div class="mood-grid-cell">${d.dow}</div>`).join('')}
+  </div>`;
+
+  let hardCount = 0;
+  const bodyRows = subjectsToShow.map((subj, idx) => {
+    const cells = days.map(d => {
+      const emo = worstMoodFor(subj, d.key);
+      if (emo === '😣' || emo === '😕') hardCount++;
+      return `<div class="mood-grid-cell ${emo ? '' : 'none'}">${emo || '–'}</div>`;
+    }).join('');
+    const rowClass = idx >= 3 ? 'extra-row' : '';
+    return `<div class="mood-grid-row ${rowClass}"><div class="mood-grid-label">${subj}</div>${cells}</div>`;
+  }).join('');
+
+  const moreBtn = extraSubjects.length
+    ? `<button class="mood-more-btn" onclick="this.parentElement.querySelectorAll('.extra-row').forEach(r=>r.classList.toggle('show')); this.textContent = this.textContent.includes('▾') ? this.textContent.replace('Xem thêm','Thu gọn').replace('▾','▴') : 'Xem thêm ${extraSubjects.length} môn ▾';">Xem thêm ${extraSubjects.length} môn ▾</button>`
+    : '';
+
+  let flag = '';
+  if (hardCount >= 2){
+    flag = `<div class="mood-flag">Có ${hardCount} lượt con chọn biểu tượng "khó/mệt" trong tuần qua — đáng để hỏi han con xem đang vướng ở đâu.</div>`;
   }
 
   document.getElementById('mood-card').innerHTML = `
-    <div class="mood-strip">${strip}</div>
-    <div style="font-size:12px;color:var(--muted)">${noDataDays} ngày không có dữ liệu mood trong 7 ngày qua.</div>
+    <div class="mood-grid">${headRow}${bodyRows}</div>
+    ${moreBtn}
     ${flag}
   `;
 }
