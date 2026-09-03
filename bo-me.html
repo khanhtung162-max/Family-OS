@@ -98,8 +98,18 @@
   .badge.done{background:var(--moss-soft);color:var(--moss);}
 
   .loading{text-align:center;padding:60px 0;color:var(--muted);}
-  .warn-card{background:var(--clay-soft);border:1px solid #e3c3af;border-radius:10px;padding:12px 16px;margin-bottom:10px;font-size:13.5px;color:#7a3d24;line-height:1.5;}
-  .warn-card b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;color:#9a4a2c;}
+  .warn-summary{
+    background:var(--clay-soft);border:1px solid #e3c3af;border-radius:10px;
+    padding:12px 16px;margin-bottom:14px;cursor:pointer;
+    display:flex;justify-content:space-between;align-items:center;
+    font-size:13.5px;font-weight:600;color:#7a3d24;
+  }
+  .warn-summary .caret{transition:transform .15s ease;font-size:11px;}
+  .warn-summary.open .caret{transform:rotate(90deg);}
+  .warn-list{display:none;margin-bottom:14px;}
+  .warn-list.open{display:block;}
+  .warn-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:8px;font-size:13px;color:var(--ink);line-height:1.5;}
+  .warn-card b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;color:var(--clay);}
   footer{text-align:center;font-size:12px;color:var(--muted);margin-top:40px;}
 </style>
 </head>
@@ -313,18 +323,27 @@ function renderWarnings(rows){
     ...detectSkippedLessons(rows),
     ...detectNoStudyDays(rows),
     ...detectRepeatedToggle(rows),
-    ...detectBulkMarking(rows)
+    ...detectBulkMarking(rows),
+    ...detectSkippedQuiz(rows)
   ];
 
   const el = document.getElementById('warnings-block');
   if (!warnings.length){ el.innerHTML = ''; return; }
 
-  el.innerHTML = warnings.map(w => `
-    <div class="warn-card">
-      <b>${w.label}</b>
-      ${w.text}
+  el.innerHTML = `
+    <div class="warn-summary" onclick="this.classList.toggle('open'); document.getElementById('warn-detail').classList.toggle('open');">
+      <span>⚠️ ${warnings.length} cảnh báo bất thường cần xem</span>
+      <span class="caret">▸</span>
     </div>
-  `).join('');
+    <div class="warn-list" id="warn-detail">
+      ${warnings.map(w => `
+        <div class="warn-card">
+          <b>${w.label}</b>
+          ${w.text}
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // Quy tắc 1: học nhảy cóc — mã bài "Đã học" mà bài liền trước (cùng Subject, theo đúng thứ tự Lessons) chưa từng học
@@ -435,6 +454,38 @@ function detectBulkMarking(rows){
     }
   }
   return [];
+}
+
+// Quy tắc 5: đã đánh dấu "Đã học" (trạng thái gần nhất) nhưng chưa từng làm quiz, sau >3 ngày
+function detectSkippedQuiz(rows){
+  // trạng thái gần nhất mỗi mã bài (giống logic quy tắc 1)
+  const statusRows = rows
+    .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Bỏ đánh dấu")
+    .map(r => ({ maBai: r["Mã bài"], trangThai: r["Trạng thái"], t: parseVNDate(r["Ngày giờ"]) }))
+    .filter(r => !isNaN(r.t))
+    .sort((a,b) => a.t - b.t);
+
+  const latestByLesson = {};
+  statusRows.forEach(r => { latestByLesson[r.maBai] = r; });
+
+  const quizzedLessons = new Set(
+    rows.filter(r => r["Trạng thái"] === "Trả lời câu hỏi").map(r => r["Mã bài"])
+  );
+
+  const now = new Date();
+  const out = [];
+  Object.values(latestByLesson).forEach(r => {
+    if (r.trangThai !== "Đã học") return;
+    if (quizzedLessons.has(r.maBai)) return;
+    const daysSince = (now - r.t) / 86400000;
+    if (daysSince > 3){
+      out.push({
+        label: "Chưa làm quiz",
+        text: `Đã đánh dấu "${r.maBai}" là đã học từ ${Math.floor(daysSince)} ngày trước, nhưng chưa làm quiz nào cho bài này.`
+      });
+    }
+  });
+  return out;
 }
 
 // ============================================================
