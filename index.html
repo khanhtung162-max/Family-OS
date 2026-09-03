@@ -499,8 +499,31 @@ function renderQuizAreaForCurrentState() {
   buildQuizContent(quizArea);
 }
 
+// ==== LTC/BTC/Review — nhận diện qua tên bài, gom pool theo VỊ TRÍ DÒNG trong Lessons (không phụ thuộc cấu trúc mã riêng từng môn) ====
+function isReviewLesson(lesson) {
+  const name = (lesson['Lesson name'] || '').toLowerCase();
+  return name.includes('luyện tập chung') || name.includes('bài tập cuối chương') ||
+         name.includes('review') || name.includes('ôn tập');
+}
+
+function getReviewPool(lesson) {
+  const sameSubject = allLessons.filter(l => l['Subject'] === lesson['Subject']);
+  const idx = sameSubject.findIndex(l => l['Lesson code'] === lesson['Lesson code']);
+  if (idx <= 0) return [];
+  let startIdx = 0;
+  for (let i = idx - 1; i >= 0; i--) {
+    if (isReviewLesson(sameSubject[i])) { startIdx = i + 1; break; }
+  }
+  return sameSubject.slice(startIdx, idx).filter(l => l['Lesson name'] && l['Lesson name'] !== 'Mục lục');
+}
+
 function buildQuizContent(quizArea) {
   const lesson = currentLesson;
+
+  if (isReviewLesson(lesson)) {
+    renderReviewChoice(quizArea);
+    return;
+  }
 
   // Kiểm tra dữ liệu ở cả 2 nguồn cho bài này
   const toanRowsAll = allQuizToan.filter(r => r['Mã bài'] === lesson['Lesson code']);
@@ -540,6 +563,75 @@ function buildQuizContent(quizArea) {
   window._abcIndex = 0;
   window._abcResults = []; // { skill, level, correct: true/false }
   renderAbcQuestion();
+}
+
+function renderReviewChoice(quizArea) {
+  quizArea.innerHTML = `
+    <div class="quiz-card" style="text-align:center;">
+      <div class="quiz-top"><span class="quiz-chip">${currentLesson['Unit'] || ''}</span></div>
+      <div class="quiz-question" style="margin-bottom:18px;">Bài ôn tập — con muốn làm loại nào?</div>
+      <button class="mark-done-btn" style="background:var(--leaf);box-shadow:0 6px 0 rgba(76,185,99,0.4);margin-bottom:12px;" onclick="startReviewQuiz('abc')">📝 Quiz Cơ bản</button>
+      <button class="mark-done-btn" style="background:var(--grape);box-shadow:0 6px 0 #6D3FD1;" onclick="startReviewQuiz('toan')">🎯 Quiz Kỹ năng</button>
+    </div>
+  `;
+}
+
+function startReviewQuiz(kind) {
+  const pool = getReviewPool(currentLesson).map(l => l['Lesson code']);
+  const learnedPool = pool.filter(code => learnedThisSession.has(code));
+  const quizArea = document.getElementById('quizArea');
+
+  if (!learnedPool.length) {
+    quizArea.innerHTML = `<div class="no-quiz">📝 Chưa có bài nào trước đó được đánh dấu Đã học để ôn tập.</div>`;
+    return;
+  }
+
+  if (kind === 'abc') {
+    const pooledQuestions = allQuiz.filter(q => learnedPool.includes(q['Mã bài']) && q['Câu hỏi']);
+    if (!pooledQuestions.length) {
+      quizArea.innerHTML = `<div class="no-quiz">📝 Chưa có câu hỏi Cơ bản nào trong các bài đã học của nhóm này.</div>`;
+      return;
+    }
+    const shuffled = [...pooledQuestions].sort(() => Math.random() - 0.5);
+    window._abcSet = shuffled.slice(0, 10);
+    window._abcIndex = 0;
+    window._abcResults = [];
+    renderAbcQuestion();
+  } else {
+    const pooledToanRows = allQuizToan.filter(r => learnedPool.includes(r['Mã bài']));
+    const groupKeys = [...new Set(pooledToanRows.map(r => r['Mã bài'] + '|' + r['Nhóm câu']))];
+    if (!groupKeys.length) {
+      quizArea.innerHTML = `<div class="no-quiz">🎯 Chưa có câu hỏi Kỹ năng nào trong các bài đã học của nhóm này.</div>`;
+      return;
+    }
+    const shuffledGroups = groupKeys.sort(() => Math.random() - 0.5).slice(0, 3);
+    window._reviewDsGroups = shuffledGroups.map(key => {
+      const [maBai, nhom] = key.split('|');
+      return pooledToanRows.filter(r => r['Mã bài'] === maBai && r['Nhóm câu'] === nhom);
+    });
+    window._reviewDsIndex = 0;
+    renderReviewDsGroup();
+  }
+}
+
+function renderReviewDsGroup() {
+  const quizArea = document.getElementById('quizArea');
+  const rows = window._reviewDsGroups[window._reviewDsIndex];
+  renderToanQuizGroup(rows, quizArea, `Nhóm ${window._reviewDsIndex + 1}/${window._reviewDsGroups.length}`);
+}
+
+function nextReviewDsGroup() {
+  window._reviewDsIndex++;
+  if (window._reviewDsIndex < window._reviewDsGroups.length) {
+    renderReviewDsGroup();
+  } else {
+    document.getElementById('quizArea').innerHTML = `
+      <div class="quiz-card" style="text-align:center;">
+        <div style="font-size:40px;">🎉</div>
+        <div style="font-family:'Baloo 2',sans-serif;font-weight:800;font-size:20px;">Xong phần ôn tập Kỹ năng!</div>
+      </div>`;
+    window._reviewDsGroups = null;
+  }
 }
 
 function renderAbcQuestion() {
@@ -617,7 +709,7 @@ function renderAbcResults() {
 }
 
 // ==== QUIZ TOÁN: nhóm Đúng/Sai nhiều phát biểu, chấm điểm từng phần theo đúng thang Bộ GD-ĐT ====
-function renderToanQuizGroup(rows, quizArea) {
+function renderToanQuizGroup(rows, quizArea, reviewLabel) {
   const context = rows.find(r => r['Loại'] === 'Context');
   const statements = rows.filter(r => r['Loại'] === 'Statement');
 
@@ -635,7 +727,10 @@ function renderToanQuizGroup(rows, quizArea) {
 
   quizArea.innerHTML = `
     <div class="quiz-card">
-      <div class="quiz-top"><span class="quiz-chip">${currentLesson['Unit'] || ''}</span></div>
+      <div class="quiz-top">
+        <span class="quiz-chip">${currentLesson['Unit'] || ''}</span>
+        ${reviewLabel ? `<span class="quiz-chip" style="background:#EBE1FF;color:#5B3BA6;">${reviewLabel}</span>` : ''}
+      </div>
       ${context ? `<div class="ds-context">${context['Bối cảnh']}</div>` : ''}
       <div class="ds-list">${stmtHtml}</div>
       <div class="feedback" id="feedback"></div>
@@ -670,6 +765,13 @@ function answerDS(idx, chosen, correct) {
     fb.className = 'feedback show ' + (soDung === window._dsAnswers.length ? 'good' : 'retry');
     fb.innerHTML = `🎯 Đúng ${soDung}/${window._dsAnswers.length} ý — điểm: ${diem}`;
     document.getElementById('explainBtn').style.display = 'block';
+
+    if (window._reviewDsGroups) {
+      const isLast = window._reviewDsIndex + 1 >= window._reviewDsGroups.length;
+      document.getElementById('feedback').insertAdjacentHTML('afterend',
+        `<button class="mark-done-btn" style="display:block;background:var(--grape);box-shadow:0 6px 0 #6D3FD1;margin-top:12px;" onclick="nextReviewDsGroup()">${isLast ? 'Xong ôn tập →' : 'Nhóm tiếp theo →'}</button>`
+      );
+    }
 
     // ghi Progress chi tiết từng phát biểu (mỗi phát biểu 1 dòng), nhớ lại từng dòng để đối chiếu "Xem giải thích"
     window._lastDsAnswerMetas = [];
