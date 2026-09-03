@@ -736,6 +736,7 @@ function markDone() {
     body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Đã học', mood: '' })
   }).then(() => {
     learnedThisSession.add(currentLesson['Lesson code']);
+    window._latestStatusTimeByLesson[currentLesson['Lesson code']] = new Date().toString();
     btn.disabled = false;
     updateMarkDoneBtn();
     document.getElementById('moodSection').classList.add('show');
@@ -758,6 +759,7 @@ function unmarkDone() {
     body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Bỏ đánh dấu', mood: '' })
   }).then(() => {
     learnedThisSession.delete(currentLesson['Lesson code']);
+    delete window._latestStatusTimeByLesson[currentLesson['Lesson code']];
     btn.disabled = false;
     updateMarkDoneBtn();
   }).catch(() => {
