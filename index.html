@@ -482,7 +482,25 @@ function selectLesson(lesson) {
   document.getElementById('moodSection').classList.remove('show');
   document.getElementById('doneBanner').classList.remove('show');
 
+  renderQuizAreaForCurrentState();
+  showScreen('screenQuiz');
+}
+
+// Quyết định hiện quiz hay hiện màn hình khoá — gọi lại mỗi khi trạng thái Đã học đổi
+function renderQuizAreaForCurrentState() {
   const quizArea = document.getElementById('quizArea');
+  const isLearned = learnedThisSession.has(currentLesson['Lesson code']);
+
+  if (!isLearned) {
+    quizArea.innerHTML = `<div class="no-quiz">🔒 Đánh dấu "Đã học" ở bên dưới trước, quiz sẽ hiện ra sau đó nhé</div>`;
+    return;
+  }
+
+  buildQuizContent(quizArea);
+}
+
+function buildQuizContent(quizArea) {
+  const lesson = currentLesson;
 
   // Kiểm tra dữ liệu ở cả 2 nguồn cho bài này
   const toanRowsAll = allQuizToan.filter(r => r['Mã bài'] === lesson['Lesson code']);
@@ -507,13 +525,11 @@ function selectLesson(lesson) {
     showToan = false;
   } else {
     quizArea.innerHTML = `<div class="no-quiz">📝 Bài này chưa có câu hỏi<br>Con có thể đọc lại nội dung rồi đánh dấu đã học nhé</div>`;
-    showScreen('screenQuiz');
     return;
   }
 
   if (showToan) {
     renderToanQuizGroup(toanRows, quizArea);
-    showScreen('screenQuiz');
     return;
   }
 
@@ -524,7 +540,6 @@ function selectLesson(lesson) {
   window._abcIndex = 0;
   window._abcResults = []; // { skill, level, correct: true/false }
   renderAbcQuestion();
-  showScreen('screenQuiz');
 }
 
 function renderAbcQuestion() {
@@ -803,6 +818,7 @@ function markDone() {
     window._latestStatusTimeByLesson[currentLesson['Lesson code']] = new Date();
     btn.disabled = false;
     updateMarkDoneBtn();
+    renderQuizAreaForCurrentState(); // quiz mở khoá ngay sau khi xác nhận đã học
     document.getElementById('moodSection').classList.add('show');
   }).catch(() => {
     btn.textContent = '⚠️ Lỗi lưu, thử lại';
@@ -826,6 +842,7 @@ function unmarkDone() {
     delete window._latestStatusTimeByLesson[currentLesson['Lesson code']];
     btn.disabled = false;
     updateMarkDoneBtn();
+    renderQuizAreaForCurrentState(); // quiz khoá lại ngay khi bỏ đánh dấu
   }).catch(() => {
     btn.textContent = '⚠️ Lỗi lưu, thử lại';
     btn.disabled = false;
