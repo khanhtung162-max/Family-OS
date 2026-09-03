@@ -173,6 +173,7 @@
     </div>
     <div id="quizArea"></div>
     <button class="mark-done-btn" id="markDoneBtn">✅ Đánh dấu đã học xong</button>
+    <div id="lockedNote" style="display:none;text-align:center;font-size:12.5px;color:#8a8478;margin-top:10px;">Bài này đã học hơn 24h trước, không tự sửa được nữa nhé.</div>
     <div class="mood-section" id="moodSection">
       <div class="mood-label">Bài này con thấy sao?</div>
       <div class="mood-row">
@@ -347,9 +348,14 @@ function selectKid(kid) {
     (p['Trạng thái'] === 'Đã học' || p['Trạng thái'] === 'Bỏ đánh dấu')
   );
   const latestStatusByLesson = {};
+  const latestStatusTimeByLesson = {};
   statusRows
     .sort((a, b) => new Date(a['Ngày giờ']) - new Date(b['Ngày giờ']))
-    .forEach(p => { latestStatusByLesson[p['Mã bài']] = p['Trạng thái']; });
+    .forEach(p => {
+      latestStatusByLesson[p['Mã bài']] = p['Trạng thái'];
+      latestStatusTimeByLesson[p['Mã bài']] = p['Ngày giờ'];
+    });
+  window._latestStatusTimeByLesson = latestStatusTimeByLesson;
 
   learnedThisSession = new Set(
     Object.keys(latestStatusByLesson).filter(maBai => latestStatusByLesson[maBai] === 'Đã học')
@@ -690,12 +696,26 @@ function toggleExplain(kind) {
 function updateMarkDoneBtn() {
   const btn = document.getElementById('markDoneBtn');
   const isLearned = learnedThisSession.has(currentLesson['Lesson code']);
+
   if (isLearned) {
-    btn.textContent = '↩️ Bỏ đánh dấu (đã học)';
-    btn.style.background = '#B08A3E';
-    btn.style.boxShadow = '0 6px 0 #8A6A2C';
-    btn.onclick = unmarkDone;
+    const markedAt = window._latestStatusTimeByLesson[currentLesson['Lesson code']];
+    const hoursSince = markedAt ? (new Date() - new Date(markedAt)) / 3600000 : 999;
+
+    if (hoursSince <= 24) {
+      btn.style.display = 'block';
+      document.getElementById('lockedNote').style.display = 'none';
+      btn.textContent = '↩️ Bỏ đánh dấu (đã học)';
+      btn.style.background = '#B08A3E';
+      btn.style.boxShadow = '0 6px 0 #8A6A2C';
+      btn.onclick = unmarkDone;
+    } else {
+      // Quá 24h — con không tự bỏ đánh dấu được nữa, cần bố mẹ xử lý qua trang Bố mẹ
+      btn.style.display = 'none';
+      document.getElementById('lockedNote').style.display = 'block';
+    }
   } else {
+    btn.style.display = 'block';
+    document.getElementById('lockedNote').style.display = 'none';
     btn.textContent = '✅ Đánh dấu đã học xong';
     btn.style.background = 'var(--leaf)';
     btn.style.boxShadow = '0 6px 0 rgba(76,185,99,0.4)';
