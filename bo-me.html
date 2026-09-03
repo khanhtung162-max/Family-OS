@@ -98,6 +98,8 @@
   .badge.done{background:var(--moss-soft);color:var(--moss);}
 
   .loading{text-align:center;padding:60px 0;color:var(--muted);}
+  .warn-card{background:var(--clay-soft);border:1px solid #e3c3af;border-radius:10px;padding:12px 16px;margin-bottom:10px;font-size:13.5px;color:#7a3d24;line-height:1.5;}
+  .warn-card b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;color:#9a4a2c;}
   footer{text-align:center;font-size:12px;color:var(--muted);margin-top:40px;}
 </style>
 </head>
@@ -114,6 +116,8 @@
       </div>
       <div class="kidpicker" id="kidpicker"></div>
     </div>
+
+    <div id="warnings-block"></div>
 
     <section>
       <div class="sec-head">
@@ -189,6 +193,7 @@
 const PROGRESS_CSV = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1514932059";
 const SKILLS_CSV   = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=963482137";
 const BAOLOI_CSV   = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1540528384";
+const LESSONS_CSV  = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1899295567";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
 
 // Mapping tiền tố mã bài -> môn học (mở rộng thêm khi có Bài mới)
@@ -217,7 +222,7 @@ function parseVNDate(str){
   return new Date(y, mo - 1, d, h, mi, s);
 }
 
-let PROGRESS = [], SKILLS = [], BAOLOI = [];
+let PROGRESS = [], SKILLS = [], BAOLOI = [], LESSONS = [];
 let currentKid = null;
 let currentSubject = null;
 
@@ -261,8 +266,8 @@ async function fetchCSV(url){
 // ============================================================
 async function loadAll(){
   try {
-    [PROGRESS, SKILLS, BAOLOI] = await Promise.all([
-      fetchCSV(PROGRESS_CSV), fetchCSV(SKILLS_CSV), fetchCSV(BAOLOI_CSV)
+    [PROGRESS, SKILLS, BAOLOI, LESSONS] = await Promise.all([
+      fetchCSV(PROGRESS_CSV), fetchCSV(SKILLS_CSV), fetchCSV(BAOLOI_CSV), fetchCSV(LESSONS_CSV)
     ]);
   } catch (err){
     document.getElementById('loading').textContent = "Không tải được dữ liệu — kiểm tra lại quyền chia sẻ Sheet. (" + err.message + ")";
@@ -290,6 +295,7 @@ function selectKid(k){ currentKid = k; renderKidPicker([...new Set(PROGRESS.map(
 
 function renderAll(){
   const rows = PROGRESS.filter(r => r["Tên con"] === currentKid);
+  renderWarnings(rows);
   renderOverview(rows);
   renderSubjectTabsAndSkills(rows);
   renderMood(rows);
@@ -297,6 +303,138 @@ function renderAll(){
   renderBehavior(rows);
   renderRecentLog(rows);
   renderBaoLoi();
+}
+
+// ============================================================
+// 0. CẢNH BÁO BẤT THƯỜNG — 4 quy tắc, tự quét mỗi lần mở trang
+// ============================================================
+function renderWarnings(rows){
+  const warnings = [
+    ...detectSkippedLessons(rows),
+    ...detectNoStudyDays(rows),
+    ...detectRepeatedToggle(rows),
+    ...detectBulkMarking(rows)
+  ];
+
+  const el = document.getElementById('warnings-block');
+  if (!warnings.length){ el.innerHTML = ''; return; }
+
+  el.innerHTML = warnings.map(w => `
+    <div class="warn-card">
+      <b>${w.label}</b>
+      ${w.text}
+    </div>
+  `).join('');
+}
+
+// Quy tắc 1: học nhảy cóc — mã bài "Đã học" mà bài liền trước (cùng Subject, theo đúng thứ tự Lessons) chưa từng học
+function detectSkippedLessons(rows){
+  const latestStatus = {};
+  rows
+    .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Bỏ đánh dấu")
+    .sort((a,b) => parseVNDate(a["Ngày giờ"]) - parseVNDate(b["Ngày giờ"]))
+    .forEach(r => { latestStatus[r["Mã bài"]] = r["Trạng thái"]; });
+
+  const bySubject = {};
+  LESSONS.forEach(l => {
+    if (!l["Lesson name"] || l["Lesson name"] === "Mục lục") return;
+    const subj = l["Subject"];
+    if (!bySubject[subj]) bySubject[subj] = [];
+    bySubject[subj].push(l["Lesson code"]);
+  });
+
+  const out = [];
+  Object.values(bySubject).forEach(codes => {
+    for (let i = 1; i < codes.length; i++){
+      const cur = codes[i], prev = codes[i-1];
+      if (latestStatus[cur] === "Đã học" && latestStatus[prev] !== "Đã học"){
+        out.push({
+          label: "Học nhảy cóc",
+          text: `Đã đánh dấu "${cur}" nhưng chưa học "${prev}" trước đó.`
+        });
+      }
+    }
+  });
+  return out;
+}
+
+// Quy tắc 2: >3 ngày liên tiếp không học — tính RIÊNG theo từng môn
+function detectNoStudyDays(rows){
+  const subjects = [...new Set(LESSONS.map(l => l["Subject"]).filter(Boolean))];
+  const out = [];
+  const today = new Date();
+
+  subjects.forEach(subj => {
+    const codesInSubj = new Set(LESSONS.filter(l => l["Subject"] === subj).map(l => l["Lesson code"]));
+    const activityDates = rows
+      .filter(r => codesInSubj.has(r["Mã bài"]) && (r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Trả lời câu hỏi"))
+      .map(r => parseVNDate(r["Ngày giờ"]))
+      .filter(d => !isNaN(d));
+
+    if (!activityDates.length) return; // chưa từng học môn này — không phải "ngừng học"
+
+    const lastDate = new Date(Math.max(...activityDates));
+    const daysSince = Math.floor((today - lastDate) / 86400000);
+    if (daysSince > 3){
+      out.push({
+        label: "Nhiều ngày không học",
+        text: `Chưa học môn ${subj} đã ${daysSince} ngày (lần gần nhất: ${lastDate.toLocaleDateString('vi-VN')}).`
+      });
+    }
+  });
+  return out;
+}
+
+// Quy tắc 3: ≥3 lần đổi trạng thái (Đã học ⇄ Bỏ đánh dấu) cùng 1 mã bài trong 1 giờ
+function detectRepeatedToggle(rows){
+  const byLesson = {};
+  rows
+    .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Bỏ đánh dấu")
+    .forEach(r => {
+      const t = parseVNDate(r["Ngày giờ"]);
+      if (isNaN(t)) return;
+      if (!byLesson[r["Mã bài"]]) byLesson[r["Mã bài"]] = [];
+      byLesson[r["Mã bài"]].push(t);
+    });
+
+  const out = [];
+  Object.keys(byLesson).forEach(maBai => {
+    const times = byLesson[maBai].sort((a,b) => a - b);
+    for (let i = 0; i + 2 < times.length; i++){
+      const spanHours = (times[i+2] - times[i]) / 3600000;
+      if (spanHours <= 1){
+        out.push({
+          label: "Thao tác lặp lại",
+          text: `Bài "${maBai}" bị đổi trạng thái liên tục nhiều lần trong vòng 1 giờ.`
+        });
+        break; // 1 cảnh báo/mã bài là đủ, không lặp lại nhiều dòng cho cùng 1 bài
+      }
+    }
+  });
+  return out;
+}
+
+// Quy tắc 4: >3 mã bài khác nhau được đánh dấu "Đã học" trong vòng 1 giờ
+function detectBulkMarking(rows){
+  const marks = rows
+    .filter(r => r["Trạng thái"] === "Đã học")
+    .map(r => ({ maBai: r["Mã bài"], t: parseVNDate(r["Ngày giờ"]) }))
+    .filter(r => !isNaN(r.t))
+    .sort((a,b) => a.t - b.t);
+
+  for (let i = 0; i < marks.length; i++){
+    const windowEnd = new Date(marks[i].t.getTime() + 3600000);
+    const distinctInWindow = new Set(
+      marks.filter(m => m.t >= marks[i].t && m.t <= windowEnd).map(m => m.maBai)
+    );
+    if (distinctInWindow.size > 3){
+      return [{
+        label: "Đánh dấu hàng loạt",
+        text: `${distinctInWindow.size} bài khác nhau được đánh dấu "Đã học" chỉ trong vòng 1 giờ (bắt đầu từ ${marks[i].t.toLocaleString('vi-VN')}).`
+      }];
+    }
+  }
+  return [];
 }
 
 // ============================================================
