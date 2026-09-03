@@ -713,12 +713,20 @@ function renderCreative(rows){
 // Phần % bên dưới tạm ẩn cho tới khi cột đó được thêm — chỉ hiện câu sai gần đây trước.
 // ============================================================
 function renderBehavior(rows){
-  document.getElementById('explain-rate').innerHTML = `
-    <div class="big">—</div>
-    <div class="lbl">Chưa có dữ liệu "Xem giải thích"</div>
-    <div class="note" style="font-size:12px;color:#5c6b5e;margin-top:10px;line-height:1.5;">
-      Progress hiện chưa ghi lại việc con có bấm nút này hay không — cần thêm 1 cột log riêng ở app trước khi hiển thị được chỉ số này.
-    </div>`;
+  const wrongRows = rows.filter(r => r["Đúng/Sai"] === "Sai");
+  const wrongCount = wrongRows.length;
+  const explainedCount = wrongRows.filter(r => r["Xem giải thích"] === "Có").length;
+
+  if (wrongCount === 0){
+    document.getElementById('explain-rate').innerHTML = `
+      <div class="big">—</div>
+      <div class="lbl">Chưa có câu sai nào để đối chiếu</div>`;
+  } else {
+    const rate = Math.round((explainedCount / wrongCount) * 100);
+    document.getElementById('explain-rate').innerHTML = `
+      <div class="big">${rate}%</div>
+      <div class="lbl">bấm "Xem giải thích" sau khi trả lời sai (${explainedCount}/${wrongCount} câu)</div>`;
+  }
 
   const wrong = rows.filter(r => r["Đúng/Sai"] === "Sai")
     .sort((a,b) => parseVNDate(b["Ngày giờ"]) - parseVNDate(a["Ngày giờ"]))
