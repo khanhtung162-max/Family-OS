@@ -320,8 +320,9 @@ function computeStreak(tenCon) {
   const days = new Set(
     allProgress
       .filter(p => p['Tên con'] === tenCon && (p['Trạng thái'] === 'Đã học' || p['Trạng thái'] === 'Trả lời câu hỏi'))
-      .map(p => new Date(p['Ngày giờ']).toISOString().slice(0, 10))
-      .filter(d => d !== 'Invalid') // phòng dữ liệu ngày lỗi
+      .map(p => new Date(p['Ngày giờ']))
+      .filter(d => !isNaN(d))
+      .map(d => d.toISOString().slice(0, 10))
   );
   let streak = 0;
   let cursor = new Date();

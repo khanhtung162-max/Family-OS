@@ -334,7 +334,9 @@ function computeStreak(rows){
   const days = new Set(
     rows
       .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Trả lời câu hỏi")
-      .map(r => new Date(r["Ngày giờ"]).toISOString().slice(0, 10))
+      .map(r => new Date(r["Ngày giờ"]))
+      .filter(d => !isNaN(d))
+      .map(d => d.toISOString().slice(0, 10))
   );
   let streak = 0;
   let cursor = new Date();
