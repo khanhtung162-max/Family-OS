@@ -161,8 +161,8 @@
 
     <section>
       <div class="sec-head">
-        <h2>Bài đã học gần đây (hoàn tác trong 24h)</h2>
-        <div class="why">Bấm nhầm "Đã học"? Xoá được trong vòng 24 giờ kể từ lúc bấm — sau đó cần báo lỗi bên dưới.</div>
+        <h2>Bài đã học gần đây</h2>
+        <div class="why">Con chỉ tự bỏ đánh dấu được trong 24h đầu. Bố mẹ xoá được bất kỳ lúc nào ở đây.</div>
       </div>
       <div class="recent-log" id="recent-log"></div>
     </section>
@@ -520,7 +520,6 @@ function renderBehavior(rows){
 // 6. BÀI ĐÃ HỌC GẦN ĐÂY — hoàn tác trong 24h
 // ============================================================
 function renderRecentLog(rows){
-  const now = new Date();
   const learned = rows.filter(r => r["Trạng thái"] === "Đã học")
     .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
     .slice(0, 8);
@@ -532,16 +531,12 @@ function renderRecentLog(rows){
 
   document.getElementById('recent-log').innerHTML = learned.map(r => {
     const t = new Date(r["Ngày giờ"]);
-    const hoursSince = (now - t) / 3600000;
-    const canUndo = hoursSince <= 24;
     return `<div class="log-item">
       <div>
         <div>${r["Mã bài"]}</div>
         <div class="time">${t.toLocaleString('vi-VN')}</div>
       </div>
-      ${canUndo
-        ? `<button class="btn small danger" onclick="undoEntry('${r["Tên con"]}','${r["Mã bài"]}','${r["Ngày giờ"]}', this)">Xoá (bấm nhầm)</button>`
-        : `<span style="font-size:11px;color:var(--muted)">Quá 24h — báo lỗi bên dưới nếu cần</span>`}
+      <button class="btn small danger" onclick="undoEntry('${r["Tên con"]}','${r["Mã bài"]}','${r["Ngày giờ"]}', this)">Xoá</button>
     </div>`;
   }).join('');
 }
