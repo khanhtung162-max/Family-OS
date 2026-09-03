@@ -140,7 +140,7 @@
     <section>
       <div class="sec-head">
         <h2>Con mạnh / yếu ở đâu</h2>
-        <div class="why">Tách riêng theo Level — sai ở Level 3 khác ý nghĩa với sai ở Level 1, không gộp chung một con số.</div>
+        <div class="why">Tách riêng theo Level — sai ở Level 3 khác ý nghĩa với sai ở Level 1, không gộp chung một con số. Chỉ tính câu trả lời sau khi bài đã được đánh dấu "Đã học".</div>
       </div>
       <div class="subject-tabs" id="subject-tabs"></div>
       <div class="skill-table" id="skill-table"></div>
@@ -303,14 +303,39 @@ function renderKidPicker(kids){
 }
 function selectKid(k){ currentKid = k; renderKidPicker([...new Set(PROGRESS.map(r=>r["Tên con"]))]); renderAll(); }
 
+function buildMarkedTimeMap(rows){
+  const map = {};
+  rows.filter(r => r["Trạng thái"] === "Đã học").forEach(r => {
+    const t = parseVNDate(r["Ngày giờ"]);
+    if (isNaN(t)) return;
+    if (!map[r["Mã bài"]] || t > map[r["Mã bài"]]) map[r["Mã bài"]] = t;
+  });
+  return map;
+}
+
+// Chỉ giữ lại các dòng "Trả lời câu hỏi" xảy ra SAU lần bấm "Đã học" gần nhất của đúng mã bài đó
+// — loại bỏ kết quả từ lúc con thử nghiệm/mò mẫm trước khi học thật
+function filterQuizByMarkedTime(rows){
+  const markMap = buildMarkedTimeMap(rows);
+  return rows.filter(r => {
+    if (r["Trạng thái"] !== "Trả lời câu hỏi") return true;
+    const markTime = markMap[r["Mã bài"]];
+    if (!markTime) return false;
+    const t = parseVNDate(r["Ngày giờ"]);
+    if (isNaN(t)) return false;
+    return t >= markTime;
+  });
+}
+
 function renderAll(){
   const rows = PROGRESS.filter(r => r["Tên con"] === currentKid);
+  const qualifiedRows = filterQuizByMarkedTime(rows);
   renderWarnings(rows);
   renderOverview(rows);
-  renderSubjectTabsAndSkills(rows);
+  renderSubjectTabsAndSkills(qualifiedRows);
   renderMood(rows);
-  renderCreative(rows);
-  renderBehavior(rows);
+  renderCreative(qualifiedRows);
+  renderBehavior(qualifiedRows);
   renderRecentLog(rows);
   renderBaoLoi();
 }
