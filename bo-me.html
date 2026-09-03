@@ -233,6 +233,11 @@ function parseVNDate(str){
   return new Date(y, mo - 1, d, h, mi, s);
 }
 
+function toDateKey(d){
+  if (isNaN(d)) return '';
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
 let PROGRESS = [], SKILLS = [], BAOLOI = [], LESSONS = [];
 let currentKid = null;
 let currentSubject = null;
@@ -559,13 +564,12 @@ function computeStreak(rows){
       .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Trả lời câu hỏi")
       .map(r => parseVNDate(r["Ngày giờ"]))
       .filter(d => !isNaN(d))
-      .map(d => d.toISOString().slice(0, 10))
+      .map(toDateKey)
   );
   let streak = 0;
   let cursor = new Date();
-  const todayStr = cursor.toISOString().slice(0, 10);
-  if (!days.has(todayStr)) cursor.setDate(cursor.getDate() - 1);
-  while (days.has(cursor.toISOString().slice(0, 10))) {
+  if (!days.has(toDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+  while (days.has(toDateKey(cursor))) {
     streak++;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -648,9 +652,9 @@ function renderMood(rows){
   const days = [];
   for (let i = 6; i >= 0; i--){
     const d = new Date(); d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0,10);
+    const key = toDateKey(d);
     const dow = ["CN","T2","T3","T4","T5","T6","T7"][d.getDay()];
-    const found = moods.filter(m => m["Ngày giờ"].slice(0,10) === key);
+    const found = moods.filter(m => toDateKey(parseVNDate(m["Ngày giờ"])) === key);
     days.push({dow, emoji: found.length ? found[found.length-1]["Mood"] : null});
   }
 
