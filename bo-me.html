@@ -46,6 +46,14 @@
   .skill-row:last-child{border-bottom:none;}
   .skill-row.head{background:var(--paper);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:9px 18px;}
   .skill-name{font-weight:600;font-size:14px;}
+  .skill-row.l1{cursor:pointer;user-select:none;}
+  .skill-row.l1:hover{background:var(--paper);}
+  .caret{display:inline-block;width:16px;transition:transform .15s ease;color:var(--muted);font-size:11px;}
+  .skill-row.l1.open .caret{transform:rotate(90deg);}
+  .l2-wrap{display:none;}
+  .l2-wrap.open{display:block;}
+  .skill-row.l2{background:var(--paper);padding-left:34px;}
+  .skill-row.l2 .skill-name{font-weight:500;font-size:13px;color:#544;}
   .lvl-cell{display:flex;flex-direction:column;gap:4px;}
   .bar-track{background:var(--line);height:6px;border-radius:4px;overflow:hidden;}
   .bar-fill{height:100%;border-radius:4px;background:var(--moss);}
@@ -620,6 +628,7 @@ function renderSkillTable(rows, subject){
     return;
   }
 
+  // Layer 2 (Skill cụ thể) — như cũ
   const bySkill = {};
   cb.forEach(r => {
     const sk = r["Skill/Năng lực"];
@@ -630,16 +639,59 @@ function renderSkillTable(rows, subject){
     if (r["Đúng/Sai"] === "Đúng") bySkill[sk][lv].d++;
   });
 
+  // Tra cứu Layer 1 cho từng Skill (Layer 2), từ tab Skills — cột "Layer 1" do phụ huynh tự điền
+  const skillToLayer1 = {};
+  SKILLS.forEach(s => {
+    if (s["Skill"] && s["Layer 1"] && !skillToLayer1[s["Skill"]]) {
+      skillToLayer1[s["Skill"]] = s["Layer 1"];
+    }
+  });
+
+  // Gom Layer 2 vào đúng nhóm Layer 1 (giữ thứ tự xuất hiện đầu tiên)
+  const layer1Order = [];
+  const byLayer1 = {};
+  Object.keys(bySkill).forEach(sk => {
+    const l1 = skillToLayer1[sk] || sk; // chưa map thì tự thành nhóm riêng mang tên chính nó
+    if (!byLayer1[l1]) { byLayer1[l1] = []; layer1Order.push(l1); }
+    byLayer1[l1].push(sk);
+  });
+
   let html = `<div class="skill-row head">
     <div>Skill</div><div>Lv1 · Nhận biết</div><div>Lv2 · Hiểu &amp; áp dụng</div><div>Lv3 · Chuyển hoá</div><div></div>
   </div>`;
 
-  Object.keys(bySkill).forEach(sk => {
-    const lv = bySkill[sk];
-    html += `<div class="skill-row">
-      <div class="skill-name">${sk}</div>
-      ${[1,2,3].map(l => lvCell(lv[l])).join('')}
+  layer1Order.forEach((l1, gi) => {
+    const childSkills = byLayer1[l1];
+    const groupId = `l2grp-${subject}-${gi}`.replace(/\s+/g, '_');
+
+    // Cộng gộp d/t theo từng Level cho cả nhóm Layer 1
+    const agg = {1:{d:0,t:0},2:{d:0,t:0},3:{d:0,t:0}};
+    childSkills.forEach(sk => {
+      [1,2,3].forEach(l => { agg[l].d += bySkill[sk][l].d; agg[l].t += bySkill[sk][l].t; });
+    });
+
+    if (childSkills.length === 1) {
+      // Chỉ có 1 Skill con — không cần xổ xuống, hiện thẳng luôn
+      html += `<div class="skill-row">
+        <div class="skill-name">${childSkills[0]}</div>
+        ${[1,2,3].map(l => lvCell(agg[l])).join('')}
+        <div></div>
+      </div>`;
+      return;
+    }
+
+    html += `<div class="skill-row l1" onclick="document.getElementById('${groupId}').classList.toggle('open'); this.classList.toggle('open');">
+      <div class="skill-name"><span class="caret">▸</span>${l1}</div>
+      ${[1,2,3].map(l => lvCell(agg[l])).join('')}
       <div></div>
+    </div>
+    <div class="l2-wrap" id="${groupId}">
+      ${childSkills.map(sk => `
+        <div class="skill-row l2">
+          <div class="skill-name">${sk}</div>
+          ${[1,2,3].map(l => lvCell(bySkill[sk][l])).join('')}
+          <div></div>
+        </div>`).join('')}
     </div>`;
   });
 
