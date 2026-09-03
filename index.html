@@ -658,6 +658,7 @@ function answerDS(idx, chosen, correct) {
 
     // ghi Progress chi tiết từng phát biểu (mỗi phát biểu 1 dòng), nhớ lại từng dòng để đối chiếu "Xem giải thích"
     window._lastDsAnswerMetas = [];
+    window._dsExplainOpened = false;
     window._dsAnswers.forEach((correct, i) => {
       fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -669,7 +670,9 @@ function answerDS(idx, chosen, correct) {
       .then(r => r.json())
       .then(res => {
         if (res.ngayGio) {
-          window._lastDsAnswerMetas.push({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio });
+          const meta = { tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio };
+          window._lastDsAnswerMetas.push(meta);
+          if (window._dsExplainOpened) markExplain(meta); // con đã bấm trước khi kịp phản hồi
         }
       })
       .catch(() => {});
@@ -705,7 +708,8 @@ function answerQuiz(btn, letter, correctLetter) {
 
   const q = window._currentAbcQ;
   window._abcResults.push({ skill: q['Skill'] || '', level: q['Level'] || '', correct: isRight });
-  window._lastAbcAnswerMeta = null; // reset, chỉ set lại khi server phản hồi thành công
+  window._lastAbcAnswerMeta = null;
+  window._explainOpenedThisAnswer = false; // cờ: con đã bấm Xem giải thích trước khi có phản hồi server chưa
 
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
@@ -718,6 +722,7 @@ function answerQuiz(btn, letter, correctLetter) {
   .then(res => {
     if (res.ngayGio) {
       window._lastAbcAnswerMeta = { tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio };
+      if (window._explainOpenedThisAnswer) markExplain(window._lastAbcAnswerMeta); // con đã bấm trước khi kịp phản hồi
     }
   })
   .catch(() => {});
@@ -729,10 +734,12 @@ function toggleExplain(kind) {
   if (kind === 'abc') {
     const q = window._currentAbcQ;
     box.innerHTML = q['Giải thích'] ? `💡 ${q['Giải thích']}` : 'Chưa có giải thích cho câu này.';
+    window._explainOpenedThisAnswer = true;
     if (window._lastAbcAnswerMeta) markExplain(window._lastAbcAnswerMeta);
   } else {
     const items = window._dsExplain || [];
     box.innerHTML = items.map((t,i) => `<div><b>${String.fromCharCode(97+i)})</b> ${t || 'Chưa có giải thích'}</div>`).join('');
+    window._dsExplainOpened = true;
     (window._lastDsAnswerMetas || []).forEach(markExplain);
   }
   box.style.display = 'block';
