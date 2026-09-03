@@ -533,10 +533,20 @@ function renderAbcQuestion() {
   const soCau = window._abcSet.length;
   const viTri = window._abcIndex + 1;
 
+  const letters = ['A','B','C','D'];
+  let options = letters
+    .filter(l => q['Đáp án ' + l])
+    .map(l => ({ origLetter: l, text: q['Đáp án ' + l] }));
+  // Xáo trộn vị trí 4 đáp án (Fisher-Yates) — giữ nguyên nội dung, chỉ đổi thứ tự hiển thị
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+
   let optionsHtml = '';
-  ['A','B','C','D'].forEach(letter => {
-    const val = q['Đáp án ' + letter];
-    if (val) optionsHtml += `<button class="answer-btn" data-letter="${letter}" onclick="answerQuiz(this,'${letter}','${q['Đáp án đúng']}')">${letter}. ${val}</button>`;
+  options.forEach((opt, idx) => {
+    const displayLetter = letters[idx];
+    optionsHtml += `<button class="answer-btn" data-letter="${opt.origLetter}" onclick="answerQuiz(this,'${opt.origLetter}','${q['Đáp án đúng']}')">${displayLetter}. ${opt.text}</button>`;
   });
 
   quizArea.innerHTML = `
