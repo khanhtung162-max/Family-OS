@@ -667,7 +667,8 @@ function renderMood(rows){
   }
 
   const fixedSubjects = ['Toán', 'Ngữ văn', 'Tiếng Anh'];
-  const subjectsInData = [...new Set(LESSONS.map(l => l["Subject"]).filter(Boolean))];
+  // Lấy môn "thêm" từ ĐÚNG dữ liệu Progress của con đang xem — không lấy từ toàn bộ Lessons (tránh lẫn Lớp 4/Lớp 6)
+  const subjectsInData = [...new Set(rows.map(r => subjectOf(r["Mã bài"])).filter(s => s !== 'Khác'))];
   const extraSubjects = subjectsInData.filter(s => !fixedSubjects.includes(s));
   const subjectsToShow = [...fixedSubjects, ...extraSubjects];
 
