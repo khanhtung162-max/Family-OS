@@ -485,10 +485,16 @@ function selectLesson(lesson) {
   const quizArea = document.getElementById('quizArea');
 
   // Kiểm tra dữ liệu ở cả 2 nguồn cho bài này
-  const toanRows = allQuizToan.filter(r => r['Mã bài'] === lesson['Lesson code']);
+  const toanRowsAll = allQuizToan.filter(r => r['Mã bài'] === lesson['Lesson code']);
+  // Mỗi mã bài có thể có nhiều Nhóm câu (DS01, DS02...) — chỉ lấy ĐÚNG 1 nhóm ngẫu nhiên mỗi lượt,
+  // không gộp Phát biểu từ nhiều nhóm khác nhau vào chung 1 Bối cảnh
+  const groupCodes = [...new Set(toanRowsAll.map(r => r['Nhóm câu']))];
+  const pickedGroup = groupCodes[Math.floor(Math.random() * groupCodes.length)];
+  const toanRows = toanRowsAll.filter(r => r['Nhóm câu'] === pickedGroup);
+
   const abcQuestions = allQuiz.filter(q => q['Mã bài'] === lesson['Lesson code'] && q['Câu hỏi']);
 
-  const hasToan = toanRows.length > 0;
+  const hasToan = toanRowsAll.length > 0;
   const hasAbc = abcQuestions.length > 0;
 
   let showToan;
