@@ -209,6 +209,14 @@ const MOOD_LABEL = {
   "\ud83d\ude25":"buon", "\ud83d\ude1e":"buon"
 };
 
+function parseVNDate(str){
+  if (!str) return new Date(NaN);
+  const m = String(str).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!m) return new Date(NaN);
+  const [d, mo, y, h, mi, s] = m.slice(1).map(Number);
+  return new Date(y, mo - 1, d, h, mi, s);
+}
+
 let PROGRESS = [], SKILLS = [], BAOLOI = [];
 let currentKid = null;
 let currentSubject = null;
@@ -296,14 +304,14 @@ function renderAll(){
 // ============================================================
 function renderOverview(rows){
   const learned = new Set(rows.filter(r => r["Trạng thái"] === "Đã học").map(r => r["Mã bài"]));
-  const dates = rows.map(r => new Date(r["Ngày giờ"])).filter(d => !isNaN(d));
+  const dates = rows.map(r => parseVNDate(r["Ngày giờ"])).filter(d => !isNaN(d));
   const lastDate = dates.length ? new Date(Math.max(...dates)) : null;
 
   const daysSince = lastDate ? Math.floor((new Date() - lastDate) / 86400000) : null;
   const warn = daysSince !== null && daysSince >= 3;
 
   const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  const answered7d = rows.filter(r => r["Dạng"] && new Date(r["Ngày giờ"]) >= weekAgo).length;
+  const answered7d = rows.filter(r => r["Dạng"] && parseVNDate(r["Ngày giờ"]) >= weekAgo).length;
 
   const streak = computeStreak(rows);
 
@@ -334,7 +342,7 @@ function computeStreak(rows){
   const days = new Set(
     rows
       .filter(r => r["Trạng thái"] === "Đã học" || r["Trạng thái"] === "Trả lời câu hỏi")
-      .map(r => new Date(r["Ngày giờ"]))
+      .map(r => parseVNDate(r["Ngày giờ"]))
       .filter(d => !isNaN(d))
       .map(d => d.toISOString().slice(0, 10))
   );
@@ -458,7 +466,7 @@ function renderMood(rows){
 function renderCreative(rows){
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lv3 = rows.filter(r => r["Level"] === "3" && new Date(r["Ngày giờ"]) >= monthStart);
+  const lv3 = rows.filter(r => r["Level"] === "3" && parseVNDate(r["Ngày giờ"]) >= monthStart);
 
   if (lv3.length < 20){
     document.getElementById('creative-block').innerHTML = `
@@ -498,7 +506,7 @@ function renderBehavior(rows){
     </div>`;
 
   const wrong = rows.filter(r => r["Đúng/Sai"] === "Sai")
-    .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
+    .sort((a,b) => parseVNDate(b["Ngày giờ"]) - parseVNDate(a["Ngày giờ"]))
     .slice(0, 6);
 
   if (!wrong.length){
@@ -521,7 +529,7 @@ function renderBehavior(rows){
 // ============================================================
 function renderRecentLog(rows){
   const learned = rows.filter(r => r["Trạng thái"] === "Đã học")
-    .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
+    .sort((a,b) => parseVNDate(b["Ngày giờ"]) - parseVNDate(a["Ngày giờ"]))
     .slice(0, 8);
 
   if (!learned.length){
@@ -530,7 +538,7 @@ function renderRecentLog(rows){
   }
 
   document.getElementById('recent-log').innerHTML = learned.map(r => {
-    const t = new Date(r["Ngày giờ"]);
+    const t = parseVNDate(r["Ngày giờ"]);
     return `<div class="log-item">
       <div>
         <div>${r["Mã bài"]}</div>
@@ -571,7 +579,7 @@ function renderBaoLoi(){
     return;
   }
   document.getElementById('baoloi-list').innerHTML = mine
-    .sort((a,b) => new Date(b["Ngày giờ"]) - new Date(a["Ngày giờ"]))
+    .sort((a,b) => parseVNDate(b["Ngày giờ"]) - parseVNDate(a["Ngày giờ"]))
     .map(r => `
       <div class="baoloi-item">
         <div>${r["Mô tả"]} <span class="badge ${r["Trạng thái"]==='Đã xử lý'?'done':''}">${r["Trạng thái"] || "Chưa xử lý"}</span></div>

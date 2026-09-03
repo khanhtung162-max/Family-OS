@@ -197,6 +197,14 @@ const CSV_QUIZ_TOAN = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8A
 const CSV_PROGRESS = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1514932059";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
 
+function parseVNDate(str){
+  if (!str) return new Date(NaN);
+  const m = String(str).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!m) return new Date(NaN);
+  const [d, mo, y, h, mi, s] = m.slice(1).map(Number);
+  return new Date(y, mo - 1, d, h, mi, s);
+}
+
 const SUBJECT_META = {
   "Toán 6 Tập 1":     { emoji: "🔢", bg: "#FFE1DC", color: "#C43F2E", short: "Toán" },
   "Ngữ văn 6 Tập 1":  { emoji: "📖", bg: "#EBE1FF", color: "#5B3BA6", short: "Ngữ văn" },
@@ -317,19 +325,22 @@ function renderKidPicker() {
   list.appendChild(parentBtn);
 }
 
+function toDateKey(d){
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
 function computeStreak(tenCon) {
   const days = new Set(
     allProgress
       .filter(p => p['Tên con'] === tenCon && (p['Trạng thái'] === 'Đã học' || p['Trạng thái'] === 'Trả lời câu hỏi'))
-      .map(p => new Date(p['Ngày giờ']))
+      .map(p => parseVNDate(p['Ngày giờ']))
       .filter(d => !isNaN(d))
-      .map(d => d.toISOString().slice(0, 10))
+      .map(toDateKey)
   );
   let streak = 0;
   let cursor = new Date();
-  const todayStr = cursor.toISOString().slice(0, 10);
-  if (!days.has(todayStr)) cursor.setDate(cursor.getDate() - 1); // hôm nay chưa học thì tính từ hôm qua, không cắt chuỗi ngay
-  while (days.has(cursor.toISOString().slice(0, 10))) {
+  if (!days.has(toDateKey(cursor))) cursor.setDate(cursor.getDate() - 1); // hôm nay chưa học thì tính từ hôm qua, không cắt chuỗi ngay
+  while (days.has(toDateKey(cursor))) {
     streak++;
     cursor.setDate(cursor.getDate() - 1);
   }
@@ -350,10 +361,10 @@ function selectKid(kid) {
   const latestStatusByLesson = {};
   const latestStatusTimeByLesson = {};
   statusRows
-    .sort((a, b) => new Date(a['Ngày giờ']) - new Date(b['Ngày giờ']))
+    .sort((a, b) => parseVNDate(a['Ngày giờ']) - parseVNDate(b['Ngày giờ']))
     .forEach(p => {
       latestStatusByLesson[p['Mã bài']] = p['Trạng thái'];
-      latestStatusTimeByLesson[p['Mã bài']] = p['Ngày giờ'];
+      latestStatusTimeByLesson[p['Mã bài']] = parseVNDate(p['Ngày giờ']);
     });
   window._latestStatusTimeByLesson = latestStatusTimeByLesson;
 
@@ -736,7 +747,7 @@ function markDone() {
     body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Đã học', mood: '' })
   }).then(() => {
     learnedThisSession.add(currentLesson['Lesson code']);
-    window._latestStatusTimeByLesson[currentLesson['Lesson code']] = new Date().toString();
+    window._latestStatusTimeByLesson[currentLesson['Lesson code']] = new Date();
     btn.disabled = false;
     updateMarkDoneBtn();
     document.getElementById('moodSection').classList.add('show');
