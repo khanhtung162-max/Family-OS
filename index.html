@@ -749,7 +749,12 @@ function markExplain(meta) {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     body: JSON.stringify({ action: 'markExplain', tenCon: meta.tenCon, maBai: meta.maBai, ngayGio: meta.ngayGio })
-  }).catch(() => {});
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (!res.success) console.warn('markExplain thất bại:', res.error, meta);
+  })
+  .catch(err => console.warn('markExplain lỗi kết nối:', err));
 }
 
 function updateMarkDoneBtn() {
@@ -830,10 +835,11 @@ function unmarkDone() {
 function pickMood(btn, emoji) {
   document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('picked'));
   btn.classList.add('picked');
+  document.getElementById('doneBanner').classList.add('show'); // hiện ngay, không đợi server phản hồi
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Mood', mood: emoji })
-  }).then(() => document.getElementById('doneBanner').classList.add('show'));
+  }).catch(() => {});
 }
 
 loadAll();
