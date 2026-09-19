@@ -194,12 +194,13 @@
   <!-- ============ MÀN 4: NHẬP PIN (chỉ khi chọn Con) ============ -->
   <div id="screenAuthPin" class="screen">
     <div class="header">
-      <button class="back-btn" onclick="showScreen('screenPickKid')">←</button>
+      <button class="back-btn" id="pinBackBtn" onclick="showScreen('screenPickKid')">←</button>
     </div>
     <div class="picker-title" style="margin-top:6px;">Nhập mã PIN của <span id="pinKidName"></span></div>
     <div class="pin-dots" id="pinDots"></div>
     <div class="pin-keypad" id="pinKeypad"></div>
     <div class="auth-error" id="authPinError"></div>
+    <button class="back-btn" id="switchAccountBtn" style="display:none;width:100%;text-align:center;margin-top:10px;" onclick="clearRememberedLogin()">Không phải mình? Đổi tài khoản</button>
   </div>
 
   <div id="screenSubjects" class="screen">
@@ -351,7 +352,23 @@ async function loadAll() {
     }
 
     document.getElementById('loadingScreen').style.display = 'none';
-    showScreen('screenPickNha');
+
+    // ==== Nếu thiết bị này đã từng đăng nhập thành công trước đó, bỏ qua Nhà/Email/Chọn con ====
+    const remembered = getRememberedLogin();
+    if (remembered) {
+      currentNha = remembered.nha;
+      pinTargetKid = remembered.kid;
+      pinBuffer = '';
+      document.getElementById('pinKidName').textContent = remembered.kid.ten;
+      document.getElementById('authPinError').textContent = '';
+      document.getElementById('pinBackBtn').style.display = 'none'; // không cho lùi về màn Chọn con vì ta đang bỏ qua nó
+      document.getElementById('switchAccountBtn').style.display = 'block';
+      renderPinDots();
+      renderPinKeypad();
+      showScreen('screenAuthPin');
+    } else {
+      showScreen('screenPickNha');
+    }
   } catch (err) {
     document.getElementById('loadingScreen').innerHTML = '<p style="color:#C43F2E;">Không tải được dữ liệu 😢<br>Kiểm tra lại kết nối mạng nhé</p>';
     console.error(err);
@@ -361,6 +378,34 @@ async function loadAll() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+}
+
+// ===================== GHI NHỚ THIẾT BỊ (chỉ Nhà + Email + tên con, KHÔNG nhớ PIN) =====================
+// Dùng cho thiết bị RIÊNG của từng con — không dùng nếu nhiều con dùng chung 1 máy/tablet.
+const REMEMBER_KEY = 'familyos_remembered_login';
+
+function saveRememberedLogin(nha, kid) {
+  try {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ nha, kid }));
+  } catch (e) { /* localStorage có thể bị chặn — bỏ qua, không chặn app */ }
+}
+
+function getRememberedLogin() {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.nha || !data.kid || !data.kid.ten) return null;
+    return data;
+  } catch (e) { return null; }
+}
+
+function clearRememberedLogin() {
+  try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {}
+  document.getElementById('switchAccountBtn').style.display = 'none';
+  document.getElementById('pinBackBtn').style.display = 'inline-block';
+  pinBuffer = '';
+  showScreen('screenPickNha');
 }
 
 // ===================== AUTH: MÀN 1 — CHỌN NHÀ =====================
@@ -449,6 +494,8 @@ function openPinScreen(kid) {
   pinBuffer = '';
   document.getElementById('pinKidName').textContent = kid.ten;
   document.getElementById('authPinError').textContent = '';
+  document.getElementById('pinBackBtn').style.display = 'inline-block';
+  document.getElementById('switchAccountBtn').style.display = 'none';
   renderPinDots();
   renderPinKeypad();
   showScreen('screenAuthPin');
@@ -516,6 +563,7 @@ function submitPin() {
         return;
       }
       errEl.textContent = '';
+      saveRememberedLogin(currentNha, pinTargetKid); // ghi nhớ thiết bị này cho lần mở sau (không nhớ PIN)
       enterKidApp(pinTargetKid);
     })
     .catch(() => {
@@ -545,7 +593,7 @@ function enterKidApp(kid) {
 function logout() {
   currentNha = null; currentKid = null; allProgress = [];
   document.getElementById('authEmailInput').value = '';
-  showScreen('screenPickNha');
+  clearRememberedLogin(); // đăng xuất = xoá luôn ghi nhớ thiết bị, lần sau phải đăng nhập lại từ đầu
 }
 
 function toDateKey(d){
