@@ -1015,7 +1015,13 @@ function flagCurrentQuestion(kind, btnEl) {
       moTa: '[Quiz] Con gắn cờ câu hỏi có vấn đề. ' + noiDungCau,
       nguoiBao: 'Con'
     })
-  }).catch(() => {}); // gắn cờ là xong việc, không cần chờ/báo kết quả cho con
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (!res.success) console.warn('Báo lỗi thất bại:', res.error);
+    else console.log('Báo lỗi đã ghi OK:', res);
+  })
+  .catch(err => console.warn('Báo lỗi — lỗi kết nối:', err)); // gắn cờ là xong việc, không cần chờ/báo kết quả cho con
 }
 
 function answerDS(idx, chosen, correct) {
