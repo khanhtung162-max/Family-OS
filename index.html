@@ -130,6 +130,25 @@
   .done-banner.show { display: block; animation: fadeUp 0.35s ease; }
 
   .demo-tag { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-family: 'Quicksand', sans-serif; font-size: 11px; color: var(--ink-soft); opacity: 0.5; }
+
+  /* ---- Auth screens (mới) ---- */
+  .auth-wrap { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
+  .nha-btn { display: flex; align-items: center; gap: 14px; background: var(--white); border: none; border-radius: 22px; padding: 20px 18px; box-shadow: var(--shadow); cursor: pointer; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; color: var(--ink); text-align: left; width: 100%; transition: transform 0.12s ease; }
+  .nha-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
+  .nha-emoji { font-size: 30px; }
+  .auth-input { width: 100%; border: 2px solid #EFECF6; background: var(--white); border-radius: 16px; padding: 14px 16px; font-family: 'Quicksand', sans-serif; font-weight: 600; font-size: 16px; color: var(--ink); margin-bottom: 14px; }
+  .auth-input:focus { outline: none; border-color: var(--grape); }
+  .auth-submit { width: 100%; border: none; background: var(--grape); color: white; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px; padding: 16px; border-radius: 18px; cursor: pointer; box-shadow: 0 6px 0 #6D3FD1; transition: transform 0.12s ease; }
+  .auth-submit:active { transform: translateY(4px); box-shadow: 0 2px 0 #6D3FD1; }
+  .auth-submit:disabled { background: #D9D3EE; box-shadow: none; }
+  .auth-error { color: var(--coral); font-weight: 600; font-size: 14px; text-align: center; margin-top: 10px; min-height: 20px; }
+  .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 24px 0; }
+  .pin-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #D9D3EE; background: transparent; }
+  .pin-dot.filled { background: var(--grape); border-color: var(--grape); }
+  .pin-keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pin-key { border: none; background: var(--white); border-radius: 16px; padding: 18px 0; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.12s ease; }
+  .pin-key:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
+  .pin-key.wide { grid-column: span 1; font-size: 15px; }
 </style>
 </head>
 <body>
@@ -140,10 +159,47 @@
     <p>Đang tải dữ liệu...</p>
   </div>
 
-  <div id="screenPickKid" class="screen">
+  <!-- ============ MÀN 1: CHỌN NHÀ ============ -->
+  <div id="screenPickNha" class="screen">
     <div class="picker-title">Chào bạn! 👋</div>
-    <div class="picker-sub">Hôm nay ai đang học nhỉ?</div>
+    <div class="picker-sub">Bạn là người nhà nào?</div>
+    <div class="auth-wrap">
+      <button class="nha-btn" onclick="selectNha('Tùng - Thư')"><span class="nha-emoji">🏠</span><span>Gia đình Tùng - Thư</span></button>
+      <button class="nha-btn" onclick="selectNha('Ngọc Anh')"><span class="nha-emoji">🏠</span><span>Gia đình Ngọc Anh</span></button>
+    </div>
+  </div>
+
+  <!-- ============ MÀN 2: NHẬP EMAIL ============ -->
+  <div id="screenAuthEmail" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screenPickNha')">←</button>
+    </div>
+    <div class="picker-title" style="margin-top:6px;">Bạn là người nhà <span id="authNhaLabel"></span> và có email là...?</div>
+    <div class="auth-wrap">
+      <input type="email" class="auth-input" id="authEmailInput" placeholder="Nhập email của bạn" autocomplete="email">
+      <button class="auth-submit" id="authEmailSubmit" onclick="submitEmail()">Tiếp tục</button>
+      <div class="auth-error" id="authEmailError"></div>
+    </div>
+  </div>
+
+  <!-- ============ MÀN 3: CHỌN CON (chỉ khi Vai trò = Con) ============ -->
+  <div id="screenPickKid" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screenAuthEmail')">←</button>
+    </div>
+    <div class="picker-title">Con là ai nhỉ? 👋</div>
     <div class="kid-list" id="kidList"></div>
+  </div>
+
+  <!-- ============ MÀN 4: NHẬP PIN (chỉ khi chọn Con) ============ -->
+  <div id="screenAuthPin" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('screenPickKid')">←</button>
+    </div>
+    <div class="picker-title" style="margin-top:6px;">Nhập mã PIN của <span id="pinKidName"></span></div>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-keypad" id="pinKeypad"></div>
+    <div class="auth-error" id="authPinError"></div>
   </div>
 
   <div id="screenSubjects" class="screen">
@@ -155,7 +211,7 @@
     <div class="term-row" id="termRow"></div>
     <div class="section-label">Hôm nay học môn gì?</div>
     <div class="subjects" id="subjectGrid"></div>
-    <button class="back-btn" onclick="showScreen('screenPickKid')">← Đổi bạn học khác</button>
+    <button class="back-btn" onclick="logout()">← Đăng xuất</button>
   </div>
 
   <div id="screenLessons" class="screen">
@@ -190,11 +246,17 @@
 </div>
 
 <script>
+// ===== Sheet gốc: Giáo trình (dùng chung, KHÔNG đổi theo Nhà) =====
 const CSV_LESSONS = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1899295567";
-const CSV_KIDS    = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1721888103";
 const CSV_QUIZ    = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1076715050";
 const CSV_QUIZ_TOAN = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=884854779";
-const CSV_PROGRESS = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1514932059";
+
+// ===== Sheet Tiến độ học riêng theo Nhà (Progress) — gid=0 (tab Progress, đầu tiên) =====
+const TIENDO_CSV_BY_NHA = {
+  'Tùng - Thư': "https://docs.google.com/spreadsheets/d/1PNbX_MNks1Ww7BPkgU5JbQNjNTSnPLhATxRStuziCl0/export?format=csv&gid=1514932059", // "Progress Nhà 1"
+  'Ngọc Anh':   "https://docs.google.com/spreadsheets/d/1BnBNkdewKYNDvlSm5KDDJY-OfiBMfuNG5BwUspvBn9A/export?format=csv&gid=1721888103"  // "Progress Nhà 2"
+};
+
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
 
 function parseVNDate(str){
@@ -214,9 +276,10 @@ const SUBJECT_META = {
   "Anh ngữ 4 Tập 1":  { emoji: "🗣️", bg: "#D6F5F0", color: "#0E8577", short: "Tiếng Anh" }
 };
 
-let allLessons = [], allKids = [], allQuiz = [], allProgress = [], allQuizToan = [];
-let currentKid = null, currentSubject = null, currentLesson = null, currentTerm = 'HK1';
+let allLessons = [], allQuiz = [], allProgress = [], allQuizToan = [];
+let currentNha = null, currentKid = null, currentSubject = null, currentLesson = null, currentTerm = 'HK1';
 let learnedThisSession = new Set(); // theo dõi tạm trong phiên (client-side)
+let pinBuffer = '', pinTargetKid = null;
 const TERM_LIST = [
   { code: 'HK1', label: 'Học kỳ 1' },
   { code: 'HK2', label: 'Học kỳ 2' },
@@ -269,20 +332,16 @@ function parseCSV(text) {
   });
 }
 
+// ===== KHỞI ĐỘNG: chỉ tải Giáo trình (dùng chung) — CHƯA tải Progress vì chưa biết Nhà =====
 async function loadAll() {
   try {
-    const [lText, kText, qText, pText] = await Promise.all([
+    const [lText, qText] = await Promise.all([
       fetch(CSV_LESSONS).then(r => r.text()),
-      fetch(CSV_KIDS).then(r => r.text()),
-      fetch(CSV_QUIZ).then(r => r.text()),
-      fetch(CSV_PROGRESS).then(r => r.text())
+      fetch(CSV_QUIZ).then(r => r.text())
     ]);
     allLessons = parseCSV(lText);
-    allKids = parseCSV(kText);
     allQuiz = parseCSV(qText);
-    allProgress = parseCSV(pText);
 
-    // Tải Quiz Toán riêng, không chặn app nếu lỗi (link chưa gắn đúng gid hoặc chưa có dữ liệu)
     try {
       const tText = await fetch(CSV_QUIZ_TOAN).then(r => r.text());
       allQuizToan = parseCSV(tText);
@@ -291,9 +350,8 @@ async function loadAll() {
       allQuizToan = [];
     }
 
-    renderKidPicker();
     document.getElementById('loadingScreen').style.display = 'none';
-    showScreen('screenPickKid');
+    showScreen('screenPickNha');
   } catch (err) {
     document.getElementById('loadingScreen').innerHTML = '<p style="color:#C43F2E;">Không tải được dữ liệu 😢<br>Kiểm tra lại kết nối mạng nhé</p>';
     console.error(err);
@@ -305,24 +363,189 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-function renderKidPicker() {
+// ===================== AUTH: MÀN 1 — CHỌN NHÀ =====================
+function selectNha(nha) {
+  currentNha = nha;
+  document.getElementById('authNhaLabel').textContent = nha;
+  document.getElementById('authEmailInput').value = '';
+  document.getElementById('authEmailError').textContent = '';
+  showScreen('screenAuthEmail');
+}
+
+// ===================== AUTH: MÀN 2 — NHẬP EMAIL =====================
+function submitEmail() {
+  const email = document.getElementById('authEmailInput').value.trim();
+  const errEl = document.getElementById('authEmailError');
+  const btn = document.getElementById('authEmailSubmit');
+  errEl.textContent = '';
+
+  if (!email) { errEl.textContent = 'Bạn nhập email vào đã nhé'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Đang kiểm tra...';
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'checkAuthEmail', nha: currentNha, email: email })
+  })
+    .then(r => r.json())
+    .then(res => {
+      btn.disabled = false;
+      btn.textContent = 'Tiếp tục';
+      if (!res.success) {
+        errEl.textContent = 'Email này không đúng với Gia đình đã chọn. Kiểm tra lại nhé.';
+        return;
+      }
+      if (res.vaiTro === 'Bố' || res.vaiTro === 'Mẹ') {
+        // Bố/Mẹ: vào thẳng trang Bố mẹ
+        window.location.href = 'bo-me.html?nha=' + encodeURIComponent(currentNha) + '&vaiTro=' + encodeURIComponent(res.vaiTro) + '&ten=' + encodeURIComponent(res.ten);
+      } else {
+        // Con: sang màn chọn tên con
+        loadKidsForNha();
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Tiếp tục';
+      errEl.textContent = 'Lỗi kết nối, thử lại nhé.';
+    });
+}
+
+// ===================== AUTH: MÀN 3 — CHỌN CON =====================
+function loadKidsForNha() {
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'getKidsByNha', nha: currentNha })
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (!res.success) {
+        document.getElementById('authEmailError').textContent = 'Không tải được danh sách con, thử lại nhé.';
+        return;
+      }
+      renderKidPicker(res.kids);
+      showScreen('screenPickKid');
+    })
+    .catch(() => {
+      document.getElementById('authEmailError').textContent = 'Lỗi kết nối, thử lại nhé.';
+    });
+}
+
+function renderKidPicker(kids) {
   const list = document.getElementById('kidList');
   list.innerHTML = '';
-  allKids.forEach(kid => {
+  kids.forEach(kid => {
     const btn = document.createElement('button');
     btn.className = 'kid-card';
-    btn.innerHTML = `<div class="kid-avatar" style="background:${kid['Màu']}22;">${kid['Icon']}</div><span>${kid['Tên con']}</span>`;
-    btn.onclick = () => selectKid(kid);
+    btn.innerHTML = `<div class="kid-avatar" style="background:${kid.mau}22;">${kid.icon}</div><span>${kid.ten}</span>`;
+    btn.onclick = () => openPinScreen(kid);
     list.appendChild(btn);
   });
+}
 
-  // Lựa chọn "Bố mẹ" — ngang hàng với các con, sẽ khoá bằng mã PIN riêng khi làm tính năng đó
-  const parentBtn = document.createElement('button');
-  parentBtn.className = 'kid-card';
-  parentBtn.style.opacity = '0.8';
-  parentBtn.innerHTML = `<div class="kid-avatar" style="background:#e3ddd022;">👨‍👩‍👧</div><span>Bố mẹ</span>`;
-  parentBtn.onclick = () => { window.location.href = 'bo-me.html'; };
-  list.appendChild(parentBtn);
+// ===================== AUTH: MÀN 4 — NHẬP PIN =====================
+function openPinScreen(kid) {
+  pinTargetKid = kid;
+  pinBuffer = '';
+  document.getElementById('pinKidName').textContent = kid.ten;
+  document.getElementById('authPinError').textContent = '';
+  renderPinDots();
+  renderPinKeypad();
+  showScreen('screenAuthPin');
+}
+
+function renderPinDots() {
+  const wrap = document.getElementById('pinDots');
+  wrap.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'pin-dot' + (i < pinBuffer.length ? ' filled' : '');
+    wrap.appendChild(dot);
+  }
+}
+
+function renderPinKeypad() {
+  const wrap = document.getElementById('pinKeypad');
+  wrap.innerHTML = '';
+  const keys = ['1','2','3','4','5','6','7','8','9','xóa','0','ok'];
+  keys.forEach(k => {
+    const btn = document.createElement('button');
+    btn.className = 'pin-key' + (k === 'xóa' || k === 'ok' ? ' wide' : '');
+    btn.textContent = k === 'xóa' ? '⌫' : (k === 'ok' ? '✓' : k);
+    btn.onclick = () => pinKeyPress(k);
+    wrap.appendChild(btn);
+  });
+}
+
+function pinKeyPress(k) {
+  const errEl = document.getElementById('authPinError');
+  if (k === 'xóa') {
+    pinBuffer = pinBuffer.slice(0, -1);
+    errEl.textContent = '';
+    renderPinDots();
+    return;
+  }
+  if (k === 'ok') {
+    if (pinBuffer.length !== 6) { errEl.textContent = 'PIN cần đủ 6 số nhé'; return; }
+    submitPin();
+    return;
+  }
+  if (pinBuffer.length < 6) {
+    pinBuffer += k;
+    renderPinDots();
+  }
+  if (pinBuffer.length === 6) {
+    submitPin();
+  }
+}
+
+function submitPin() {
+  const errEl = document.getElementById('authPinError');
+  errEl.textContent = 'Đang kiểm tra...';
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'checkAuthPin', nha: currentNha, tenCon: pinTargetKid.ten, pin: pinBuffer })
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (!res.success) {
+        errEl.textContent = 'Sai PIN rồi, thử lại nhé';
+        pinBuffer = '';
+        renderPinDots();
+        return;
+      }
+      errEl.textContent = '';
+      enterKidApp(pinTargetKid);
+    })
+    .catch(() => {
+      errEl.textContent = 'Lỗi kết nối, thử lại nhé';
+      pinBuffer = '';
+      renderPinDots();
+    });
+}
+
+// ===================== SAU KHI ĐĂNG NHẬP: tải Progress đúng Nhà rồi vào app =====================
+function enterKidApp(kid) {
+  document.getElementById('loadingScreen').style.display = 'flex';
+  document.getElementById('loadingScreen').innerHTML = '<div class="spin">🌀</div><p>Đang vào phòng của ' + kid.ten + '...</p>';
+  showScreen('loadingScreen'); // ẩn hết các screen khác trong lúc tải
+
+  const progressUrl = TIENDO_CSV_BY_NHA[currentNha];
+  fetch(progressUrl).then(r => r.text()).then(pText => {
+    allProgress = parseCSV(pText);
+    document.getElementById('loadingScreen').style.display = 'none';
+    selectKid(kid);
+  }).catch(err => {
+    document.getElementById('loadingScreen').innerHTML = '<p style="color:#C43F2E;">Không tải được dữ liệu học tập 😢<br>Thử lại nhé</p>';
+    console.error(err);
+  });
+}
+
+function logout() {
+  currentNha = null; currentKid = null; allProgress = [];
+  document.getElementById('authEmailInput').value = '';
+  showScreen('screenPickNha');
 }
 
 function toDateKey(d){
@@ -348,14 +571,14 @@ function computeStreak(tenCon) {
 }
 
 function selectKid(kid) {
-  currentKid = kid;
-  document.getElementById('greetName').textContent = 'Chào ' + kid['Tên con'];
-  document.getElementById('streakCount').textContent = computeStreak(kid['Tên con']);
+  currentKid = kid; // { ten, grade, icon, mau }
+  document.getElementById('greetName').textContent = 'Chào ' + kid.ten;
+  document.getElementById('streakCount').textContent = computeStreak(kid.ten);
 
   // Trạng thái "đã học" tính theo DÒNG GẦN NHẤT của mỗi mã bài (không phải chỉ cần tồn tại 1 dòng)
   // — để xử lý đúng khi con bấm nhầm rồi bấm "Bỏ đánh dấu" sau đó
   const statusRows = allProgress.filter(p =>
-    p['Tên con'] === kid['Tên con'] &&
+    p['Tên con'] === kid.ten &&
     (p['Trạng thái'] === 'Đã học' || p['Trạng thái'] === 'Bỏ đánh dấu')
   );
   const latestStatusByLesson = {};
@@ -378,7 +601,7 @@ function selectKid(kid) {
 }
 
 function renderSubjects() {
-  const grade = currentKid['Grade'];
+  const grade = String(currentKid.grade);
   const lessonsForGrade = allLessons.filter(l => l['Grade'] === grade && termMatches(l['Học kỳ'], currentTerm));
   const subjects = [...new Set(lessonsForGrade.map(l => l['Subject']))];
   const grid = document.getElementById('subjectGrid');
@@ -780,14 +1003,14 @@ function answerDS(idx, chosen, correct) {
       fetch(APPS_SCRIPT_URL, {
         method: 'POST',
         body: JSON.stringify({
-          tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Trả lời câu hỏi', mood: '',
+          nha: currentNha, tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], trangThai: 'Trả lời câu hỏi', mood: '',
           dang: 'Năng lực', skill: window._dsSkills[i] || '', level: '', dungSai: correct ? 'Đúng' : 'Sai'
         })
       })
       .then(r => r.json())
       .then(res => {
         if (res.ngayGio) {
-          const meta = { tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio };
+          const meta = { tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio };
           window._lastDsAnswerMetas.push(meta);
           if (window._dsExplainOpened) markExplain(meta); // con đã bấm trước khi kịp phản hồi
         }
@@ -831,14 +1054,14 @@ function answerQuiz(btn, letter, correctLetter) {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
     body: JSON.stringify({
-      tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Trả lời câu hỏi', mood: '',
+      nha: currentNha, tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], trangThai: 'Trả lời câu hỏi', mood: '',
       dang: 'Cơ bản', skill: q['Skill'] || '', level: q['Level'] || '', dungSai: isRight ? 'Đúng' : 'Sai'
     })
   })
   .then(r => r.json())
   .then(res => {
     if (res.ngayGio) {
-      window._lastAbcAnswerMeta = { tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio };
+      window._lastAbcAnswerMeta = { tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], ngayGio: res.ngayGio };
       if (window._explainOpenedThisAnswer) markExplain(window._lastAbcAnswerMeta); // con đã bấm trước khi kịp phản hồi
     }
   })
@@ -865,7 +1088,7 @@ function toggleExplain(kind) {
 function markExplain(meta) {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    body: JSON.stringify({ action: 'markExplain', tenCon: meta.tenCon, maBai: meta.maBai, ngayGio: meta.ngayGio })
+    body: JSON.stringify({ action: 'markExplain', nha: currentNha, tenCon: meta.tenCon, maBai: meta.maBai, ngayGio: meta.ngayGio })
   })
   .then(r => r.json())
   .then(res => {
@@ -914,7 +1137,7 @@ function markDone() {
 
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Đã học', mood: '' })
+    body: JSON.stringify({ nha: currentNha, tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], trangThai: 'Đã học', mood: '' })
   }).then(() => {
     learnedThisSession.add(currentLesson['Lesson code']);
     window._latestStatusTimeByLesson[currentLesson['Lesson code']] = new Date();
@@ -938,7 +1161,7 @@ function unmarkDone() {
 
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Bỏ đánh dấu', mood: '' })
+    body: JSON.stringify({ nha: currentNha, tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], trangThai: 'Bỏ đánh dấu', mood: '' })
   }).then(() => {
     learnedThisSession.delete(currentLesson['Lesson code']);
     delete window._latestStatusTimeByLesson[currentLesson['Lesson code']];
@@ -957,7 +1180,7 @@ function pickMood(btn, emoji) {
   document.getElementById('doneBanner').classList.add('show'); // hiện ngay, không đợi server phản hồi
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    body: JSON.stringify({ tenCon: currentKid['Tên con'], maBai: currentLesson['Lesson code'], trangThai: 'Mood', mood: emoji })
+    body: JSON.stringify({ nha: currentNha, tenCon: currentKid.ten, maBai: currentLesson['Lesson code'], trangThai: 'Mood', mood: emoji })
   }).catch(() => {});
 }
 
