@@ -17,12 +17,25 @@
   body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;padding:32px 16px 80px;}
   .wrap{max-width:900px;margin:0 auto;}
 
-  .top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;border-bottom:1px solid var(--line);padding-bottom:20px;flex-wrap:wrap;gap:12px;}
+  .top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px;border-bottom:1px solid var(--line);padding-bottom:20px;flex-wrap:wrap;gap:12px;}
   .top h1{font-family:'Source Serif 4',serif;font-weight:600;font-size:28px;margin:0 0 4px;}
   .top p{margin:0;color:var(--muted);font-size:14px;}
   .kidpicker{display:flex;gap:8px;flex-wrap:wrap;}
   .kidpill{padding:7px 16px;border-radius:999px;font-size:14px;font-weight:500;border:1px solid var(--line);background:var(--paper-raised);color:var(--muted);cursor:pointer;}
   .kidpill.active{background:var(--moss);border-color:var(--moss);color:#fff;}
+
+  /* ---- Tab lớn cấp cao nhất (Kết quả học tập / Trading / Thu chi) ---- */
+  .main-tabs{display:flex;gap:8px;margin-bottom:28px;border-bottom:2px solid var(--line);}
+  .main-tab{padding:12px 20px;font-family:'Source Serif 4',serif;font-weight:600;font-size:15px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;background:none;border-top:none;border-left:none;border-right:none;}
+  .main-tab.active{color:var(--ink);border-bottom-color:var(--moss);}
+  .main-panel{display:none;}
+  .main-panel.active{display:block;animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+  .placeholder-block{background:var(--paper-raised);border:1px dashed var(--line);border-radius:14px;padding:48px 24px;text-align:center;color:var(--muted);}
+  .placeholder-block .icon{font-size:34px;margin-bottom:12px;}
+  .placeholder-block h3{font-family:'Source Serif 4',serif;color:var(--ink);margin:0 0 8px;font-size:18px;}
+  .placeholder-block p{margin:0;font-size:13.5px;line-height:1.6;max-width:420px;margin:0 auto;}
 
   section{margin-bottom:36px;}
   .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;gap:16px;flex-wrap:wrap;}
@@ -135,6 +148,7 @@
 <div class="wrap">
 
   <div id="loading" class="loading">Đang tải dữ liệu...</div>
+  <div id="authError" class="loading" style="display:none;color:var(--danger);"></div>
 
   <div id="app" style="display:none;">
     <div class="top">
@@ -143,87 +157,130 @@
         <h1>Bố mẹ</h1>
         <p id="updated-at"></p>
       </div>
-      <div class="kidpicker" id="kidpicker"></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="kidpicker" id="kidpicker"></div>
+        <button class="btn danger" onclick="openReportForm()">⚠️ Báo lỗi</button>
+      </div>
     </div>
 
-    <div id="warnings-block"></div>
+    <!-- ============ TAB CẤP CAO NHẤT — cấu hình theo Nhà, xem TABS_BY_NHA ============ -->
+    <div class="main-tabs" id="mainTabs"></div>
 
-    <section>
-      <div class="sec-head">
-        <h2>Tổng quan</h2>
-        <div class="why">Trước khi đọc chi tiết bên dưới — biết đủ dữ liệu chưa và con có đang bỏ bẵng không.</div>
-      </div>
-      <div class="overview-grid" id="overview"></div>
-    </section>
+    <div class="main-panel" id="panel-ketqua">
+      <div id="warnings-block"></div>
 
-    <section>
-      <div class="sec-head">
-        <h2>Con mạnh / yếu ở đâu</h2>
-        <div class="why">Tách riêng theo Level — sai ở Level 3 khác ý nghĩa với sai ở Level 1, không gộp chung một con số. Chỉ tính câu trả lời sau khi bài đã được đánh dấu "Đã học".</div>
-      </div>
-      <div class="subject-tabs" id="subject-tabs"></div>
-      <div class="skill-table" id="skill-table"></div>
-    </section>
+      <section>
+        <div class="sec-head">
+          <h2>Tổng quan</h2>
+          <div class="why">Trước khi đọc chi tiết bên dưới — biết đủ dữ liệu chưa và con có đang bỏ bẵng không.</div>
+        </div>
+        <div class="overview-grid" id="overview"></div>
+      </section>
 
-    <section>
-      <div class="sec-head">
-        <h2>Dấu hiệu cảm xúc</h2>
-        <div class="why">Con tự chọn biểu tượng sau mỗi lần học — không phải điểm số, nhưng là tín hiệu sớm nếu con đang gượng ép hoặc chán.</div>
-      </div>
-      <div class="mood-card" id="mood-card"></div>
-    </section>
+      <section>
+        <div class="sec-head">
+          <h2>Con mạnh / yếu ở đâu</h2>
+          <div class="why">Tách riêng theo Level — sai ở Level 3 khác ý nghĩa với sai ở Level 1, không gộp chung một con số. Chỉ tính câu trả lời sau khi bài đã được đánh dấu "Đã học".</div>
+        </div>
+        <div class="subject-tabs" id="subject-tabs"></div>
+        <div class="skill-table" id="skill-table"></div>
+      </section>
 
-    <section>
-      <div class="sec-head">
-        <h2>Sáng tạo (thử nghiệm)</h2>
-        <div class="why">Dựa trên % đúng ở Level 3 toàn bộ các môn — cần tối thiểu 20 câu Level 3 trong tháng mới đủ tin cậy để hiển thị.</div>
-      </div>
-      <div id="creative-block"></div>
-    </section>
+      <section>
+        <div class="sec-head">
+          <h2>Dấu hiệu cảm xúc</h2>
+          <div class="why">Con tự chọn biểu tượng sau mỗi lần học — không phải điểm số, nhưng là tín hiệu sớm nếu con đang gượng ép hoặc chán.</div>
+        </div>
+        <div class="mood-card" id="mood-card"></div>
+      </section>
 
-    <section>
-      <div class="sec-head">
-        <h2>Con có đang học từ cái sai không</h2>
-        <div class="why">Đúng/sai không nói hết — tín hiệu này cho biết con có tự tìm hiểu khi vấp hay chỉ lướt qua.</div>
-      </div>
-      <div class="behavior-grid">
-        <div class="explain-card" id="explain-rate"></div>
-        <div class="recent-wrong" id="recent-wrong"></div>
-      </div>
-    </section>
+      <section>
+        <div class="sec-head">
+          <h2>Sáng tạo (thử nghiệm)</h2>
+          <div class="why">Dựa trên % đúng ở Level 3 toàn bộ các môn — cần tối thiểu 20 câu Level 3 trong tháng mới đủ tin cậy để hiển thị.</div>
+        </div>
+        <div id="creative-block"></div>
+      </section>
 
-    <section>
-      <div class="sec-head">
-        <h2>Bài đã học gần đây</h2>
-        <div class="why">Con chỉ tự bỏ đánh dấu được trong 24h đầu. Bố mẹ xoá được bất kỳ lúc nào ở đây.</div>
-      </div>
-      <div class="recent-log" id="recent-log"></div>
-    </section>
+      <section>
+        <div class="sec-head">
+          <h2>Con có đang học từ cái sai không</h2>
+          <div class="why">Đúng/sai không nói hết — tín hiệu này cho biết con có tự tìm hiểu khi vấp hay chỉ lướt qua.</div>
+        </div>
+        <div class="behavior-grid">
+          <div class="explain-card" id="explain-rate"></div>
+          <div class="recent-wrong" id="recent-wrong"></div>
+        </div>
+      </section>
 
-    <section>
-      <div class="sec-head">
-        <h2>Báo lỗi</h2>
-        <div class="why">Ghi lại bất thường (VD trạng thái nhảy bài không rõ lý do) để xử lý sau, không lẫn vào dữ liệu học thật.</div>
-      </div>
-      <div class="actionbar">
-        <button class="btn danger" onclick="openReportForm()">+ Báo lỗi mới</button>
-      </div>
-      <div id="baoloi-list"></div>
-    </section>
+      <section>
+        <div class="sec-head">
+          <h2>Bài đã học gần đây</h2>
+          <div class="why">Con chỉ tự bỏ đánh dấu được trong 24h đầu. Bố mẹ xoá được bất kỳ lúc nào ở đây.</div>
+        </div>
+        <div class="recent-log" id="recent-log"></div>
+      </section>
 
-    <footer>Dữ liệu tổng hợp từ Progress — dùng để hiểu con, không phải để chấm điểm.</footer>
+      <section>
+        <div class="sec-head">
+          <h2>Báo lỗi</h2>
+          <div class="why">Ghi lại bất thường (VD trạng thái nhảy bài không rõ lý do) để xử lý sau, không lẫn vào dữ liệu học thật.</div>
+        </div>
+        <div id="baoloi-list"></div>
+      </section>
+
+      <footer>Dữ liệu tổng hợp từ Progress — dùng để hiểu con, không phải để chấm điểm.</footer>
+    </div>
+
+    <!-- ============ TAB TRADING — khung rỗng, chờ Bước 4 ============ -->
+    <div class="main-panel" id="panel-trading">
+      <div class="placeholder-block">
+        <div class="icon">📈</div>
+        <h3>Trading — đang xây dựng</h3>
+        <p>Góc làm việc của bố sẽ hiển thị ở đây: Trade record, Market Filter, Wyckoff Radar. Chưa kết nối dữ liệu — sẽ hoàn thiện ở bước tiếp theo.</p>
+      </div>
+    </div>
+
+    <!-- ============ TAB THU CHI — khung rỗng, chờ Bước 7 ============ -->
+    <div class="main-panel" id="panel-thuchi">
+      <div class="placeholder-block">
+        <div class="icon">💰</div>
+        <h3>Thu chi — đang xây dựng</h3>
+        <p>Góc thu chi của mẹ sẽ hiển thị ở đây: Thu / Chi / Đầu tư, có mục Trading ánh xạ chỉ đọc từ dữ liệu của bố. Chưa kết nối dữ liệu — sẽ hoàn thiện ở bước sau.</p>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
 // ============================================================
-// CẤU HÌNH — thay đúng 4 nguồn dữ liệu đã lấy
+// CẤU HÌNH — nguồn dữ liệu chung (Giáo trình) + theo Nhà (Tiến độ học)
 // ============================================================
-const PROGRESS_CSV = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1514932059";
-const SKILLS_CSV   = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=963482137";
-const BAOLOI_CSV   = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1540528384";
 const LESSONS_CSV  = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=1899295567";
+const SKILLS_CSV    = "https://docs.google.com/spreadsheets/d/1d_glKGEHJ25gkwr8AP4OuJPozLJMKwBYPzeOxUu6w00/export?format=csv&gid=963482137";
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9Ntbdp0l2x2g2zfo6UF2tuh6ls-lri26Yf7MoWhNpu3lJecxVHX-LHkNbrYY6jMnA/exec";
+
+// Progress + BaoLoi: đọc đúng Sheet Tiến độ học riêng theo Nhà
+const PROGRESS_CSV_BY_NHA = {
+  'Tùng - Thư': { progress: "https://docs.google.com/spreadsheets/d/1PNbX_MNks1Ww7BPkgU5JbQNjNTSnPLhATxRStuziCl0/export?format=csv&gid=1514932059",
+                  baoloi:   "https://docs.google.com/spreadsheets/d/1PNbX_MNks1Ww7BPkgU5JbQNjNTSnPLhATxRStuziCl0/export?format=csv&gid=0" },
+  'Ngọc Anh':   { progress: "https://docs.google.com/spreadsheets/d/1BnBNkdewKYNDvlSm5KDDJY-OfiBMfuNG5BwUspvBn9A/export?format=csv&gid=1721888103",
+                  baoloi:   "https://docs.google.com/spreadsheets/d/1BnBNkdewKYNDvlSm5KDDJY-OfiBMfuNG5BwUspvBn9A/export?format=csv&gid=0" }
+};
+
+// ==== Cấu hình tab riêng theo từng Nhà — mở cho mọi Nhà tự khai báo nhu cầu riêng ====
+// 'ketqua' luôn có mặt mặc định cho mọi Nhà (không cần khai báo lại ở đây).
+const EXTRA_TABS_BY_NHA = {
+  'Tùng - Thư': [
+    { key: 'trading', label: 'Trading', icon: '📈' },
+    { key: 'thuchi',  label: 'Thu chi', icon: '💰' }
+  ],
+  'Ngọc Anh': [
+    // chưa có nhu cầu riêng — để trống, sau này Nhà 2 muốn thêm tab gì thì khai báo ở đây
+  ]
+};
+const TAB_KETQUA = { key: 'ketqua', label: 'Kết quả học tập', icon: '📚' };
 
 // Mapping tiền tố mã bài -> môn học (mở rộng thêm khi có Bài mới)
 const SUBJECT_PREFIX = {
@@ -237,11 +294,6 @@ function subjectOf(maBai){
   }
   return "Khác";
 }
-
-const MOOD_LABEL = {
-  "\ud83d\ude04":"vui", "\ud83d\ude42":"binh-thuong", "\ud83d\ude05":"kho",
-  "\ud83d\ude25":"buon", "\ud83d\ude1e":"buon"
-};
 
 function parseVNDate(str){
   if (!str) return new Date(NaN);
@@ -259,6 +311,19 @@ function toDateKey(d){
 let PROGRESS = [], SKILLS = [], BAOLOI = [], LESSONS = [];
 let currentKid = null;
 let currentSubject = null;
+let currentNha = null, currentVaiTro = null, currentTen = null;
+
+// ============================================================
+// AUTH — đọc tham số từ URL, do index.html chuyển hướng sang kèm theo
+// ============================================================
+function getAuthParamsFromUrl(){
+  const params = new URLSearchParams(window.location.search);
+  return {
+    nha: params.get('nha'),
+    vaiTro: params.get('vaiTro'),
+    ten: params.get('ten')
+  };
+}
 
 // ============================================================
 // CSV PARSER (xử lý đúng dấu phẩy trong ô có ngoặc kép)
@@ -299,9 +364,23 @@ async function fetchCSV(url){
 // LOAD DATA
 // ============================================================
 async function loadAll(){
+  const auth = getAuthParamsFromUrl();
+  if (!auth.nha || !PROGRESS_CSV_BY_NHA[auth.nha]) {
+    document.getElementById('loading').style.display = 'none';
+    const errEl = document.getElementById('authError');
+    errEl.style.display = 'block';
+    errEl.innerHTML = 'Không xác định được Nhà đang đăng nhập.<br>Vui lòng quay lại và đăng nhập lại từ đầu.<br><br><a href="index.html">← Về màn hình chính</a>';
+    return;
+  }
+  currentNha = auth.nha;
+  currentVaiTro = auth.vaiTro;
+  currentTen = auth.ten;
+
+  const csvSet = PROGRESS_CSV_BY_NHA[currentNha];
+
   try {
     [PROGRESS, SKILLS, BAOLOI, LESSONS] = await Promise.all([
-      fetchCSV(PROGRESS_CSV), fetchCSV(SKILLS_CSV), fetchCSV(BAOLOI_CSV), fetchCSV(LESSONS_CSV)
+      fetchCSV(csvSet.progress), fetchCSV(SKILLS_CSV), fetchCSV(csvSet.baoloi), fetchCSV(LESSONS_CSV)
     ]);
   } catch (err){
     document.getElementById('loading').textContent = "Không tải được dữ liệu — kiểm tra lại quyền chia sẻ Sheet. (" + err.message + ")";
@@ -311,12 +390,39 @@ async function loadAll(){
   const kids = [...new Set(PROGRESS.map(r => r["Tên con"]).filter(Boolean))];
   currentKid = kids[0];
   renderKidPicker(kids);
+  renderMainTabs();
   renderAll();
 
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('updated-at').textContent =
-    "Cập nhật lúc " + new Date().toLocaleString('vi-VN');
+    "Nhà " + currentNha + " · Cập nhật lúc " + new Date().toLocaleString('vi-VN');
+}
+
+// ============================================================
+// TAB CẤP CAO NHẤT — dựng theo cấu hình EXTRA_TABS_BY_NHA
+// ============================================================
+function renderMainTabs(){
+  const extraTabs = EXTRA_TABS_BY_NHA[currentNha] || [];
+  const allTabs = [TAB_KETQUA, ...extraTabs];
+
+  const el = document.getElementById('mainTabs');
+  el.innerHTML = allTabs.map((t, i) =>
+    `<button class="main-tab ${i===0?'active':''}" onclick="selectMainTab('${t.key}')">${t.icon} ${t.label}</button>`
+  ).join('');
+
+  selectMainTab(allTabs[0].key);
+}
+
+function selectMainTab(key){
+  document.querySelectorAll('.main-tab').forEach(b => {
+    b.classList.toggle('active', b.textContent.trim().includes(
+      (EXTRA_TABS_BY_NHA[currentNha] || []).concat([TAB_KETQUA]).find(t => t.key === key)?.label || ''
+    ));
+  });
+  document.querySelectorAll('.main-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('panel-' + key);
+  if (panel) panel.classList.add('active');
 }
 
 function renderKidPicker(kids){
@@ -803,8 +909,6 @@ function renderCreative(rows){
 
 // ============================================================
 // 5. HÀNH VI — tỷ lệ xem giải thích + câu sai gần đây
-// Lưu ý: Progress hiện CHƯA có cột ghi lại việc bấm "Xem giải thích".
-// Phần % bên dưới tạm ẩn cho tới khi cột đó được thêm — chỉ hiện câu sai gần đây trước.
 // ============================================================
 function renderBehavior(rows){
   const wrongRows = rows.filter(r => r["Đúng/Sai"] === "Sai");
@@ -871,7 +975,7 @@ async function undoEntry(tenCon, maBai, ngayGio, btnEl){
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
-      body: JSON.stringify({ action: "undo", tenCon, maBai, ngayGio })
+      body: JSON.stringify({ action: "undo", nha: currentNha, tenCon, maBai, ngayGio })
     });
     const data = await res.json();
     if (data.success){
@@ -904,17 +1008,44 @@ function renderBaoLoi(){
       </div>`).join('');
 }
 
+// Báo lỗi từ Bố/Mẹ — dùng chung cho MỌI tab (Kết quả học tập / Trading / Thu chi / tab tương lai),
+// không bắt buộc gắn với 1 con cụ thể vì lỗi có thể phát sinh ở chức năng riêng của Nhà (VD Trading).
 async function openReportForm(){
-  const loaiLoi = prompt("Loại lỗi (VD: nhảy bài, sai điểm, khác):");
+  const extraTabs = EXTRA_TABS_BY_NHA[currentNha] || [];
+  const allTabs = [TAB_KETQUA, ...extraTabs];
+
+  let khuVuc = TAB_KETQUA.label;
+  if (allTabs.length > 1){
+    const list = allTabs.map((t, i) => `${i+1}. ${t.label}`).join('\n');
+    const pick = prompt(`Lỗi thuộc khu vực nào?\n${list}\n\nNhập số:`, "1");
+    const idx = parseInt(pick, 10) - 1;
+    khuVuc = allTabs[idx] ? allTabs[idx].label : TAB_KETQUA.label;
+  }
+
+  const loaiLoi = prompt("Loại lỗi (VD: nhảy bài, sai điểm, lỗi hiển thị, khác):");
   if (!loaiLoi) return;
-  const maBai = prompt("Mã bài liên quan (nếu có, để trống nếu không rõ):") || "";
+
+  let tenCon = "";
+  if (khuVuc === TAB_KETQUA.label){
+    tenCon = prompt(`Báo lỗi cho con nào? (để trống nếu không liên quan riêng 1 con)`, currentKid || "") || "";
+  }
+
+  const maBai = khuVuc === TAB_KETQUA.label
+    ? (prompt("Mã bài liên quan (nếu có, để trống nếu không rõ):") || "")
+    : "";
+
   const moTa = prompt("Mô tả chi tiết:");
   if (!moTa) return;
 
   try {
     await fetch(APPS_SCRIPT_URL, {
       method: "POST",
-      body: JSON.stringify({ action: "baoLoi", tenCon: currentKid, maBai, loaiLoi, moTa })
+      body: JSON.stringify({
+        action: "baoLoi", nha: currentNha,
+        tenCon, maBai, loaiLoi,
+        moTa: `[${khuVuc}] ${moTa}`,
+        nguoiBao: currentVaiTro || "Bố/Mẹ"
+      })
     });
     alert("Đã ghi lại báo lỗi.");
     loadAll();
