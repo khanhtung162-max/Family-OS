@@ -85,7 +85,7 @@
   .sub-name { font-size: 14px; font-weight: 600; }
 
   .quiz-card { background: var(--white); border-radius: 26px; padding: 20px 18px 18px; box-shadow: var(--shadow); margin-bottom: 20px; }
-  .quiz-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .quiz-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
   .quiz-chip { background: var(--sun-soft); color: #A66A00; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 13px; padding: 5px 12px; border-radius: 999px; }
   .quiz-question { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; line-height: 1.4; margin-bottom: 16px; }
   .quiz-img { width: 100%; border-radius: 14px; margin-bottom: 14px; display: block; }
@@ -131,7 +131,7 @@
 
   .demo-tag { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); font-family: 'Quicksand', sans-serif; font-size: 11px; color: var(--ink-soft); opacity: 0.5; }
 
-  /* ---- Auth screens (mới) ---- */
+  /* ---- Auth screens ---- */
   .auth-wrap { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
   .nha-btn { display: flex; align-items: center; gap: 14px; background: var(--white); border: none; border-radius: 22px; padding: 20px 18px; box-shadow: var(--shadow); cursor: pointer; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 18px; color: var(--ink); text-align: left; width: 100%; transition: transform 0.12s ease; }
   .nha-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
@@ -149,6 +149,11 @@
   .pin-key { border: none; background: var(--white); border-radius: 16px; padding: 18px 0; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 22px; box-shadow: var(--shadow); cursor: pointer; transition: transform 0.12s ease; }
   .pin-key:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(51,43,82,0.12); }
   .pin-key.wide { grid-column: span 1; font-size: 15px; }
+
+  /* ---- Báo lỗi câu quiz (mới) ---- */
+  .flag-btn { background: none; border: none; font-size: 13px; color: var(--ink-soft); cursor: pointer; padding: 5px 10px; border-radius: 999px; font-family: 'Quicksand', sans-serif; font-weight: 600; opacity: 0.7; transition: opacity 0.15s ease, background 0.15s ease; }
+  .flag-btn:active { opacity: 1; background: var(--coral-soft); }
+  .flag-btn.flagged { opacity: 1; background: var(--coral-soft); color: var(--coral); }
 </style>
 </head>
 <body>
@@ -898,6 +903,7 @@ function renderAbcQuestion() {
       <div class="quiz-top">
         <span class="quiz-chip">${currentLesson['Unit'] || ''}</span>
         <span class="quiz-chip" style="background:#EBE1FF;color:#5B3BA6;">Câu ${viTri}/${soCau}</span>
+        <button class="flag-btn" id="flagBtn" onclick="flagCurrentQuestion('abc', this)">🚩 Báo lỗi câu này</button>
       </div>
       ${q['Link ảnh'] ? `<img class="quiz-img" src="${toDirectDriveLink(q['Link ảnh'])}">` : ''}
       <div class="quiz-question">${q['Câu hỏi']}</div>
@@ -967,6 +973,7 @@ function renderToanQuizGroup(rows, quizArea, reviewLabel) {
       <div class="quiz-top">
         <span class="quiz-chip">${currentLesson['Unit'] || ''}</span>
         ${reviewLabel ? `<span class="quiz-chip" style="background:#EBE1FF;color:#5B3BA6;">${reviewLabel}</span>` : ''}
+        <button class="flag-btn" id="flagBtn" onclick="flagCurrentQuestion('ds', this)">🚩 Báo lỗi nhóm này</button>
       </div>
       ${context ? `<div class="ds-context">${context['Bối cảnh']}</div>` : ''}
       <div class="ds-list">${stmtHtml}</div>
@@ -981,6 +988,34 @@ function renderToanQuizGroup(rows, quizArea, reviewLabel) {
   window._dsCorrect = statements.map(s => s['Đúng/Sai']);
   window._dsSkills = statements.map(s => s['Năng lực']);
   window._dsExplain = statements.map(s => s['Giải thích'] || '');
+}
+
+// ==== BÁO LỖI CÂU QUIZ — chỉ gắn cờ, không hỏi gì thêm, ghi ngay vào tab BaoLoi ====
+function flagCurrentQuestion(kind, btnEl) {
+  if (btnEl.classList.contains('flagged')) return; // tránh bấm gửi trùng nhiều lần cho cùng 1 câu
+  btnEl.classList.add('flagged');
+  btnEl.textContent = '🚩 Đã báo lỗi';
+
+  let noiDungCau = '';
+  if (kind === 'abc' && window._currentAbcQ) {
+    noiDungCau = window._currentAbcQ['Câu hỏi'] || '';
+  } else if (kind === 'ds') {
+    // nhóm Đúng/Sai không có 1 câu hỏi đơn — ghi lại vắn tắt là "Nhóm Đúng/Sai"
+    noiDungCau = 'Nhóm câu Đúng/Sai';
+  }
+
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'baoLoi',
+      nha: currentNha,
+      tenCon: currentKid ? currentKid.ten : '',
+      maBai: currentLesson ? currentLesson['Lesson code'] : '',
+      loaiLoi: 'Câu hỏi/quiz',
+      moTa: '[Quiz] Con gắn cờ câu hỏi có vấn đề. ' + noiDungCau,
+      nguoiBao: 'Con'
+    })
+  }).catch(() => {}); // gắn cờ là xong việc, không cần chờ/báo kết quả cho con
 }
 
 function answerDS(idx, chosen, correct) {
