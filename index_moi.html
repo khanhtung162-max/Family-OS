@@ -176,7 +176,8 @@
     </div>
     <div class="picker-title" style="margin-top:6px;">Bạn là người nhà <span id="authNhaLabel"></span> và có email là...?</div>
     <div class="auth-wrap">
-      <input type="email" class="auth-input" id="authEmailInput" placeholder="Nhập email của bạn" autocomplete="email">
+      <button class="nha-btn" id="kidEmailSuggestBtn" onclick="useKidEmail()" style="background:var(--grape-soft);"><span class="nha-emoji">🧒</span><span>Con — bấm vào đây</span></button>
+      <input type="email" class="auth-input" id="authEmailInput" name="familyos-noautofill-email" placeholder="Hoặc nhập email của bố/mẹ" autocomplete="off">
       <button class="auth-submit" id="authEmailSubmit" onclick="submitEmail()">Tiếp tục</button>
       <div class="auth-error" id="authEmailError"></div>
     </div>
@@ -200,7 +201,6 @@
     <div class="pin-dots" id="pinDots"></div>
     <div class="pin-keypad" id="pinKeypad"></div>
     <div class="auth-error" id="authPinError"></div>
-    <button class="back-btn" id="switchAccountBtn" style="display:none;width:100%;text-align:center;margin-top:10px;" onclick="clearRememberedLogin()">Không phải mình? Đổi tài khoản</button>
   </div>
 
   <div id="screenSubjects" class="screen">
@@ -352,23 +352,7 @@ async function loadAll() {
     }
 
     document.getElementById('loadingScreen').style.display = 'none';
-
-    // ==== Nếu thiết bị này đã từng đăng nhập thành công trước đó, bỏ qua Nhà/Email/Chọn con ====
-    const remembered = getRememberedLogin();
-    if (remembered) {
-      currentNha = remembered.nha;
-      pinTargetKid = remembered.kid;
-      pinBuffer = '';
-      document.getElementById('pinKidName').textContent = remembered.kid.ten;
-      document.getElementById('authPinError').textContent = '';
-      document.getElementById('pinBackBtn').style.display = 'none'; // không cho lùi về màn Chọn con vì ta đang bỏ qua nó
-      document.getElementById('switchAccountBtn').style.display = 'block';
-      renderPinDots();
-      renderPinKeypad();
-      showScreen('screenAuthPin');
-    } else {
-      showScreen('screenPickNha');
-    }
+    showScreen('screenPickNha');
   } catch (err) {
     document.getElementById('loadingScreen').innerHTML = '<p style="color:#C43F2E;">Không tải được dữ liệu 😢<br>Kiểm tra lại kết nối mạng nhé</p>';
     console.error(err);
@@ -380,41 +364,26 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-// ===================== GHI NHỚ THIẾT BỊ (chỉ Nhà + Email + tên con, KHÔNG nhớ PIN) =====================
-// Dùng cho thiết bị RIÊNG của từng con — không dùng nếu nhiều con dùng chung 1 máy/tablet.
-const REMEMBER_KEY = 'familyos_remembered_login';
-
-function saveRememberedLogin(nha, kid) {
-  try {
-    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ nha, kid }));
-  } catch (e) { /* localStorage có thể bị chặn — bỏ qua, không chặn app */ }
-}
-
-function getRememberedLogin() {
-  try {
-    const raw = localStorage.getItem(REMEMBER_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (!data || !data.nha || !data.kid || !data.kid.ten) return null;
-    return data;
-  } catch (e) { return null; }
-}
-
-function clearRememberedLogin() {
-  try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {}
-  document.getElementById('switchAccountBtn').style.display = 'none';
-  document.getElementById('pinBackBtn').style.display = 'inline-block';
-  pinBuffer = '';
-  showScreen('screenPickNha');
-}
-
 // ===================== AUTH: MÀN 1 — CHỌN NHÀ =====================
+// Email dùng chung cho các con — hiện sẵn nút bấm, KHÔNG cần gõ tay, tránh lẫn gợi ý autofill của bố/mẹ
+const KID_EMAIL_BY_NHA = {
+  'Tùng - Thư': 'tungluongvnav113@gmail.com',
+  'Ngọc Anh':   'tungluongvnav114@gmail.com'
+};
+
 function selectNha(nha) {
   currentNha = nha;
   document.getElementById('authNhaLabel').textContent = nha;
   document.getElementById('authEmailInput').value = '';
   document.getElementById('authEmailError').textContent = '';
   showScreen('screenAuthEmail');
+}
+
+function useKidEmail() {
+  const email = KID_EMAIL_BY_NHA[currentNha];
+  if (!email) return;
+  document.getElementById('authEmailInput').value = email;
+  submitEmail();
 }
 
 // ===================== AUTH: MÀN 2 — NHẬP EMAIL =====================
@@ -494,8 +463,6 @@ function openPinScreen(kid) {
   pinBuffer = '';
   document.getElementById('pinKidName').textContent = kid.ten;
   document.getElementById('authPinError').textContent = '';
-  document.getElementById('pinBackBtn').style.display = 'inline-block';
-  document.getElementById('switchAccountBtn').style.display = 'none';
   renderPinDots();
   renderPinKeypad();
   showScreen('screenAuthPin');
@@ -563,7 +530,6 @@ function submitPin() {
         return;
       }
       errEl.textContent = '';
-      saveRememberedLogin(currentNha, pinTargetKid); // ghi nhớ thiết bị này cho lần mở sau (không nhớ PIN)
       enterKidApp(pinTargetKid);
     })
     .catch(() => {
@@ -593,7 +559,7 @@ function enterKidApp(kid) {
 function logout() {
   currentNha = null; currentKid = null; allProgress = [];
   document.getElementById('authEmailInput').value = '';
-  clearRememberedLogin(); // đăng xuất = xoá luôn ghi nhớ thiết bị, lần sau phải đăng nhập lại từ đầu
+  showScreen('screenPickNha');
 }
 
 function toDateKey(d){
