@@ -780,14 +780,14 @@ function buildQuizContent(quizArea) {
   const hasToan = toanRowsAll.length > 0;
   const hasAbc = abcQuestions.length > 0;
 
+  // Bài học thường: LUÔN ưu tiên dạng ABC nếu có — bỏ tỉ lệ random Đúng/Sai (60/40) trước đây.
+  // Dạng Đúng/Sai (Quiz Toán) chỉ còn dùng cho phần Ôn tập/Luyện tập (xem startReviewQuiz),
+  // hoặc khi bài này chưa có câu ABC nào (fallback, không phải cố tình dùng Đúng/Sai).
   let showToan;
-  if (hasToan && hasAbc) {
-    // Cả 2 nguồn đều có: random mỗi lần vào bài, tỉ lệ 60% cơ bản (ABC) / 40% năng lực (Đúng-Sai)
-    showToan = Math.random() < 0.4;
+  if (hasAbc) {
+    showToan = false;
   } else if (hasToan) {
     showToan = true;
-  } else if (hasAbc) {
-    showToan = false;
   } else {
     quizArea.innerHTML = `<div class="no-quiz">📝 Bài này chưa có câu hỏi<br>Con có thể đọc lại nội dung rồi đánh dấu đã học nhé</div>`;
     return;
