@@ -176,7 +176,8 @@
     </div>
     <div class="picker-title" style="margin-top:6px;">Bạn là người nhà <span id="authNhaLabel"></span> và có email là...?</div>
     <div class="auth-wrap">
-      <input type="email" class="auth-input" id="authEmailInput" placeholder="Nhập email của bạn" autocomplete="email">
+      <button class="nha-btn" id="kidEmailSuggestBtn" onclick="useKidEmail()" style="background:var(--grape-soft);"><span class="nha-emoji">🧒</span><span>Con — bấm vào đây</span></button>
+      <input type="email" class="auth-input" id="authEmailInput" name="familyos-noautofill-email" placeholder="Hoặc nhập email của bố/mẹ" autocomplete="off">
       <button class="auth-submit" id="authEmailSubmit" onclick="submitEmail()">Tiếp tục</button>
       <div class="auth-error" id="authEmailError"></div>
     </div>
@@ -194,7 +195,7 @@
   <!-- ============ MÀN 4: NHẬP PIN (chỉ khi chọn Con) ============ -->
   <div id="screenAuthPin" class="screen">
     <div class="header">
-      <button class="back-btn" onclick="showScreen('screenPickKid')">←</button>
+      <button class="back-btn" id="pinBackBtn" onclick="showScreen('screenPickKid')">←</button>
     </div>
     <div class="picker-title" style="margin-top:6px;">Nhập mã PIN của <span id="pinKidName"></span></div>
     <div class="pin-dots" id="pinDots"></div>
@@ -364,12 +365,25 @@ function showScreen(id) {
 }
 
 // ===================== AUTH: MÀN 1 — CHỌN NHÀ =====================
+// Email dùng chung cho các con — hiện sẵn nút bấm, KHÔNG cần gõ tay, tránh lẫn gợi ý autofill của bố/mẹ
+const KID_EMAIL_BY_NHA = {
+  'Tùng - Thư': 'tungluongvnav113@gmail.com',
+  'Ngọc Anh':   'tungluongvnav114@gmail.com'
+};
+
 function selectNha(nha) {
   currentNha = nha;
   document.getElementById('authNhaLabel').textContent = nha;
   document.getElementById('authEmailInput').value = '';
   document.getElementById('authEmailError').textContent = '';
   showScreen('screenAuthEmail');
+}
+
+function useKidEmail() {
+  const email = KID_EMAIL_BY_NHA[currentNha];
+  if (!email) return;
+  document.getElementById('authEmailInput').value = email;
+  submitEmail();
 }
 
 // ===================== AUTH: MÀN 2 — NHẬP EMAIL =====================
