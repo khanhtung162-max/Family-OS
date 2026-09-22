@@ -1253,6 +1253,57 @@ function aiHandleKeydown(event){
   }
 }
 
+// Gọi Gemini 1 lần, có timeout riêng. Trả về { ok, status, data } hoặc ném lỗi (mạng/timeout).
+async function aiCallGeminiOnce(apiKey, contents){
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: AI_QUIZ_SCHEMA
+          }
+        }),
+        signal: controller.signal
+      }
+    );
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Tự động thử lại khi gặp lỗi quá tải (503/UNAVAILABLE hoặc "high demand") — KHÔNG thử lại các lỗi khác
+// (sai key, hết quota, bị chặn an toàn...) vì thử lại không giúp ích gì trong các trường hợp đó.
+// Thời gian nghỉ tăng dần: 3s → 6s → 12s (exponential backoff), tối đa 3 lần thử lại.
+async function aiCallGeminiWithRetry(apiKey, contents, onRetryNotice){
+  const delays = [3000, 6000, 12000];
+  let lastResult = null;
+
+  for (let attempt = 0; attempt <= delays.length; attempt++){
+    lastResult = await aiCallGeminiOnce(apiKey, contents);
+    if (lastResult.ok) return lastResult;
+
+    const msg = (lastResult.data && lastResult.data.error && lastResult.data.error.message) || '';
+    const isOverload = lastResult.status === 503 || /high demand|overloaded|unavailable/i.test(msg);
+    if (!isOverload || attempt === delays.length) return lastResult; // lỗi khác, hoặc đã hết lượt thử lại
+
+    const waitSec = delays[attempt] / 1000;
+    if (onRetryNotice) onRetryNotice(attempt + 1, delays.length, waitSec);
+    await sleep(delays[attempt]);
+  }
+  return lastResult;
+}
+
 async function aiSend(){
   const keyEl = document.getElementById('aiApiKey');
   const inputEl = document.getElementById('aiInput');
@@ -1277,32 +1328,13 @@ async function aiSend(){
     { role: 'user', parts: [{ text: userText }] }
   ];
 
-  // Timeout 45 giây — tránh treo vô thời hạn khi mạng chặn hoặc Google không phản hồi (không báo lỗi, không báo gì)
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
-
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: AI_QUIZ_SCHEMA
-          }
-        }),
-        signal: controller.signal
-      }
-    );
-    clearTimeout(timeoutId);
+    const { ok, status, data } = await aiCallGeminiWithRetry(apiKey, contents, (soLan, tongSoLan, giay) => {
+      thinkingEl.innerHTML = `<i>Gemini đang quá tải — tự động thử lại lần ${soLan}/${tongSoLan} sau ${giay} giây...</i>`;
+    });
 
-    const data = await res.json();
-
-    if (!res.ok){
-      const msg = (data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`;
+    if (!ok){
+      const msg = (data && data.error && data.error.message) || `Lỗi HTTP ${status}`;
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = aiFormatErrorHtml(msg);
       aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
