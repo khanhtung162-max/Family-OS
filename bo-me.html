@@ -143,12 +143,27 @@
   .warn-card b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;color:var(--clay);}
   footer{text-align:center;font-size:12px;color:var(--muted);margin-top:40px;}
 
-  /* ---- Trợ lý AI (Gemini) ---- */
-  .ai-keybar{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px;}
-  .ai-keybar label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:6px;}
-  .ai-keybar input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;background:var(--paper);}
-  .ai-keybar .note{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5;}
-  .ai-chat{display:flex;flex-direction:column;gap:12px;min-height:120px;margin-bottom:14px;}
+  /* ---- Trợ lý AI (Gemini) — layout 2 cột: sidebar phiên chat (trái) + khung chat (phải, input dính đáy) ---- */
+  .ai-shell{display:grid;grid-template-columns:220px 1fr;gap:0;background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;height:min(720px, 78vh);}
+  @media (max-width:720px){.ai-shell{grid-template-columns:1fr;height:auto;}}
+
+  .ai-sidebar{background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
+  @media (max-width:720px){.ai-sidebar{border-right:none;border-bottom:1px solid var(--line);max-height:180px;}}
+  .ai-sidebar-head{padding:12px 14px;border-bottom:1px solid var(--line);}
+  .ai-new-session-btn{width:100%;font-size:12.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--paper-raised);cursor:pointer;color:var(--ink);font-weight:600;}
+  .ai-session-list{flex:1;overflow-y:auto;padding:8px;}
+  .ai-session-item{padding:9px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--ink);margin-bottom:3px;line-height:1.4;}
+  .ai-session-item:hover{background:var(--paper-raised);}
+  .ai-session-item.active{background:var(--moss-soft);font-weight:600;}
+  .ai-session-item .meta{font-size:10.5px;color:var(--muted);margin-top:2px;}
+
+  .ai-main{display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+  .ai-keybar{background:var(--paper);border-bottom:1px solid var(--line);padding:10px 16px;flex-shrink:0;}
+  .ai-keybar label{font-size:11.5px;color:var(--muted);display:block;margin-bottom:5px;}
+  .ai-keybar input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--paper-raised);}
+  .ai-keybar .note{font-size:10.5px;color:var(--muted);margin-top:5px;line-height:1.4;}
+
+  .ai-chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:16px;min-height:0;}
   .ai-msg{border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.6;max-width:100%;}
   .ai-msg.user{background:var(--moss-soft);align-self:flex-end;max-width:85%;white-space:pre-wrap;}
   .ai-msg.model{background:var(--paper-raised);border:1px solid var(--line);align-self:flex-start;width:100%;}
@@ -156,9 +171,10 @@
   .ai-quiz-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px;}
   .ai-quiz-table th,.ai-quiz-table td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;}
   .ai-quiz-table th{background:var(--paper);font-size:11px;text-transform:uppercase;color:var(--muted);}
-  .ai-inputbar{display:flex;gap:8px;align-items:flex-end;}
-  .ai-inputbar textarea{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;resize:vertical;min-height:44px;background:var(--paper-raised);}
-  .ai-actions{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap;}
+
+  .ai-inputbar{flex-shrink:0;display:flex;gap:8px;align-items:flex-end;padding:12px 16px;border-top:1px solid var(--line);background:var(--paper-raised);}
+  .ai-inputbar textarea{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;resize:vertical;min-height:44px;max-height:160px;background:var(--paper);}
+  .ai-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:0 16px 12px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -269,30 +285,39 @@
 
     <!-- ============ TAB TRỢ LÝ AI — chat trực tiếp với Gemini để soạn quiz mới ============ -->
     <div class="main-panel" id="panel-assistant">
-      <section>
-        <div class="sec-head">
-          <h2>Trợ lý AI — soạn quiz mới</h2>
-          <div class="why">Chat trực tiếp với Gemini để soạn câu hỏi. Đọc kỹ từng câu trả lời, tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng — không có bước tự động kiểm tra.</div>
+      <div class="sec-head">
+        <h2>Trợ lý AI — soạn quiz mới</h2>
+        <div class="why">Chat trực tiếp với Gemini để soạn câu hỏi. Đọc kỹ từng câu trả lời, tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng — không có bước tự động kiểm tra.</div>
+      </div>
+
+      <div class="ai-shell">
+        <div class="ai-sidebar">
+          <div class="ai-sidebar-head">
+            <button class="ai-new-session-btn" onclick="aiNewSession()">+ Phiên chat mới</button>
+          </div>
+          <div class="ai-session-list" id="aiSessionList"></div>
         </div>
 
-        <div class="ai-keybar">
-          <label for="aiApiKey">Gemini API key (dán mỗi lần dùng — không được lưu lại, mất khi đóng tab)</label>
-          <input type="password" id="aiApiKey" placeholder="AIzaSy...">
-          <div class="note">Key không được gửi đi đâu ngoài thẳng tới máy chủ Gemini (generativelanguage.googleapis.com) từ chính trình duyệt này. Đóng tab hoặc tải lại trang là mất, phải dán lại.</div>
-        </div>
+        <div class="ai-main">
+          <div class="ai-keybar">
+            <label for="aiApiKey">Gemini API key (dán mỗi lần dùng — không được lưu lại, mất khi đóng tab)</label>
+            <input type="password" id="aiApiKey" placeholder="AIzaSy...">
+            <div class="note">Key không được gửi đi đâu ngoài thẳng tới máy chủ Gemini, từ chính trình duyệt này. Đóng tab/tải lại trang là mất, phải dán lại.</div>
+          </div>
 
-        <div class="ai-chat" id="aiChat"></div>
+          <div class="ai-chat" id="aiChat"></div>
 
-        <div class="ai-inputbar">
-          <textarea id="aiInput" placeholder="VD: Soạn 10 câu trắc nghiệm Toán lớp 6 bài Số nguyên tố, tỷ lệ Level 1:3, Level 2:4, Level 3:3" onkeydown="aiHandleKeydown(event)"></textarea>
-          <button class="btn" onclick="aiSend()" id="aiSendBtn">Gửi</button>
-        </div>
+          <div class="ai-inputbar">
+            <textarea id="aiInput" placeholder="VD: Soạn 10 câu trắc nghiệm Toán lớp 6 bài Số nguyên tố, tỷ lệ Level 1:3, Level 2:4, Level 3:3" onkeydown="aiHandleKeydown(event)"></textarea>
+            <button class="btn" onclick="aiSend()" id="aiSendBtn">Gửi</button>
+          </div>
 
-        <div class="ai-actions">
-          <button class="btn small" onclick="aiClearChat()">Xoá hội thoại, làm lại từ đầu</button>
-          <button class="btn small" onclick="aiExportCSV()">Xuất CSV (câu hỏi mới nhất)</button>
+          <div class="ai-actions">
+            <button class="btn small" onclick="aiClearChat()">Xoá phiên này</button>
+            <button class="btn small" onclick="aiExportCSV()">Xuất CSV (câu hỏi mới nhất)</button>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
 
   </div>
@@ -1111,49 +1136,107 @@ loadAll();
 //    API key: dán mỗi lần dùng, không lưu (biến JS, mất khi đóng/tải lại tab), gọi thẳng
 //    từ trình duyệt tới Gemini, không qua server trung gian nào của Family OS.
 // ============================================================
-const GEMINI_MODEL = "gemini-3.8-flash"; // 3.6/3.7 KHÔNG nằm trong free tier — chỉ 3.8 Flash xác nhận dùng được miễn phí (test trực tiếp trên AI Studio Playground)
-const AI_STORAGE_KEY = 'familyos_ai_chat_' + (getAuthParamsFromUrl().nha || 'unknown');
-let aiHistory = [];     // lịch sử hội thoại nhiều lượt gửi cho Gemini: [{role:'user'|'model', text}]
-let aiLastQuizRows = []; // câu hỏi JSON của lượt trả lời gần nhất, để xuất CSV
-let aiTurns = [];       // lịch sử để HIỂN THỊ lại + lưu vào trình duyệt: [{role, userText?, ghiChu?, rows?, errorHtml?}]
+// Free tier có quota RẤT khác nhau theo model (xem tại aistudio.google.com/rate-limit):
+// 3.8 Flash / 3.6 Flash / 3.5 Flash (bản THƯỜNG): chỉ 20 request/NGÀY — cạn cực nhanh khi chat qua lại nhiều lượt.
+// 3.1 Flash Lite / 3.5 Flash Lite: 500 request/ngày — đủ dùng thoải mái cho việc soạn quiz + tinh chỉnh nhiều lượt.
+// Dùng 3.5 Flash Lite: cùng quota rộng như 3.1 Lite nhưng mới hơn, chất lượng nhỉnh hơn.
+// Nếu cần chất lượng cao hơn cho việc khó, đổi tạm sang 3.8 Flash (dè xẻn, tối đa ~20 lần/ngày).
+const GEMINI_MODEL = "gemini-3.5-flash-lite";
+const AI_STORAGE_KEY = 'familyos_ai_sessions_' + (getAuthParamsFromUrl().nha || 'unknown');
+const AI_MAX_TURNS_PER_SESSION = 50; // 1 lượt = 1 tin (user hoặc model). Đủ 50 thì tự mở phiên mới.
 
-// Lưu hội thoại vào trình duyệt (localStorage) — CHỈ hội thoại, KHÔNG bao giờ lưu API key.
-// Theo Nhà riêng (mỗi Nhà 1 ô nhớ riêng, không lẫn), mất khi người dùng tự xoá dữ liệu trình duyệt hoặc bấm "Xoá hội thoại".
+// aiSessions: [{ id, createdAt, turns: [{role, userText?, ghiChu?, rows?, errorHtml?, rawText?}] }]
+// Mỗi Nhà có 1 danh sách phiên riêng, lưu trong localStorage — KHÔNG bao giờ lưu API key.
+let aiSessions = [];
+let aiCurrentSessionId = null;
+let aiHistory = [];      // lịch sử gửi cho Gemini CỦA PHIÊN ĐANG MỞ: [{role:'user'|'model', text}]
+let aiLastQuizRows = []; // câu hỏi JSON của lượt trả lời gần nhất, để xuất CSV
+
+function aiGetCurrentSession(){
+  return aiSessions.find(s => s.id === aiCurrentSessionId);
+}
+
 function aiSaveToStorage(){
   try {
-    localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(aiTurns));
+    localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(aiSessions));
   } catch(e){ console.warn('Không lưu được hội thoại AI vào trình duyệt:', e); }
+}
+
+function aiFormatSessionLabel(session, index){
+  const d = new Date(session.createdAt);
+  const ngayGio = isNaN(d) ? '' : d.toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  return { title: `Phiên ${index + 1}`, meta: `${ngayGio} · ${session.turns.length} tin` };
+}
+
+function aiRenderSessionList(){
+  const el = document.getElementById('aiSessionList');
+  el.innerHTML = aiSessions.map((s, i) => {
+    const { title, meta } = aiFormatSessionLabel(s, i);
+    return `<div class="ai-session-item ${s.id === aiCurrentSessionId ? 'active' : ''}" onclick="aiSwitchSession('${s.id}')">
+      <div>${title}</div>
+      <div class="meta">${meta}</div>
+    </div>`;
+  }).reverse().join(''); // phiên mới nhất lên đầu danh sách
+}
+
+// Render lại toàn bộ khung chat từ dữ liệu 1 phiên (dùng khi chuyển phiên hoặc lúc tải trang)
+function aiRenderSessionChat(session){
+  document.getElementById('aiChat').innerHTML = '';
+  aiHistory = [];
+  session.turns.forEach(t => {
+    if (t.role === 'user'){
+      aiHistory.push({ role: 'user', text: t.userText });
+      aiAppendMsg('user', escapeHtml(t.userText));
+    } else if (t.role === 'model'){
+      aiHistory.push({ role: 'model', text: t.rawText || '' });
+      const div = aiAppendMsg('model', '');
+      div.innerHTML = t.errorHtml || `
+        ${t.ghiChu ? `<div style="margin-bottom:8px;">${escapeHtml(t.ghiChu)}</div>` : ''}
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${(t.rows||[]).length} câu — tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng.</div>
+        ${aiRenderQuizTable(t.rows||[])}
+      `;
+      if (t.errorHtml) div.className = 'ai-msg error';
+      if (t.rows && t.rows.length) aiLastQuizRows = t.rows;
+    }
+  });
+  if (session.turns.length){
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:11.5px;color:var(--muted);text-align:center;margin-bottom:4px;';
+    note.textContent = 'API key vẫn cần dán lại để gửi tiếp trong phiên này.';
+    document.getElementById('aiChat').prepend(note);
+  }
+}
+
+function aiSwitchSession(sessionId){
+  aiCurrentSessionId = sessionId;
+  aiLastQuizRows = [];
+  aiRenderSessionChat(aiGetCurrentSession());
+  aiRenderSessionList();
+}
+
+function aiNewSession(){
+  const session = { id: 'sess_' + Date.now(), createdAt: Date.now(), turns: [] };
+  aiSessions.push(session);
+  aiCurrentSessionId = session.id;
+  aiSaveToStorage();
+  aiSwitchSession(session.id);
 }
 
 function aiLoadFromStorage(){
   try {
     const raw = localStorage.getItem(AI_STORAGE_KEY);
-    if (!raw) return;
-    aiTurns = JSON.parse(raw) || [];
-    aiHistory = [];
-    aiTurns.forEach(t => {
-      if (t.role === 'user'){
-        aiHistory.push({ role: 'user', text: t.userText });
-        aiAppendMsg('user', escapeHtml(t.userText));
-      } else if (t.role === 'model'){
-        aiHistory.push({ role: 'model', text: t.rawText });
-        const div = aiAppendMsg('model', '');
-        div.innerHTML = t.errorHtml || `
-          ${t.ghiChu ? `<div style="margin-bottom:8px;">${escapeHtml(t.ghiChu)}</div>` : ''}
-          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${(t.rows||[]).length} câu — tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng.</div>
-          ${aiRenderQuizTable(t.rows||[])}
-        `;
-        if (t.errorHtml) div.className = 'ai-msg error';
-        if (t.rows && t.rows.length) aiLastQuizRows = t.rows; // để nút Xuất CSV dùng được ngay cả sau khi tải lại trang
-      }
-    });
-    if (aiTurns.length){
-      const note = document.createElement('div');
-      note.style.cssText = 'font-size:11.5px;color:var(--muted);text-align:center;margin-bottom:4px;';
-      note.textContent = 'Đã khôi phục hội thoại cũ — API key vẫn cần dán lại để gửi tiếp.';
-      document.getElementById('aiChat').prepend(note);
-    }
-  } catch(e){ console.warn('Không đọc được hội thoại AI đã lưu:', e); }
+    aiSessions = raw ? (JSON.parse(raw) || []) : [];
+  } catch(e){
+    console.warn('Không đọc được hội thoại AI đã lưu:', e);
+    aiSessions = [];
+  }
+  if (!aiSessions.length){
+    aiNewSession(); // luôn có ít nhất 1 phiên để bắt đầu chat ngay
+  } else {
+    aiCurrentSessionId = aiSessions[aiSessions.length - 1].id; // mở phiên gần nhất
+    aiRenderSessionChat(aiGetCurrentSession());
+    aiRenderSessionList();
+  }
 }
 
 // Schema ép Gemini trả JSON có cấu trúc cố định — dễ tách dữ liệu, không phải tự parse văn xuôi
@@ -1304,6 +1387,22 @@ async function aiCallGeminiWithRetry(apiKey, contents, onRetryNotice){
   return lastResult;
 }
 
+// Thêm 1 lượt vào phiên đang mở, lưu lại, và tự mở phiên mới nếu vừa chạm ngưỡng AI_MAX_TURNS_PER_SESSION
+function aiPushTurn(turn){
+  const session = aiGetCurrentSession();
+  if (!session) return;
+  session.turns.push(turn);
+  aiSaveToStorage();
+  aiRenderSessionList();
+
+  if (session.turns.length >= AI_MAX_TURNS_PER_SESSION){
+    const note = document.createElement('div');
+    note.style.cssText = 'font-size:11.5px;color:var(--muted);text-align:center;margin:6px 0;';
+    note.textContent = `Phiên này đã đủ ${AI_MAX_TURNS_PER_SESSION} tin — bấm "+ Phiên chat mới" ở bên trái để tiếp tục.`;
+    document.getElementById('aiChat').appendChild(note);
+  }
+}
+
 async function aiSend(){
   const keyEl = document.getElementById('aiApiKey');
   const inputEl = document.getElementById('aiInput');
@@ -1313,16 +1412,21 @@ async function aiSend(){
   if (!apiKey){ alert("Cần dán Gemini API key trước."); keyEl.focus(); return; }
   if (!userText){ return; }
 
+  const session = aiGetCurrentSession();
+  if (session && session.turns.length >= AI_MAX_TURNS_PER_SESSION){
+    alert(`Phiên này đã đủ ${AI_MAX_TURNS_PER_SESSION} tin. Bấm "+ Phiên chat mới" ở bên trái để tiếp tục.`);
+    return;
+  }
+
   aiAppendMsg('user', escapeHtml(userText));
-  aiTurns.push({ role: 'user', userText });
-  aiSaveToStorage();
+  aiPushTurn({ role: 'user', userText });
   inputEl.value = '';
   const btn = document.getElementById('aiSendBtn');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
 
   const thinkingEl = aiAppendMsg('model', '<i>Đang chờ Gemini phản hồi...</i>');
 
-  // Gửi kèm toàn bộ lịch sử hội thoại trước đó để giữ ngữ cảnh nhiều lượt, giống chat thông thường
+  // Gửi kèm toàn bộ lịch sử hội thoại trước đó (của phiên đang mở) để giữ ngữ cảnh nhiều lượt, giống chat thông thường
   const contents = [
     ...aiHistory.map(h => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: 'user', parts: [{ text: userText }] }
@@ -1337,8 +1441,7 @@ async function aiSend(){
       const msg = (data && data.error && data.error.message) || `Lỗi HTTP ${status}`;
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = aiFormatErrorHtml(msg);
-      aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
-      aiSaveToStorage();
+      aiPushTurn({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
       return;
     }
 
@@ -1346,8 +1449,7 @@ async function aiSend(){
     if (!rawText){
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = `<b>Không nhận được nội dung trả lời.</b> Có thể bị chặn bởi bộ lọc an toàn hoặc hết quota. Xem console (F12) để biết chi tiết.`;
-      aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
-      aiSaveToStorage();
+      aiPushTurn({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
       console.log('Gemini raw response:', data);
       return;
     }
@@ -1358,8 +1460,7 @@ async function aiSend(){
     } catch(e){
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = `<b>Gemini trả về JSON không hợp lệ.</b> Thử gửi lại yêu cầu, hoặc diễn đạt lại rõ ràng hơn.`;
-      aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
-      aiSaveToStorage();
+      aiPushTurn({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
       console.log('Raw text không parse được:', rawText);
       return;
     }
@@ -1374,31 +1475,30 @@ async function aiSend(){
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${aiLastQuizRows.length} câu — tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng.</div>
       ${aiRenderQuizTable(aiLastQuizRows)}
     `;
-    aiTurns.push({ role: 'model', rawText, ghiChu: parsed.ghiChu || '', rows: aiLastQuizRows });
-    aiSaveToStorage();
+    aiPushTurn({ role: 'model', rawText, ghiChu: parsed.ghiChu || '', rows: aiLastQuizRows });
 
   } catch(err){
-    clearTimeout(timeoutId);
     thinkingEl.className = 'ai-msg error';
     if (err.name === 'AbortError'){
       thinkingEl.innerHTML = `<b>Chờ quá 45 giây không thấy Gemini trả lời — đã huỷ.</b> Có thể do mạng đang chặn kết nối tới Google (hay gặp ở mạng công ty/trường học), hoặc yêu cầu quá nhiều câu cùng lúc. Thử lại với mạng khác hoặc yêu cầu ít câu hơn.`;
     } else {
       thinkingEl.innerHTML = `<b>Không kết nối được tới Gemini.</b> Kiểm tra lại mạng internet, hoặc thử lại sau ít phút.<div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn: ${escapeHtml(err.message)})</div>`;
     }
-    aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
-    aiSaveToStorage();
+    aiPushTurn({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
   } finally {
     btn.disabled = false; btn.textContent = 'Gửi';
   }
 }
 
 function aiClearChat(){
-  if (!confirm('Xoá toàn bộ hội thoại hiện tại và làm lại từ đầu? (Không xoá được câu hỏi đã Xuất CSV — file đó đã nằm trên máy bạn)')) return;
-  aiHistory = [];
+  if (!confirm('Xoá toàn bộ nội dung phiên chat đang mở? (Không xoá được câu hỏi đã Xuất CSV — file đó đã nằm trên máy bạn. Các phiên khác trong danh sách bên trái không bị ảnh hưởng)')) return;
+  const session = aiGetCurrentSession();
+  if (session){
+    session.turns = [];
+    aiSaveToStorage();
+  }
   aiLastQuizRows = [];
-  aiTurns = [];
-  try { localStorage.removeItem(AI_STORAGE_KEY); } catch(e){}
-  document.getElementById('aiChat').innerHTML = '';
+  aiSwitchSession(aiCurrentSessionId);
 }
 
 // Xuất CSV UTF-8 kèm BOM — tránh lỗi hiển thị sai dấu tiếng Việt khi mở bằng Excel
