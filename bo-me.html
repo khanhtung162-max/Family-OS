@@ -284,7 +284,7 @@
         <div class="ai-chat" id="aiChat"></div>
 
         <div class="ai-inputbar">
-          <textarea id="aiInput" placeholder="VD: Soạn 10 câu trắc nghiệm Toán lớp 6 bài Số nguyên tố, tỷ lệ Level 1:3, Level 2:4, Level 3:3"></textarea>
+          <textarea id="aiInput" placeholder="VD: Soạn 10 câu trắc nghiệm Toán lớp 6 bài Số nguyên tố, tỷ lệ Level 1:3, Level 2:4, Level 3:3" onkeydown="aiHandleKeydown(event)"></textarea>
           <button class="btn" onclick="aiSend()" id="aiSendBtn">Gửi</button>
         </div>
 
@@ -1109,7 +1109,7 @@ loadAll();
 //    API key: dán mỗi lần dùng, không lưu (biến JS, mất khi đóng/tải lại tab), gọi thẳng
 //    từ trình duyệt tới Gemini, không qua server trung gian nào của Family OS.
 // ============================================================
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = "gemini-3.8-flash";
 let aiHistory = [];     // lịch sử hội thoại nhiều lượt: [{role:'user'|'model', text}]
 let aiLastQuizRows = []; // câu hỏi JSON của lượt trả lời gần nhất, để xuất CSV
 
@@ -1167,6 +1167,49 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// Dịch nhanh các lỗi Gemini thường gặp sang tiếng Việt cho người không rành tiếng Anh.
+// Lỗi lạ/hiếm gặp: vẫn hiện nguyên văn tiếng Anh kèm gợi ý chung, không tự bịa cách dịch để tránh giấu mất thông tin quan trọng.
+function aiTranslateError(rawMsg){
+  const m = String(rawMsg || '');
+  const low = m.toLowerCase();
+
+  if (low.includes('high demand') || low.includes('overloaded') || low.includes('unavailable')) {
+    return { vi: 'Gemini đang quá tải tạm thời (nhiều người dùng cùng lúc). Đợi khoảng 1-2 phút rồi gửi lại — không phải lỗi do key hay do app.', raw: m };
+  }
+  if (low.includes('api key not valid') || low.includes('api_key_invalid') || low.includes('invalid api key')) {
+    return { vi: 'API key không hợp lệ — kiểm tra lại đã dán đúng, đủ, không thừa/thiếu ký tự khi copy chưa.', raw: m };
+  }
+  if (low.includes('quota') || low.includes('resource_exhausted') || low.includes('rate limit') || low.includes('429')) {
+    return { vi: 'Đã dùng hết hạn mức miễn phí cho phút/ngày này. Đợi một chút (thường vài phút) rồi thử lại.', raw: m };
+  }
+  if (low.includes('not found') || low.includes('not available') || low.includes('no longer available')) {
+    return { vi: 'Model AI đang gọi không còn được hỗ trợ nữa (Google thỉnh thoảng đổi tên model). Báo cho Tùng để cập nhật lại code.', raw: m };
+  }
+  if (low.includes('permission') || low.includes('403')) {
+    return { vi: 'Tài khoản/key này chưa có quyền dùng tính năng đang gọi. Báo cho Tùng kiểm tra lại.', raw: m };
+  }
+  if (low.includes('safety') || low.includes('blocked')) {
+    return { vi: 'Gemini từ chối trả lời vì bộ lọc an toàn (nội dung yêu cầu có thể bị hiểu nhầm là nhạy cảm). Thử diễn đạt lại yêu cầu rõ ràng, cụ thể hơn.', raw: m };
+  }
+  return { vi: null, raw: m };
+}
+
+function aiFormatErrorHtml(rawMsg){
+  const t = aiTranslateError(rawMsg);
+  if (t.vi){
+    return `<b>${escapeHtml(t.vi)}</b><div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn Gemini: ${escapeHtml(t.raw)})</div>`;
+  }
+  return `<b>Gemini báo lỗi (chưa nhận diện được, báo Tùng xem giúp):</b><div style="margin-top:4px;">${escapeHtml(t.raw)}</div>`;
+}
+
+// Enter = gửi, Shift+Enter = xuống dòng (giữ đúng thói quen chat quen thuộc, không phá khả năng gõ nhiều dòng)
+function aiHandleKeydown(event){
+  if (event.key === 'Enter' && !event.shiftKey){
+    event.preventDefault();
+    aiSend();
+  }
+}
+
 async function aiSend(){
   const keyEl = document.getElementById('aiApiKey');
   const inputEl = document.getElementById('aiInput');
@@ -1210,7 +1253,7 @@ async function aiSend(){
     if (!res.ok){
       const msg = (data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`;
       thinkingEl.className = 'ai-msg error';
-      thinkingEl.innerHTML = `<b>Gemini báo lỗi:</b> ${escapeHtml(msg)}`;
+      thinkingEl.innerHTML = aiFormatErrorHtml(msg);
       return;
     }
 
@@ -1245,7 +1288,7 @@ async function aiSend(){
 
   } catch(err){
     thinkingEl.className = 'ai-msg error';
-    thinkingEl.innerHTML = `<b>Lỗi kết nối:</b> ${escapeHtml(err.message)}`;
+    thinkingEl.innerHTML = `<b>Không kết nối được tới Gemini.</b> Kiểm tra lại mạng internet, hoặc thử lại sau ít phút.<div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn: ${escapeHtml(err.message)})</div>`;
   } finally {
     btn.disabled = false; btn.textContent = 'Gửi';
   }
