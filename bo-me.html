@@ -443,6 +443,8 @@ async function loadAll(){
   document.getElementById('app').style.display = 'block';
   document.getElementById('updated-at').textContent =
     "Nhà " + currentNha + " · Cập nhật lúc " + new Date().toLocaleString('vi-VN');
+
+  aiLoadFromStorage(); // khôi phục hội thoại Trợ lý AI đã lưu trước đó cho đúng Nhà này (nếu có)
 }
 
 // ============================================================
@@ -1109,9 +1111,50 @@ loadAll();
 //    API key: dán mỗi lần dùng, không lưu (biến JS, mất khi đóng/tải lại tab), gọi thẳng
 //    từ trình duyệt tới Gemini, không qua server trung gian nào của Family OS.
 // ============================================================
-const GEMINI_MODEL = "gemini-3.8-flash";
-let aiHistory = [];     // lịch sử hội thoại nhiều lượt: [{role:'user'|'model', text}]
+const GEMINI_MODEL = "gemini-3.6-flash";
+const AI_STORAGE_KEY = 'familyos_ai_chat_' + (getAuthParamsFromUrl().nha || 'unknown');
+let aiHistory = [];     // lịch sử hội thoại nhiều lượt gửi cho Gemini: [{role:'user'|'model', text}]
 let aiLastQuizRows = []; // câu hỏi JSON của lượt trả lời gần nhất, để xuất CSV
+let aiTurns = [];       // lịch sử để HIỂN THỊ lại + lưu vào trình duyệt: [{role, userText?, ghiChu?, rows?, errorHtml?}]
+
+// Lưu hội thoại vào trình duyệt (localStorage) — CHỈ hội thoại, KHÔNG bao giờ lưu API key.
+// Theo Nhà riêng (mỗi Nhà 1 ô nhớ riêng, không lẫn), mất khi người dùng tự xoá dữ liệu trình duyệt hoặc bấm "Xoá hội thoại".
+function aiSaveToStorage(){
+  try {
+    localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(aiTurns));
+  } catch(e){ console.warn('Không lưu được hội thoại AI vào trình duyệt:', e); }
+}
+
+function aiLoadFromStorage(){
+  try {
+    const raw = localStorage.getItem(AI_STORAGE_KEY);
+    if (!raw) return;
+    aiTurns = JSON.parse(raw) || [];
+    aiHistory = [];
+    aiTurns.forEach(t => {
+      if (t.role === 'user'){
+        aiHistory.push({ role: 'user', text: t.userText });
+        aiAppendMsg('user', escapeHtml(t.userText));
+      } else if (t.role === 'model'){
+        aiHistory.push({ role: 'model', text: t.rawText });
+        const div = aiAppendMsg('model', '');
+        div.innerHTML = t.errorHtml || `
+          ${t.ghiChu ? `<div style="margin-bottom:8px;">${escapeHtml(t.ghiChu)}</div>` : ''}
+          <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${(t.rows||[]).length} câu — tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng.</div>
+          ${aiRenderQuizTable(t.rows||[])}
+        `;
+        if (t.errorHtml) div.className = 'ai-msg error';
+        if (t.rows && t.rows.length) aiLastQuizRows = t.rows; // để nút Xuất CSV dùng được ngay cả sau khi tải lại trang
+      }
+    });
+    if (aiTurns.length){
+      const note = document.createElement('div');
+      note.style.cssText = 'font-size:11.5px;color:var(--muted);text-align:center;margin-bottom:4px;';
+      note.textContent = 'Đã khôi phục hội thoại cũ — API key vẫn cần dán lại để gửi tiếp.';
+      document.getElementById('aiChat').prepend(note);
+    }
+  } catch(e){ console.warn('Không đọc được hội thoại AI đã lưu:', e); }
+}
 
 // Schema ép Gemini trả JSON có cấu trúc cố định — dễ tách dữ liệu, không phải tự parse văn xuôi
 const AI_QUIZ_SCHEMA = {
@@ -1220,6 +1263,8 @@ async function aiSend(){
   if (!userText){ return; }
 
   aiAppendMsg('user', escapeHtml(userText));
+  aiTurns.push({ role: 'user', userText });
+  aiSaveToStorage();
   inputEl.value = '';
   const btn = document.getElementById('aiSendBtn');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
@@ -1231,6 +1276,10 @@ async function aiSend(){
     ...aiHistory.map(h => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: 'user', parts: [{ text: userText }] }
   ];
+
+  // Timeout 45 giây — tránh treo vô thời hạn khi mạng chặn hoặc Google không phản hồi (không báo lỗi, không báo gì)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
     const res = await fetch(
@@ -1244,9 +1293,11 @@ async function aiSend(){
             responseMimeType: "application/json",
             responseSchema: AI_QUIZ_SCHEMA
           }
-        })
+        }),
+        signal: controller.signal
       }
     );
+    clearTimeout(timeoutId);
 
     const data = await res.json();
 
@@ -1254,6 +1305,8 @@ async function aiSend(){
       const msg = (data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`;
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = aiFormatErrorHtml(msg);
+      aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
+      aiSaveToStorage();
       return;
     }
 
@@ -1261,6 +1314,8 @@ async function aiSend(){
     if (!rawText){
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = `<b>Không nhận được nội dung trả lời.</b> Có thể bị chặn bởi bộ lọc an toàn hoặc hết quota. Xem console (F12) để biết chi tiết.`;
+      aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
+      aiSaveToStorage();
       console.log('Gemini raw response:', data);
       return;
     }
@@ -1271,6 +1326,8 @@ async function aiSend(){
     } catch(e){
       thinkingEl.className = 'ai-msg error';
       thinkingEl.innerHTML = `<b>Gemini trả về JSON không hợp lệ.</b> Thử gửi lại yêu cầu, hoặc diễn đạt lại rõ ràng hơn.`;
+      aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
+      aiSaveToStorage();
       console.log('Raw text không parse được:', rawText);
       return;
     }
@@ -1285,19 +1342,30 @@ async function aiSend(){
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${aiLastQuizRows.length} câu — tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng.</div>
       ${aiRenderQuizTable(aiLastQuizRows)}
     `;
+    aiTurns.push({ role: 'model', rawText, ghiChu: parsed.ghiChu || '', rows: aiLastQuizRows });
+    aiSaveToStorage();
 
   } catch(err){
+    clearTimeout(timeoutId);
     thinkingEl.className = 'ai-msg error';
-    thinkingEl.innerHTML = `<b>Không kết nối được tới Gemini.</b> Kiểm tra lại mạng internet, hoặc thử lại sau ít phút.<div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn: ${escapeHtml(err.message)})</div>`;
+    if (err.name === 'AbortError'){
+      thinkingEl.innerHTML = `<b>Chờ quá 45 giây không thấy Gemini trả lời — đã huỷ.</b> Có thể do mạng đang chặn kết nối tới Google (hay gặp ở mạng công ty/trường học), hoặc yêu cầu quá nhiều câu cùng lúc. Thử lại với mạng khác hoặc yêu cầu ít câu hơn.`;
+    } else {
+      thinkingEl.innerHTML = `<b>Không kết nối được tới Gemini.</b> Kiểm tra lại mạng internet, hoặc thử lại sau ít phút.<div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn: ${escapeHtml(err.message)})</div>`;
+    }
+    aiTurns.push({ role: 'model', rawText: '', errorHtml: thinkingEl.innerHTML });
+    aiSaveToStorage();
   } finally {
     btn.disabled = false; btn.textContent = 'Gửi';
   }
 }
 
 function aiClearChat(){
-  if (!confirm('Xoá toàn bộ hội thoại hiện tại và làm lại từ đầu?')) return;
+  if (!confirm('Xoá toàn bộ hội thoại hiện tại và làm lại từ đầu? (Không xoá được câu hỏi đã Xuất CSV — file đó đã nằm trên máy bạn)')) return;
   aiHistory = [];
   aiLastQuizRows = [];
+  aiTurns = [];
+  try { localStorage.removeItem(AI_STORAGE_KEY); } catch(e){}
   document.getElementById('aiChat').innerHTML = '';
 }
 
