@@ -1111,7 +1111,7 @@ loadAll();
 //    API key: dán mỗi lần dùng, không lưu (biến JS, mất khi đóng/tải lại tab), gọi thẳng
 //    từ trình duyệt tới Gemini, không qua server trung gian nào của Family OS.
 // ============================================================
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = "gemini-3.8-flash"; // 3.6/3.7 KHÔNG nằm trong free tier — chỉ 3.8 Flash xác nhận dùng được miễn phí (test trực tiếp trên AI Studio Playground)
 const AI_STORAGE_KEY = 'familyos_ai_chat_' + (getAuthParamsFromUrl().nha || 'unknown');
 let aiHistory = [];     // lịch sử hội thoại nhiều lượt gửi cho Gemini: [{role:'user'|'model', text}]
 let aiLastQuizRows = []; // câu hỏi JSON của lượt trả lời gần nhất, để xuất CSV
