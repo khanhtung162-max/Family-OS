@@ -142,6 +142,23 @@
   .warn-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:8px;font-size:13px;color:var(--ink);line-height:1.5;}
   .warn-card b{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.02em;margin-bottom:3px;color:var(--clay);}
   footer{text-align:center;font-size:12px;color:var(--muted);margin-top:40px;}
+
+  /* ---- Trợ lý AI (Gemini) ---- */
+  .ai-keybar{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px;}
+  .ai-keybar label{font-size:12.5px;color:var(--muted);display:block;margin-bottom:6px;}
+  .ai-keybar input{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;font-family:inherit;background:var(--paper);}
+  .ai-keybar .note{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5;}
+  .ai-chat{display:flex;flex-direction:column;gap:12px;min-height:120px;margin-bottom:14px;}
+  .ai-msg{border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.6;max-width:100%;}
+  .ai-msg.user{background:var(--moss-soft);align-self:flex-end;max-width:85%;white-space:pre-wrap;}
+  .ai-msg.model{background:var(--paper-raised);border:1px solid var(--line);align-self:flex-start;width:100%;}
+  .ai-msg.error{background:var(--clay-soft);border:1px solid #e3c3af;color:#7a3d24;align-self:stretch;}
+  .ai-quiz-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px;}
+  .ai-quiz-table th,.ai-quiz-table td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;}
+  .ai-quiz-table th{background:var(--paper);font-size:11px;text-transform:uppercase;color:var(--muted);}
+  .ai-inputbar{display:flex;gap:8px;align-items:flex-end;}
+  .ai-inputbar textarea{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;resize:vertical;min-height:44px;background:var(--paper-raised);}
+  .ai-actions{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px;flex-wrap:wrap;}
 </style>
 </head>
 <body>
@@ -250,6 +267,34 @@
       </div>
     </div>
 
+    <!-- ============ TAB TRỢ LÝ AI — chat trực tiếp với Gemini để soạn quiz mới ============ -->
+    <div class="main-panel" id="panel-assistant">
+      <section>
+        <div class="sec-head">
+          <h2>Trợ lý AI — soạn quiz mới</h2>
+          <div class="why">Chat trực tiếp với Gemini để soạn câu hỏi. Đọc kỹ từng câu trả lời, tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng — không có bước tự động kiểm tra.</div>
+        </div>
+
+        <div class="ai-keybar">
+          <label for="aiApiKey">Gemini API key (dán mỗi lần dùng — không được lưu lại, mất khi đóng tab)</label>
+          <input type="password" id="aiApiKey" placeholder="AIzaSy...">
+          <div class="note">Key không được gửi đi đâu ngoài thẳng tới máy chủ Gemini (generativelanguage.googleapis.com) từ chính trình duyệt này. Đóng tab hoặc tải lại trang là mất, phải dán lại.</div>
+        </div>
+
+        <div class="ai-chat" id="aiChat"></div>
+
+        <div class="ai-inputbar">
+          <textarea id="aiInput" placeholder="VD: Soạn 10 câu trắc nghiệm Toán lớp 6 bài Số nguyên tố, tỷ lệ Level 1:3, Level 2:4, Level 3:3"></textarea>
+          <button class="btn" onclick="aiSend()" id="aiSendBtn">Gửi</button>
+        </div>
+
+        <div class="ai-actions">
+          <button class="btn small" onclick="aiClearChat()">Xoá hội thoại, làm lại từ đầu</button>
+          <button class="btn small" onclick="aiExportCSV()">Xuất CSV (câu hỏi mới nhất)</button>
+        </div>
+      </section>
+    </div>
+
   </div>
 </div>
 
@@ -274,10 +319,11 @@ const PROGRESS_CSV_BY_NHA = {
 const EXTRA_TABS_BY_NHA = {
   'Tùng - Thư': [
     { key: 'trading', label: 'Trading', icon: '📈' },
-    { key: 'thuchi',  label: 'Thu chi', icon: '💰' }
+    { key: 'thuchi',  label: 'Thu chi', icon: '💰' },
+    { key: 'assistant', label: 'Trợ lý AI', icon: '🤖' }
   ],
   'Ngọc Anh': [
-    // chưa có nhu cầu riêng — để trống, sau này Nhà 2 muốn thêm tab gì thì khai báo ở đây
+    { key: 'assistant', label: 'Trợ lý AI', icon: '🤖' }
   ]
 };
 const TAB_KETQUA = { key: 'ketqua', label: 'Kết quả học tập', icon: '📚' };
@@ -1055,6 +1101,187 @@ async function openReportForm(){
 }
 
 loadAll();
+
+// ============================================================
+// 8. TRỢ LÝ AI — chat trực tiếp với Gemini (structured output JSON) để soạn quiz mới
+//    Nguyên tắc: KHÔNG tự động kiểm tra tỷ lệ/nội dung, KHÔNG nhét bộ quy tắc vào prompt hệ thống —
+//    người thao tác tự đọc, tự đối chiếu, giống cách bắt lỗi với Claude.
+//    API key: dán mỗi lần dùng, không lưu (biến JS, mất khi đóng/tải lại tab), gọi thẳng
+//    từ trình duyệt tới Gemini, không qua server trung gian nào của Family OS.
+// ============================================================
+const GEMINI_MODEL = "gemini-2.5-flash";
+let aiHistory = [];     // lịch sử hội thoại nhiều lượt: [{role:'user'|'model', text}]
+let aiLastQuizRows = []; // câu hỏi JSON của lượt trả lời gần nhất, để xuất CSV
+
+// Schema ép Gemini trả JSON có cấu trúc cố định — dễ tách dữ liệu, không phải tự parse văn xuôi
+const AI_QUIZ_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    ghiChu: { type: "STRING", description: "Ghi chú ngắn gọn của Gemini về lượt soạn này (vd tỷ lệ đã dùng), có thể để trống" },
+    cauHoi: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          bai:        { type: "STRING" },
+          cauHoi:     { type: "STRING" },
+          A:          { type: "STRING" },
+          B:          { type: "STRING" },
+          C:          { type: "STRING" },
+          D:          { type: "STRING" },
+          dapAnDung:  { type: "STRING" },
+          giaiThich:  { type: "STRING" },
+          nguon:      { type: "STRING" },
+          level:      { type: "INTEGER" },
+          skill:      { type: "STRING" }
+        },
+        required: ["cauHoi","A","B","C","D","dapAnDung","level"]
+      }
+    }
+  },
+  required: ["cauHoi"]
+};
+
+function aiAppendMsg(role, contentHtml){
+  const el = document.getElementById('aiChat');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  div.innerHTML = contentHtml;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function aiRenderQuizTable(rows){
+  if (!rows || !rows.length) return '<div class="empty-note">Không có câu hỏi nào trong phản hồi.</div>';
+  const head = `<tr><th>Bài</th><th>Câu hỏi</th><th>A</th><th>B</th><th>C</th><th>D</th><th>Đáp án</th><th>Nguồn</th><th>Level</th><th>Skill</th></tr>`;
+  const body = rows.map(r => `<tr>
+    <td>${escapeHtml(r.bai||'')}</td><td>${escapeHtml(r.cauHoi||'')}</td>
+    <td>${escapeHtml(r.A||'')}</td><td>${escapeHtml(r.B||'')}</td><td>${escapeHtml(r.C||'')}</td><td>${escapeHtml(r.D||'')}</td>
+    <td>${escapeHtml(r.dapAnDung||'')}</td><td>${escapeHtml(r.nguon||'')}</td><td>${escapeHtml(String(r.level||''))}</td><td>${escapeHtml(r.skill||'')}</td>
+  </tr>`).join('');
+  return `<table class="ai-quiz-table">${head}${body}</table>`;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function aiSend(){
+  const keyEl = document.getElementById('aiApiKey');
+  const inputEl = document.getElementById('aiInput');
+  const apiKey = keyEl.value.trim();
+  const userText = inputEl.value.trim();
+
+  if (!apiKey){ alert("Cần dán Gemini API key trước."); keyEl.focus(); return; }
+  if (!userText){ return; }
+
+  aiAppendMsg('user', escapeHtml(userText));
+  inputEl.value = '';
+  const btn = document.getElementById('aiSendBtn');
+  btn.disabled = true; btn.textContent = 'Đang gửi...';
+
+  const thinkingEl = aiAppendMsg('model', '<i>Đang chờ Gemini phản hồi...</i>');
+
+  // Gửi kèm toàn bộ lịch sử hội thoại trước đó để giữ ngữ cảnh nhiều lượt, giống chat thông thường
+  const contents = [
+    ...aiHistory.map(h => ({ role: h.role, parts: [{ text: h.text }] })),
+    { role: 'user', parts: [{ text: userText }] }
+  ];
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: AI_QUIZ_SCHEMA
+          }
+        })
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok){
+      const msg = (data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`;
+      thinkingEl.className = 'ai-msg error';
+      thinkingEl.innerHTML = `<b>Gemini báo lỗi:</b> ${escapeHtml(msg)}`;
+      return;
+    }
+
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText){
+      thinkingEl.className = 'ai-msg error';
+      thinkingEl.innerHTML = `<b>Không nhận được nội dung trả lời.</b> Có thể bị chặn bởi bộ lọc an toàn hoặc hết quota. Xem console (F12) để biết chi tiết.`;
+      console.log('Gemini raw response:', data);
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch(e){
+      thinkingEl.className = 'ai-msg error';
+      thinkingEl.innerHTML = `<b>Gemini trả về JSON không hợp lệ.</b> Thử gửi lại yêu cầu, hoặc diễn đạt lại rõ ràng hơn.`;
+      console.log('Raw text không parse được:', rawText);
+      return;
+    }
+
+    aiHistory.push({ role: 'user', text: userText });
+    aiHistory.push({ role: 'model', text: rawText });
+
+    aiLastQuizRows = Array.isArray(parsed.cauHoi) ? parsed.cauHoi : [];
+
+    thinkingEl.innerHTML = `
+      ${parsed.ghiChu ? `<div style="margin-bottom:8px;">${escapeHtml(parsed.ghiChu)}</div>` : ''}
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${aiLastQuizRows.length} câu — tự đối chiếu tỷ lệ nguồn/Level/năng lực trước khi dùng.</div>
+      ${aiRenderQuizTable(aiLastQuizRows)}
+    `;
+
+  } catch(err){
+    thinkingEl.className = 'ai-msg error';
+    thinkingEl.innerHTML = `<b>Lỗi kết nối:</b> ${escapeHtml(err.message)}`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Gửi';
+  }
+}
+
+function aiClearChat(){
+  if (!confirm('Xoá toàn bộ hội thoại hiện tại và làm lại từ đầu?')) return;
+  aiHistory = [];
+  aiLastQuizRows = [];
+  document.getElementById('aiChat').innerHTML = '';
+}
+
+// Xuất CSV UTF-8 kèm BOM — tránh lỗi hiển thị sai dấu tiếng Việt khi mở bằng Excel
+function aiExportCSV(){
+  if (!aiLastQuizRows.length){ alert('Chưa có câu hỏi nào để xuất — gửi yêu cầu cho Gemini trước.'); return; }
+
+  const headers = ['Bài','Câu hỏi','A','B','C','D','Đáp án đúng','Giải thích','Nguồn','Level','Skill'];
+  const csvEscape = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+
+  const lines = [headers.map(csvEscape).join(',')];
+  aiLastQuizRows.forEach(r => {
+    lines.push([r.bai, r.cauHoi, r.A, r.B, r.C, r.D, r.dapAnDung, r.giaiThich, r.nguon, r.level, r.skill]
+      .map(csvEscape).join(','));
+  });
+
+  const csvContent = '﻿' + lines.join('\r\n'); // BOM để Excel đọc đúng dấu tiếng Việt
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `quiz_gemini_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
