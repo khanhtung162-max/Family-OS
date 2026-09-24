@@ -163,6 +163,16 @@
   .ai-keybar input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--paper-raised);}
   .ai-keybar .note{font-size:10.5px;color:var(--muted);margin-top:5px;line-height:1.4;}
 
+  /* ---- Thanh Google Drive: đăng nhập + chọn PDF + cắt trang ---- */
+  .ai-drivebar{background:var(--paper);border-bottom:1px solid var(--line);padding:10px 16px;flex-shrink:0;font-size:12.5px;display:flex;flex-direction:column;gap:8px;}
+  .ai-drivebar .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ai-drivebar .who{color:var(--muted);}
+  .ai-drivebar .who b{color:var(--ink);}
+  .ai-drivebar input[type=number]{width:70px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12.5px;background:var(--paper-raised);}
+  .ai-drivebar .attached{background:var(--moss-soft);border-radius:8px;padding:6px 10px;}
+  .ai-drivebar .err{color:var(--danger);}
+  .ai-attach-tag{display:inline-block;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:2px 6px;margin-bottom:4px;}
+
   .ai-chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:16px;min-height:0;}
   .ai-msg{border-radius:10px;padding:12px 14px;font-size:13.5px;line-height:1.6;max-width:100%;}
   .ai-msg.user{background:var(--moss-soft);align-self:flex-end;max-width:85%;white-space:pre-wrap;}
@@ -305,6 +315,9 @@
             <div class="note">Key không được gửi đi đâu ngoài thẳng tới máy chủ Gemini, từ chính trình duyệt này. Đóng tab/tải lại trang là mất, phải dán lại.</div>
           </div>
 
+          <!-- Tài liệu từ Google Drive: đăng nhập Google -> chọn PDF -> cắt đúng trang của bài -> đính kèm cho Gemini -->
+          <div class="ai-drivebar" id="aiDriveBar"></div>
+
           <div class="ai-chat" id="aiChat"></div>
 
           <div class="ai-inputbar">
@@ -323,6 +336,7 @@
   </div>
 </div>
 
+<script src="familyos-auth.js"></script>
 <script>
 // ============================================================
 // CẤU HÌNH — nguồn dữ liệu chung (Giáo trình) + theo Nhà (Tiến độ học)
@@ -469,6 +483,7 @@ async function loadAll(){
   document.getElementById('updated-at').textContent =
     "Nhà " + currentNha + " · Cập nhật lúc " + new Date().toLocaleString('vi-VN');
 
+  aiDriveRender();    // thanh Google Drive của Trợ lý AI
   aiLoadFromStorage(); // khôi phục hội thoại Trợ lý AI đã lưu trước đó cho đúng Nhà này (nếu có)
 }
 
@@ -1186,7 +1201,7 @@ function aiRenderSessionChat(session){
   session.turns.forEach(t => {
     if (t.role === 'user'){
       aiHistory.push({ role: 'user', text: t.userText });
-      aiAppendMsg('user', escapeHtml(t.userText));
+      aiAppendMsg('user', aiAttachTagHtml(t.attachLabel) + escapeHtml(t.userText));
     } else if (t.role === 'model'){
       aiHistory.push({ role: 'model', text: t.rawText || '' });
       const div = aiAppendMsg('model', '');
@@ -1339,7 +1354,9 @@ function aiHandleKeydown(event){
 // Gọi Gemini 1 lần, có timeout riêng. Trả về { ok, status, data } hoặc ném lỗi (mạng/timeout).
 async function aiCallGeminiOnce(apiKey, contents){
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  // Có PDF đính kèm thì Gemini đọc lâu hơn -> nới thời gian chờ lên 90 giây
+  const hasFile = contents.some(c => c.parts.some(p => p.inline_data));
+  const timeoutId = setTimeout(() => controller.abort(), hasFile ? 90000 : 45000);
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -1418,8 +1435,12 @@ async function aiSend(){
     return;
   }
 
-  aiAppendMsg('user', escapeHtml(userText));
-  aiPushTurn({ role: 'user', userText });
+  // Tài liệu Drive đang đính kèm (nếu có) — chỉ giữ trong bộ nhớ tab, KHÔNG lưu vào localStorage (quá nặng)
+  const attach = aiAttachment;
+  const attachLabel = attach ? attach.label : '';
+
+  aiAppendMsg('user', aiAttachTagHtml(attachLabel) + escapeHtml(userText));
+  aiPushTurn({ role: 'user', userText, attachLabel });
   inputEl.value = '';
   const btn = document.getElementById('aiSendBtn');
   btn.disabled = true; btn.textContent = 'Đang gửi...';
@@ -1427,9 +1448,15 @@ async function aiSend(){
   const thinkingEl = aiAppendMsg('model', '<i>Đang chờ Gemini phản hồi...</i>');
 
   // Gửi kèm toàn bộ lịch sử hội thoại trước đó (của phiên đang mở) để giữ ngữ cảnh nhiều lượt, giống chat thông thường
+  // PDF đính kèm được gửi lại ở lượt MỚI NHẤT mỗi lần (lịch sử cũ chỉ giữ chữ) — Gemini luôn thấy tài liệu
+  // ngay cạnh câu hỏi. Mỗi lần gửi đều tính token cho số trang đính kèm -> càng ít trang càng đỡ tốn quota.
+  const currentParts = attach
+    ? [ { inline_data: { mime_type: 'application/pdf', data: attach.base64 } },
+        { text: `[Tài liệu đính kèm: ${attach.label}. Chỉ dựa vào nội dung trong tài liệu này khi ghi nguồn.]\n\n${userText}` } ]
+    : [ { text: userText } ];
   const contents = [
     ...aiHistory.map(h => ({ role: h.role, parts: [{ text: h.text }] })),
-    { role: 'user', parts: [{ text: userText }] }
+    { role: 'user', parts: currentParts }
   ];
 
   try {
@@ -1480,7 +1507,7 @@ async function aiSend(){
   } catch(err){
     thinkingEl.className = 'ai-msg error';
     if (err.name === 'AbortError'){
-      thinkingEl.innerHTML = `<b>Chờ quá 45 giây không thấy Gemini trả lời — đã huỷ.</b> Có thể do mạng đang chặn kết nối tới Google (hay gặp ở mạng công ty/trường học), hoặc yêu cầu quá nhiều câu cùng lúc. Thử lại với mạng khác hoặc yêu cầu ít câu hơn.`;
+      thinkingEl.innerHTML = `<b>Chờ quá lâu (${attach ? 90 : 45} giây) không thấy Gemini trả lời — đã huỷ.</b> Có thể do mạng đang chặn kết nối tới Google (hay gặp ở mạng công ty/trường học), hoặc yêu cầu quá nhiều câu cùng lúc. Thử lại với mạng khác hoặc yêu cầu ít câu hơn.`;
     } else {
       thinkingEl.innerHTML = `<b>Không kết nối được tới Gemini.</b> Kiểm tra lại mạng internet, hoặc thử lại sau ít phút.<div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn: ${escapeHtml(err.message)})</div>`;
     }
@@ -1499,6 +1526,194 @@ function aiClearChat(){
   }
   aiLastQuizRows = [];
   aiSwitchSession(aiCurrentSessionId);
+}
+
+// ============================================================
+// 8b. TÀI LIỆU TỪ GOOGLE DRIVE cho Trợ lý AI
+//     Đăng nhập Google (familyos-auth.js) -> kiểm tra email có trong bảng Nhà này + là Bố/Mẹ
+//     -> chọn PDF bằng hộp chọn của Google -> cắt đúng các trang của bài -> đính kèm vào lượt gửi Gemini.
+//     PDF chỉ nằm trong bộ nhớ tab: không lưu localStorage, không upload đi đâu ngoài Gemini.
+// ============================================================
+const AI_ATTACH_MAX_BYTES = 18 * 1024 * 1024; // giới hạn an toàn cho dữ liệu gửi kèm trực tiếp trong 1 request Gemini
+const AI_ATTACH_WARN_PAGES = 30;              // quá số trang này thì hỏi lại — mỗi lượt gửi đều tính token cho từng trang
+
+let aiAttachment = null; // { label, base64, sizeBytes }
+let aiDrive = { role: null, roleError: '', file: null, pdfDoc: null, pageCount: 0, busy: '', error: '' };
+
+function aiAttachTagHtml(label){
+  return label ? `<div class="ai-attach-tag">📎 ${escapeHtml(label)}</div><br>` : '';
+}
+
+function aiDriveRender(){
+  const bar = document.getElementById('aiDriveBar');
+  if (!bar) return;
+  if (!window.FOAuth){ bar.innerHTML = '<div class="who">📁 Không tải được familyos-auth.js — tính năng Drive tạm tắt.</div>'; return; }
+  const s = FOAuth.getSession();
+  let html = '';
+
+  if (!FOAuth.isConfigured()){
+    bar.innerHTML = `<div class="who">📁 Tài liệu từ Google Drive: <b>chưa cấu hình</b> (cần điền CLIENT_ID / API key / Project number trong familyos-auth.js).</div>`;
+    return;
+  }
+
+  if (!s){
+    html += `<div class="row"><button class="btn small" onclick="aiDriveSignIn()" ${aiDrive.busy ? 'disabled' : ''}>🔑 Đăng nhập Google để lấy tài liệu từ Drive</button>
+             <span class="who">Dùng đúng email đã khai báo cho Nhà ${escapeHtml(currentNha || '')}.</span></div>`;
+  } else {
+    const het = new Date(s.expiresAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const roleTxt = aiDrive.role ? ` · <b>${escapeHtml(aiDrive.role)}</b>` : (aiDrive.roleError ? '' : ' · đang kiểm tra quyền...');
+    html += `<div class="row"><span class="who">Google: <b>${escapeHtml(s.name || s.email)}</b> (${escapeHtml(s.email)})${roleTxt} · phiên hết hạn lúc ${het}</span>
+             <button class="btn small" onclick="aiDriveSignOut()">Đăng xuất</button></div>`;
+
+    if (aiDrive.roleError){
+      html += `<div class="err">${escapeHtml(aiDrive.roleError)}</div>`;
+    } else if (aiDrive.role){
+      html += `<div class="row"><button class="btn small" onclick="aiDrivePick()" ${aiDrive.busy ? 'disabled' : ''}>📄 Chọn PDF từ Drive</button>`;
+      if (aiDrive.file){
+        html += `<span class="who"><b>${escapeHtml(aiDrive.file.name)}</b>${aiDrive.pageCount ? ` — ${aiDrive.pageCount} trang` : ''}
+                 ${aiDrive.file.url ? ` · <a href="${escapeHtml(aiDrive.file.url)}" target="_blank" rel="noopener">mở xem để dò số trang</a>` : ''}</span>`;
+      }
+      html += `</div>`;
+      if (aiDrive.file && aiDrive.pageCount){
+        html += `<div class="row">Từ trang <input type="number" id="aiPageFrom" min="1" max="${aiDrive.pageCount}" value="${aiDrive.from || 1}">
+                 đến <input type="number" id="aiPageTo" min="1" max="${aiDrive.pageCount}" value="${aiDrive.to || Math.min(aiDrive.pageCount, 5)}">
+                 <button class="btn small" onclick="aiDriveAttach()" ${aiDrive.busy ? 'disabled' : ''}>📎 Đính kèm các trang này</button></div>
+                 <div class="who" style="font-size:11px;">Số trang tính theo file PDF (ô số trang của trình xem PDF), có thể lệch với số in trên sách. Chỉ lấy đúng trang của bài đang soạn — mỗi lượt gửi đều tính quota cho từng trang.</div>`;
+      }
+    }
+  }
+
+  if (aiAttachment){
+    html += `<div class="row attached">📎 Đang đính kèm: <b>${escapeHtml(aiAttachment.label)}</b> (${(aiAttachment.sizeBytes/1024/1024).toFixed(1)} MB) — gửi kèm mọi tin nhắn tiếp theo
+             <button class="btn small" onclick="aiDriveDetach()">Bỏ đính kèm</button></div>`;
+  }
+  if (aiDrive.busy) html += `<div class="who"><i>${escapeHtml(aiDrive.busy)}</i></div>`;
+  if (aiDrive.error) html += `<div class="err">${escapeHtml(aiDrive.error)}</div>`;
+  bar.innerHTML = html;
+
+  // Phiên Google còn hạn (khôi phục sau khi tải lại trang) mà chưa kiểm tra quyền -> kiểm tra ngay
+  if (s && !aiDrive.role && !aiDrive.roleError && !aiDrive.checking) aiDriveCheckRole();
+}
+
+async function aiDriveCheckRole(){
+  aiDrive.checking = true;
+  try {
+    const res = await FOAuth.checkRole(currentNha);
+    if (!res || !res.success){
+      aiDrive.roleError = `Email ${FOAuth.getSession()?.email || ''} không có trong danh sách của Nhà ${currentNha}. Đăng xuất rồi đăng nhập bằng đúng email đã khai báo (hoặc nhờ Tùng thêm email vào Sheet).`;
+    } else if (res.vaiTro !== 'Bố' && res.vaiTro !== 'Mẹ'){
+      aiDrive.roleError = `Tài khoản này là "${res.vaiTro}" — chỉ Bố/Mẹ được dùng tài liệu Drive cho Trợ lý AI.`;
+    } else {
+      aiDrive.role = res.vaiTro + (res.ten ? ' ' + res.ten : '');
+    }
+  } catch(err){
+    aiDrive.roleError = 'Không kiểm tra được quyền (lỗi kết nối Apps Script): ' + err.message;
+  } finally {
+    aiDrive.checking = false;
+    aiDriveRender();
+  }
+}
+
+async function aiDriveSignIn(){
+  aiDrive.error = ''; aiDrive.busy = 'Đang mở hộp đăng nhập Google...'; aiDriveRender();
+  try {
+    await FOAuth.signIn();
+    aiDrive.role = null; aiDrive.roleError = '';
+  } catch(err){
+    aiDrive.error = err.message;
+  } finally {
+    aiDrive.busy = ''; aiDriveRender();
+  }
+}
+
+function aiDriveSignOut(){
+  FOAuth.signOut();
+  aiDrive = { role: null, roleError: '', file: null, pdfDoc: null, pageCount: 0, busy: '', error: '' };
+  aiAttachment = null; // tài liệu lấy bằng tài khoản cũ -> bỏ luôn cho sạch
+  aiDriveRender();
+}
+
+// pdf-lib: thư viện cắt trang PDF ngay trong trình duyệt. Chỉ nạp khi cần, có nguồn dự phòng.
+async function aiLoadPdfLib(){
+  if (window.PDFLib) return window.PDFLib;
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'
+  ];
+  for (const src of sources){
+    try { await FOAuth.loadScript(src); if (window.PDFLib) return window.PDFLib; } catch(e){ /* thử nguồn tiếp theo */ }
+  }
+  throw new Error('Không tải được thư viện xử lý PDF (pdf-lib) — kiểm tra mạng.');
+}
+
+async function aiDrivePick(){
+  aiDrive.error = '';
+  try {
+    const file = await FOAuth.pickDriveFile({ title: 'Chọn file PDF (SGK / SBT / SGV...)', mimeTypes: ['application/pdf'] });
+    if (!file) return; // bấm Huỷ
+    aiDrive.file = file; aiDrive.pdfDoc = null; aiDrive.pageCount = 0; aiDrive.from = aiDrive.to = null;
+    const mb = file.sizeBytes ? ` (${(file.sizeBytes/1024/1024).toFixed(0)} MB)` : '';
+    aiDrive.busy = `Đang tải "${file.name}"${mb} từ Drive về trình duyệt... file SGK lớn có thể mất 1-2 phút.`;
+    aiDriveRender();
+
+    const [PDFLib, buf] = await Promise.all([ aiLoadPdfLib(), FOAuth.downloadDriveFile(file.id) ]);
+    aiDrive.busy = 'Đang đọc cấu trúc PDF...'; aiDriveRender();
+    aiDrive.pdfDoc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
+    aiDrive.pageCount = aiDrive.pdfDoc.getPageCount();
+  } catch(err){
+    aiDrive.error = 'Không mở được file: ' + err.message;
+    aiDrive.file = null; aiDrive.pdfDoc = null;
+  } finally {
+    aiDrive.busy = ''; aiDriveRender();
+  }
+}
+
+function aiBytesToBase64(bytes){
+  let bin = '';
+  const CHUNK = 0x8000; // cắt khúc để không tràn stack với file vài MB
+  for (let i = 0; i < bytes.length; i += CHUNK) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  return btoa(bin);
+}
+
+async function aiDriveAttach(){
+  aiDrive.error = '';
+  const from = parseInt(document.getElementById('aiPageFrom').value, 10);
+  const to   = parseInt(document.getElementById('aiPageTo').value, 10);
+  const n = aiDrive.pageCount;
+  if (!(from >= 1 && to >= from && to <= n)){
+    aiDrive.error = `Khoảng trang không hợp lệ — phải từ 1 đến ${n}, và "từ" ≤ "đến".`; aiDriveRender(); return;
+  }
+  aiDrive.from = from; aiDrive.to = to; // giữ lại số đã nhập khi thanh vẽ lại
+  const count = to - from + 1;
+  if (count > AI_ATTACH_WARN_PAGES &&
+      !confirm(`Đính kèm ${count} trang? Mỗi tin nhắn gửi đi đều tính quota cho toàn bộ ${count} trang này. Nên chỉ lấy đúng trang của 1 bài.`)) return;
+
+  aiDrive.busy = `Đang cắt trang ${from}–${to}...`; aiDriveRender();
+  try {
+    const PDFLib = await aiLoadPdfLib();
+    const out = await PDFLib.PDFDocument.create();
+    const indices = Array.from({ length: count }, (_, i) => from - 1 + i);
+    const pages = await out.copyPages(aiDrive.pdfDoc, indices);
+    pages.forEach(p => out.addPage(p));
+    const bytes = await out.save();
+    if (bytes.length > AI_ATTACH_MAX_BYTES){
+      throw new Error(`Phần cắt ra nặng ${(bytes.length/1024/1024).toFixed(1)} MB, vượt giới hạn ${AI_ATTACH_MAX_BYTES/1024/1024} MB — chọn ít trang hơn.`);
+    }
+    aiAttachment = {
+      label: `${aiDrive.file.name} — trang ${from}–${to}`,
+      base64: aiBytesToBase64(bytes),
+      sizeBytes: bytes.length
+    };
+  } catch(err){
+    aiDrive.error = 'Không cắt được trang: ' + err.message;
+  } finally {
+    aiDrive.busy = ''; aiDriveRender();
+  }
+}
+
+function aiDriveDetach(){
+  aiAttachment = null;
+  aiDriveRender();
 }
 
 // Xuất CSV UTF-8 kèm BOM — tránh lỗi hiển thị sai dấu tiếng Việt khi mở bằng Excel
