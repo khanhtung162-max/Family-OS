@@ -217,6 +217,7 @@
     <div class="term-row" id="termRow"></div>
     <div class="section-label">Hôm nay học môn gì?</div>
     <div class="subjects" id="subjectGrid"></div>
+    <button class="back-btn" style="margin-top:14px;" onclick="openTKB()">📅 Thời khóa biểu của mình</button>
     <button class="back-btn" onclick="logout()">← Đăng xuất</button>
   </div>
 
@@ -565,6 +566,11 @@ function logout() {
   currentNha = null; currentKid = null; allProgress = [];
   document.getElementById('authEmailInput').value = '';
   showScreen('screenPickNha');
+}
+
+function openTKB(){
+  const url = 'thoi-khoa-bieu.html?ten=' + encodeURIComponent(currentKid.ten) + '&nha=' + encodeURIComponent(currentNha);
+  window.open(url, '_blank');
 }
 
 function toDateKey(d){
