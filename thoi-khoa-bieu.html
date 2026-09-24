@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thời khóa biểu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&family=Quicksand:wght@400..700&family=Comfortaa:wght@400..700&family=Nunito:wght@400..800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#fdf3f6; --bg2:#fef7ec;
+    --card-bg:#fffaf3; --card-border:#f3d9e2;
+    --accent:#f6a8c0; --accent-dark:#e8779e;
+    --head-bg:#fbe4ec;
+    --font-main:'Baloo 2', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:24px 16px 60px;
+    font-family:var(--font-main);
+    background:linear-gradient(160deg, var(--bg1), var(--bg2));
+    min-height:100vh;
+    color:#4a3540;
+  }
+  .toolbar{
+    max-width:900px; margin:0 auto 20px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    justify-content:center; background:#ffffffcc; border-radius:16px; padding:12px 16px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.05);
+  }
+  .toolbar label{font-size:13px; font-weight:600; margin-right:4px;}
+  .toolbar select, .toolbar input[type=text]{
+    font-family:inherit; border:1px solid #eecbd8; border-radius:10px; padding:6px 10px; font-size:13px;
+    background:#fff;
+  }
+  .btn{
+    border:none; border-radius:999px; padding:8px 16px; font-family:inherit; font-weight:700;
+    font-size:13px; cursor:pointer; background:#fff; border:1px solid #eecbd8; color:#7a4a5e;
+    transition:transform .1s;
+  }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn.primary{ background:var(--accent); color:#fff; border-color:var(--accent-dark); }
+  .btn.dark{ background:#4a3540; color:#fff; }
+  .swatch-row{ display:flex; gap:6px; }
+  .swatch{
+    width:26px; height:26px; border-radius:50%; cursor:pointer; border:2px solid #fff;
+    box-shadow:0 0 0 1.5px #ddd;
+  }
+  .swatch.active{ box-shadow:0 0 0 2px var(--accent-dark); }
+
+  .card{
+    max-width:900px; margin:0 auto; background:var(--card-bg); border:2px dashed var(--card-border);
+    border-radius:26px; padding:28px 30px 34px; position:relative;
+    box-shadow:0 8px 24px rgba(0,0,0,0.06);
+  }
+  .card-title{ text-align:center; }
+  .card-title .kicker{ color:var(--accent-dark); font-weight:700; letter-spacing:2px; font-size:13px; }
+  .card-title h1{
+    font-size:40px; margin:6px 0 4px; color:#5a3e50;
+    outline:none;
+  }
+  .card-title .year{ text-align:center; color:#9a8590; font-size:14px; margin-bottom:18px; outline:none; }
+
+  .badges{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:22px; }
+  .badge{
+    flex:1 1 160px; max-width:200px; background:var(--head-bg); border-radius:16px; padding:10px 12px;
+    text-align:center; font-size:12.5px; font-weight:600; color:#6b4a5c; outline:none;
+  }
+
+  table{ width:100%; border-collapse:separate; border-spacing:6px; }
+  th{
+    background:var(--head-bg); border-radius:12px; padding:8px 4px; font-size:14px; color:#6b4a5c;
+    outline:none;
+  }
+  th.period-col{ background:transparent; }
+  td.period-label{
+    background:var(--head-bg); border-radius:12px; text-align:center; vertical-align:top;
+    font-size:12px; font-weight:700; color:#6b4a5c; width:78px; padding:8px 4px;
+  }
+  td.period-label .icon-label{ font-size:12px; }
+  td.period-label .time-info{
+    margin-top:6px; font-size:10.5px; font-weight:600; color:#8a6a78; outline:none;
+    white-space:pre-wrap; min-height:14px; border-radius:6px; padding:2px 3px;
+  }
+  td.period-label .time-info:focus{ background:#fff; outline:1px solid var(--accent); }
+  td.period-label .time-info:empty::before{ content:'Giờ vào lớp / tan học...'; color:#c7b3bc; }
+  td.session-icon{ font-size:22px; text-align:center; }
+  td.cell{
+    padding:3px; text-align:center;
+  }
+  .block{
+    background:#fff; border-radius:10px; border:1px solid #f1dbe3; position:relative;
+    min-height:40px; display:flex; align-items:center; justify-content:center;
+  }
+  td.cell[data-session="chieu"] .block{ background:#f1f8f4; border-color:#dcecdf; }
+  .block input{
+    width:100%; border:none; background:transparent; text-align:center; font-family:inherit;
+    font-weight:700; font-size:14px; padding:10px 20px 16px 4px; color:#4a3540; border-radius:10px;
+  }
+  .block input:focus{ outline:2px solid var(--accent); }
+  .cell-color{
+    position:absolute; right:4px; bottom:4px; width:16px; height:16px; padding:0;
+    border:1px solid rgba(0,0,0,0.15); border-radius:50%; cursor:pointer; background:none;
+  }
+  .cell-color::-webkit-color-swatch-wrapper{ padding:0; border-radius:50%; }
+  .cell-color::-webkit-color-swatch{ border:none; border-radius:50%; }
+  .cell-color::-moz-color-swatch{ border:none; border-radius:50%; }
+  .remove-row{
+    position:absolute; left:3px; bottom:3px;
+    font-size:11px; color:#d99; cursor:pointer; border:none; background:none; padding:2px 4px;
+    line-height:1;
+  }
+  .remove-row:hover{ color:#c44; }
+
+  .footer-note{ text-align:center; margin-top:20px; font-size:13px; color:#9a8590; outline:none; }
+
+  .export-box{
+    max-width:900px; margin:18px auto 0; background:#fff; border:1px solid #eecbd8; border-radius:16px;
+    padding:14px 18px; display:none;
+  }
+  .export-box.show{ display:block; }
+  .export-box h3{ margin:0 0 8px; font-size:14px; color:#7a4a5e; }
+  .export-box textarea{
+    width:100%; min-height:120px; font-family:monospace; font-size:12.5px; border:1px solid #eee;
+    border-radius:10px; padding:10px; resize:vertical;
+  }
+  .export-box .hint{ font-size:12px; color:#a08; color:#9a8590; margin-top:6px; }
+
+  @media print{
+    body{ background:#fff; padding:0; }
+    .toolbar, .export-box{ display:none !important; }
+    .card{ box-shadow:none; border:2px solid var(--card-border); }
+  }
+  @media (max-width: 700px){
+    .card{ padding:18px 12px 24px; }
+    .card-title h1{ font-size:28px; }
+    td.cell input{ font-size:11.5px; padding:6px 2px; }
+    td.period-label{ font-size:10px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <label>Hồ sơ:</label>
+    <input type="text" id="kidName" placeholder="Tên con (vd: Susu)" oninput="onKidChange()">
+
+    <label>Bảng màu:</label>
+    <div class="swatch-row" id="paletteRow"></div>
+
+    <label>Kiểu chữ:</label>
+    <select id="fontSelect" onchange="applyFont()">
+      <option value="'Baloo 2', sans-serif">Baloo 2 (tròn, dễ thương)</option>
+      <option value="'Quicksand', sans-serif">Quicksand (thanh)</option>
+      <option value="'Comfortaa', sans-serif">Comfortaa (mềm)</option>
+      <option value="'Nunito', sans-serif">Nunito (rõ chữ)</option>
+    </select>
+
+    <button class="btn" onclick="addRow('sang')">+ Thêm dòng buổi Sáng</button>
+    <button class="btn" onclick="addRow('chieu')">+ Thêm dòng buổi Chiều</button>
+    <button class="btn primary" onclick="toggleExport()">📋 Xuất dữ liệu TKB</button>
+  </div>
+
+  <div class="card" id="card">
+    <div class="card-title">
+      <div class="kicker">✿ THỜI KHÓA BIỂU ✿</div>
+      <h1 contenteditable="true" id="className">Lớp 6A12</h1>
+      <div class="year" contenteditable="true" id="schoolYear">Năm học 2026 - 2027</div>
+    </div>
+
+    <div class="badges" id="badgeRow">
+      <div class="badge" contenteditable="true">Học hết mình<br>Ước mơ hết cỡ 💕</div>
+      <div class="badge" contenteditable="true">Kiến thức hôm nay<br>vững bước tương lai 🌱</div>
+      <div class="badge" contenteditable="true">Ước mơ lớn bắt đầu từ<br>cố gắng nhỏ mỗi ngày ✨</div>
+      <div class="badge" contenteditable="true">Nỗ lực hôm nay<br>chạm tới phiên bản tuyệt vời 💗</div>
+    </div>
+
+    <table id="tkbTable">
+      <thead>
+        <tr>
+          <th class="period-col"></th>
+          <th>Thứ 2</th><th>Thứ 3</th><th>Thứ 4</th><th>Thứ 5</th><th>Thứ 6</th>
+        </tr>
+      </thead>
+      <tbody id="tkbBody"></tbody>
+    </table>
+
+    <div class="footer-note">✓ Học tốt &nbsp; ✓ Sống đẹp &nbsp; ✓ Mơ lớn &nbsp; ✓ Làm được</div>
+  </div>
+
+  <div class="export-box" id="exportBox">
+    <h3>Dữ liệu TKB (dán vào tab "TKB" trong Google Sheet — cột Subject | Thu)</h3>
+    <textarea id="exportArea" readonly></textarea>
+    <div class="hint">Đã gộp theo môn: mỗi môn 1 dòng, cột Thu ghi các thứ (2-6) cách nhau dấu phẩy. Bấm vào ô rồi Ctrl+A, Ctrl+C để copy.</div>
+  </div>
+
+<script>
+const DAYS = ['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6'];
+const PALETTES = [
+  { name:'Hồng pastel', bg1:'#fdf3f6', bg2:'#fef7ec', card:'#fffaf3', border:'#f3d9e2', accent:'#f6a8c0', accentDark:'#e8779e', head:'#fbe4ec' },
+  { name:'Xanh biển',   bg1:'#eef7fb', bg2:'#f3fbf9', card:'#f9fefc', border:'#cfe8f0', accent:'#8ec9e0', accentDark:'#4fa3c4', head:'#e2f2f8' },
+  { name:'Vàng nắng',   bg1:'#fffaf0', bg2:'#fef8e7', card:'#fffdf6', border:'#f2e2b8', accent:'#f3c96a', accentDark:'#d9a53a', head:'#faefd0' },
+  { name:'Tím lavender',bg1:'#f6f1fb', bg2:'#f9f4fb', card:'#fdfbff', border:'#e0d3f0', accent:'#b79ce0', accentDark:'#8f6bc7', head:'#ece1f7' },
+  { name:'Xanh lá',     bg1:'#f2f9f2', bg2:'#f7fbf1', card:'#fbfdf9', border:'#d6ead0', accent:'#9ecb8a', accentDark:'#6ca350', head:'#e6f2e0' }
+];
+
+let kidKey = 'default';
+function storageKey(){ return 'tkb_design_' + kidKey; }
+
+function getAuthTen(){
+  const p = new URLSearchParams(window.location.search);
+  return p.get('ten') || '';
+}
+
+function emptyCell(){ return { text:'', color:'' }; }
+function emptyCells(){ return [emptyCell(),emptyCell(),emptyCell(),emptyCell(),emptyCell()]; }
+
+function buildDefaultRows(){
+  return [
+    { session:'sang', label:'Sáng', icon:'☀️', cells:emptyCells() },
+    { session:'sang', label:'Sáng', icon:'☀️', cells:emptyCells() },
+    { session:'chieu', label:'Chiều', icon:'🌙', cells:emptyCells() },
+    { session:'chieu', label:'Chiều', icon:'🌙', cells:emptyCells() }
+  ];
+}
+
+// tương thích ngược: nếu dữ liệu cũ lưu cells là mảng chuỗi thay vì mảng {text,color}
+function normalizeRows(rows){
+  return (rows || []).map(row => ({
+    ...row,
+    cells: row.cells.map(c => (typeof c === 'string') ? { text:c, color:'' } : { text: c.text||'', color: c.color||'' })
+  }));
+}
+
+function buildDefaultSessionInfo(){
+  return { sang:'', chieu:'' };
+}
+
+function renderRows(rows){
+  const body = document.getElementById('tkbBody');
+  body.innerHTML = '';
+  const sessionInfo = window._sessionInfo || buildDefaultSessionInfo();
+  rows.forEach((row, ri) => {
+    const tr = document.createElement('tr');
+    const tdLabel = document.createElement('td');
+    tdLabel.className = 'period-label';
+    if (ri===0 || rows[ri-1].session!==row.session){
+      const iconLabel = document.createElement('div');
+      iconLabel.className = 'icon-label';
+      iconLabel.innerHTML = `${row.icon}<br>${row.label}`;
+      tdLabel.appendChild(iconLabel);
+
+      const timeInfo = document.createElement('div');
+      timeInfo.className = 'time-info';
+      timeInfo.contentEditable = 'true';
+      timeInfo.innerText = sessionInfo[row.session] || '';
+      timeInfo.oninput = () => { sessionInfo[row.session] = timeInfo.innerText; window._sessionInfo = sessionInfo; saveState(); };
+      tdLabel.appendChild(timeInfo);
+    }
+    tr.appendChild(tdLabel);
+    row.cells.forEach((cellData, ci) => {
+      const td = document.createElement('td');
+      td.className = 'cell';
+      td.dataset.session = row.session;
+
+      const block = document.createElement('div');
+      block.className = 'block';
+      if (cellData.color) block.style.background = cellData.color;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = cellData.text;
+      input.placeholder = '—';
+      input.oninput = () => { row.cells[ci].text = input.value; saveState(); };
+      block.appendChild(input);
+
+      const colorInput = document.createElement('input');
+      colorInput.type = 'color';
+      colorInput.className = 'cell-color';
+      colorInput.title = 'Đổ màu riêng cho ô này';
+      colorInput.value = cellData.color || '#ffffff';
+      colorInput.oninput = () => {
+        row.cells[ci].color = colorInput.value;
+        block.style.background = colorInput.value;
+        saveState();
+      };
+      block.appendChild(colorInput);
+
+      if (ci === row.cells.length - 1){
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'remove-row';
+        rmBtn.type = 'button';
+        rmBtn.title = 'Xoá dòng này';
+        rmBtn.innerText = '✕';
+        rmBtn.onclick = () => removeRow(ri);
+        block.appendChild(rmBtn);
+      }
+      td.appendChild(block);
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+  window._rows = rows;
+  window._sessionInfo = sessionInfo;
+}
+
+function addRow(session){
+  const rows = window._rows || buildDefaultRows();
+  rows.push({ session, label: session==='sang'?'Sáng':'Chiều', icon: session==='sang'?'☀️':'🌙', cells: emptyCells() });
+  renderRows(rows);
+  saveState();
+}
+
+function removeRow(idx){
+  const rows = window._rows || [];
+  if (rows.length <= 1) return;
+  rows.splice(idx, 1);
+  renderRows(rows);
+  saveState();
+}
+
+function renderPalette(activeIdx){
+  const row = document.getElementById('paletteRow');
+  row.innerHTML = '';
+  PALETTES.forEach((p, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (i===activeIdx ? ' active' : '');
+    sw.style.background = `linear-gradient(135deg, ${p.accent}, ${p.head})`;
+    sw.title = p.name;
+    sw.onclick = () => applyPalette(i);
+    row.appendChild(sw);
+  });
+}
+
+function applyPalette(idx){
+  const p = PALETTES[idx];
+  const root = document.documentElement.style;
+  root.setProperty('--bg1', p.bg1);
+  root.setProperty('--bg2', p.bg2);
+  root.setProperty('--card-bg', p.card);
+  root.setProperty('--card-border', p.border);
+  root.setProperty('--accent', p.accent);
+  root.setProperty('--accent-dark', p.accentDark);
+  root.setProperty('--head-bg', p.head);
+  renderPalette(idx);
+  saveState();
+}
+
+function applyFont(){
+  const val = document.getElementById('fontSelect').value;
+  document.documentElement.style.setProperty('--font-main', val);
+  saveState();
+}
+
+function saveState(){
+  const state = {
+    className: document.getElementById('className').innerText,
+    schoolYear: document.getElementById('schoolYear').innerText,
+    badges: Array.from(document.querySelectorAll('.badge')).map(b => b.innerHTML),
+    paletteIdx: PALETTES.findIndex(p => p.accent === getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()),
+    font: document.getElementById('fontSelect').value,
+    rows: window._rows || [],
+    sessionInfo: window._sessionInfo || buildDefaultSessionInfo()
+  };
+  try{ localStorage.setItem(storageKey(), JSON.stringify(state)); }catch(e){}
+}
+
+function loadState(){
+  let state = null;
+  try{ state = JSON.parse(localStorage.getItem(storageKey())); }catch(e){}
+  if (!state){
+    window._sessionInfo = buildDefaultSessionInfo();
+    renderRows(buildDefaultRows());
+    renderPalette(0);
+    return;
+  }
+  document.getElementById('className').innerText = state.className || 'Lớp 6A12';
+  document.getElementById('schoolYear').innerText = state.schoolYear || 'Năm học 2026 - 2027';
+  const badgeEls = document.querySelectorAll('.badge');
+  (state.badges || []).forEach((html, i) => { if (badgeEls[i]) badgeEls[i].innerHTML = html; });
+  window._sessionInfo = state.sessionInfo || buildDefaultSessionInfo();
+  renderRows(state.rows && state.rows.length ? normalizeRows(state.rows) : buildDefaultRows());
+  const idx = (state.paletteIdx >= 0) ? state.paletteIdx : 0;
+  applyPalette(idx);
+  if (state.font){
+    document.getElementById('fontSelect').value = state.font;
+    applyFont();
+  }
+}
+
+function onKidChange(){
+  const name = document.getElementById('kidName').value.trim();
+  kidKey = name ? name : 'default';
+  loadState();
+}
+
+function toggleExport(){
+  const box = document.getElementById('exportBox');
+  box.classList.toggle('show');
+  if (box.classList.contains('show')){
+    document.getElementById('exportArea').value = buildExportText();
+  }
+}
+
+function buildExportText(){
+  const rows = window._rows || [];
+  const bySubject = {};
+  rows.forEach(row => {
+    row.cells.forEach((cellData, ci) => {
+      const subj = (cellData.text || '').trim();
+      if (!subj) return;
+      const thu = ci + 2; // Thứ 2..Thứ 6 -> 2..6
+      if (!bySubject[subj]) bySubject[subj] = new Set();
+      bySubject[subj].add(thu);
+    });
+  });
+  const lines = ['Subject,Thu'];
+  Object.keys(bySubject).sort().forEach(subj => {
+    const days = Array.from(bySubject[subj]).sort((a,b)=>a-b).join(',');
+    lines.push(`${subj},${days}`);
+  });
+  return lines.join('\n');
+}
+
+// bind contenteditable saves
+['className','schoolYear'].forEach(id => {
+  document.getElementById(id).addEventListener('input', saveState);
+});
+document.querySelectorAll('.badge').forEach(b => b.addEventListener('input', saveState));
+
+// init
+const tenFromUrl = getAuthTen();
+if (tenFromUrl){ document.getElementById('kidName').value = tenFromUrl; kidKey = tenFromUrl; }
+loadState();
+</script>
+</body>
+</html>
