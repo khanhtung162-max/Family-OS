@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Family OS — Bố mẹ</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
   :root{
     --ink:#2b2a28; --paper:#f7f4ee; --paper-raised:#fffdf9;
@@ -144,7 +144,7 @@
   footer{text-align:center;font-size:12px;color:var(--muted);margin-top:40px;}
 
   /* ---- Trợ lý AI (Gemini) — layout 2 cột: sidebar phiên chat (trái) + khung chat (phải, input dính đáy) ---- */
-  .ai-shell{display:grid;grid-template-columns:220px 1fr;gap:0;background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;height:min(720px, 78vh);}
+  .ai-shell{display:grid;grid-template-columns:220px 1fr;gap:0;background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;height:min(920px, 90vh);}
   @media (max-width:720px){.ai-shell{grid-template-columns:1fr;height:auto;}}
 
   .ai-sidebar{background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
@@ -168,9 +168,15 @@
   .ai-drivebar .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .ai-drivebar .who{color:var(--muted);}
   .ai-drivebar .who b{color:var(--ink);}
+  .ai-drivebar select{padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12.5px;background:var(--paper-raised);max-width:100%;}
   .ai-drivebar input[type=number]{width:70px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12.5px;background:var(--paper-raised);}
   .ai-drivebar .attached{background:var(--moss-soft);border-radius:8px;padding:6px 10px;}
   .ai-drivebar .err{color:var(--danger);}
+  #aiDriveBar{max-height:30vh;overflow-y:auto;}           /* nhiều tài liệu đính kèm thì cuộn, không đè mất khung chat */
+  .ai-chat{min-height:260px !important;flex-shrink:0;}   /* khung chat luôn đủ đọc; thiếu chỗ thì cả cột phải cuộn */
+  .ai-main{overflow-y:auto !important;}
+  .ai-inputbar,.ai-actions{position:sticky;background:var(--paper-raised);z-index:2;}
+  .ai-actions{bottom:0;} .ai-inputbar{bottom:40px;}
   .ai-attach-tag{display:inline-block;font-size:11px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:2px 6px;margin-bottom:4px;}
 
   .ai-chat{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:16px;min-height:0;}
@@ -185,6 +191,33 @@
   .ai-inputbar{flex-shrink:0;display:flex;gap:8px;align-items:flex-end;padding:12px 16px;border-top:1px solid var(--line);background:var(--paper-raised);}
   .ai-inputbar textarea{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;resize:vertical;min-height:44px;max-height:160px;background:var(--paper);}
   .ai-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:0 16px 12px;flex-shrink:0;}
+
+  /* ---- Trading — Vị thế hiện tại & Danh mục quỹ (đọc CSV, chưa có phần ghi) ---- */
+  .trd-section{margin-bottom:32px;}
+  .trd-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
+  @media (max-width:640px){.trd-cards{grid-template-columns:1fr 1fr;}}
+  .trd-fund-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+  .trd-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .trd-card .label{font-size:12px;color:var(--muted);margin-bottom:5px;}
+  .trd-card .value{font-family:'Source Serif 4',serif;font-size:21px;font-weight:600;}
+  .trd-card .sub{font-size:11.5px;color:var(--muted);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+  .gain{color:var(--moss);} .loss{color:var(--danger);}
+
+  .trd-table{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;overflow-x:auto;margin-bottom:10px;}
+  .trd-row{display:grid;grid-template-columns:1.2fr .7fr 1fr 1.1fr;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);gap:8px;font-size:13px;min-width:480px;}
+  .trd-row:last-child{border-bottom:none;}
+  .trd-row.head{background:var(--paper);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:8px 14px;}
+  .trd-row .ma{font-weight:700;}
+  .trd-row .loai-sub{font-size:11px;color:var(--muted);font-weight:400;}
+  .trd-row .num{font-family:'IBM Plex Mono',monospace;text-align:right;}
+  .trd-row .priceflow{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);text-align:right;}
+
+  .trd-closed{font-size:12.5px;color:var(--muted);padding:10px 2px;line-height:1.6;}
+  .trd-closed b{color:var(--ink);}
+
+  .trd-dmq-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:10px;}
+  .trd-dmq-row:last-child{border-bottom:none;}
+  .trd-dmq-row .meta{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
 </style>
 </head>
 <body>
@@ -275,12 +308,31 @@
       <footer>Dữ liệu tổng hợp từ Progress — dùng để hiểu con, không phải để chấm điểm.</footer>
     </div>
 
-    <!-- ============ TAB TRADING — khung rỗng, chờ Bước 4 ============ -->
+    <!-- ============ TAB TRADING — phần đọc (Onhand + Danh mục quỹ); phần ghi (vào lệnh, checklist) chờ Apps Script ============ -->
     <div class="main-panel" id="panel-trading">
-      <div class="placeholder-block">
-        <div class="icon">📈</div>
-        <h3>Trading — đang xây dựng</h3>
-        <p>Góc làm việc của bố sẽ hiển thị ở đây: Trade record, Market Filter, Wyckoff Radar. Chưa kết nối dữ liệu — sẽ hoàn thiện ở bước tiếp theo.</p>
+      <div id="trd-content">
+        <section class="trd-section">
+          <div class="sec-head">
+            <h2>Vị thế hiện tại</h2>
+            <div class="why">Tự tính từ giá vốn bình quân và giá hiện tại đang ghi trong sheet Trading record — chưa có nút vào lệnh ở đây, ghi trực tiếp trên sheet trong lúc chờ nối phần ghi.</div>
+          </div>
+          <div class="trd-cards" id="trd-onhand-summary"></div>
+          <div class="trd-table" id="trd-onhand-table"></div>
+          <div id="trd-onhand-closed"></div>
+        </section>
+
+        <section class="trd-section">
+          <div class="sec-head">
+            <h2>Danh mục quỹ — ước tính NAV trong ngày</h2>
+            <div class="why">Ước tính theo tỷ trọng Top holdings + % thay đổi giá bạn nhập tay trong sheet — không thay thế NAV chính thức cuối ngày.</div>
+          </div>
+          <div class="trd-fund-grid" id="trd-dmq-cards"></div>
+          <div class="warn-summary" style="margin-top:14px;" onclick="this.classList.toggle('open'); document.getElementById('trd-dmq-detail').classList.toggle('open');">
+            <span>Xem % thay đổi giá theo từng mã</span>
+            <span class="caret">▸</span>
+          </div>
+          <div class="warn-list" id="trd-dmq-detail"></div>
+        </section>
       </div>
     </div>
 
@@ -315,7 +367,10 @@
             <div class="note">Key không được gửi đi đâu ngoài thẳng tới máy chủ Gemini, từ chính trình duyệt này. Đóng tab/tải lại trang là mất, phải dán lại.</div>
           </div>
 
-          <!-- Tài liệu từ Google Drive: đăng nhập Google -> chọn PDF -> cắt đúng trang của bài -> đính kèm cho Gemini -->
+          <!-- Bối cảnh bài đang soạn: lấy từ Lessons + Skills app đã tải sẵn, không cần đăng nhập -->
+          <div class="ai-drivebar" id="aiCtxBar"></div>
+
+          <!-- Tài liệu từ Google Drive: đăng nhập Google -> chọn PDF (cắt trang) / Google Doc quy ước -> gửi kèm cho Gemini -->
           <div class="ai-drivebar" id="aiDriveBar"></div>
 
           <div class="ai-chat" id="aiChat"></div>
@@ -336,6 +391,7 @@
   </div>
 </div>
 
+<script src="familyos-config.js"></script>
 <script src="familyos-auth.js"></script>
 <script>
 // ============================================================
@@ -352,6 +408,19 @@ const PROGRESS_CSV_BY_NHA = {
   'Ngọc Anh':   { progress: "https://docs.google.com/spreadsheets/d/1BnBNkdewKYNDvlSm5KDDJY-OfiBMfuNG5BwUspvBn9A/export?format=csv&gid=1721888103",
                   baoloi:   "https://docs.google.com/spreadsheets/d/1BnBNkdewKYNDvlSm5KDDJY-OfiBMfuNG5BwUspvBn9A/export?format=csv&gid=0" }
 };
+
+// Trading: đọc sheet "Trading record" — chỉ Nhà có tab 'trading' trong EXTRA_TABS_BY_NHA mới cần.
+// Lưu ý cấu trúc: tab Onhand có 1 dòng banner gộp ô ở trên header thật (dòng 0), tab Danh mục quỹ có 3 dòng
+// tổng hợp NAV proxy/NAV hiện tại/NAV kỳ vọng trước header thật (dòng 0-2) — xử lý riêng trong loadTrading().
+const TRADING_CSV_BY_NHA = {
+  'Tùng - Thư': {
+    inout:      "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=0",
+    ipower:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=885075156",
+    danhMucQuy: "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531559558",
+    onhand:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531442378"
+  }
+};
+let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {};
 
 // ==== Cấu hình tab riêng theo từng Nhà — mở cho mọi Nhà tự khai báo nhu cầu riêng ====
 // 'ketqua' luôn có mặt mặc định cho mọi Nhà (không cần khai báo lại ở đây).
@@ -446,6 +515,59 @@ async function fetchCSV(url){
 }
 
 // ============================================================
+// CSV THÔ (raw rows) — dùng cho sheet có dòng tổng hợp/banner nằm TRƯỚC header thật
+// (VD tab Onhand, Danh mục quỹ của Trading record) — parseCSV() thường không dùng được
+// vì nó luôn coi dòng đầu tiên là header.
+// ============================================================
+function parseCSVRaw(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i], next = text[i+1];
+    if (inQuotes){
+      if (c === '"' && next === '"'){ field += '"'; i++; }
+      else if (c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if (c === '"'){ inQuotes = true; }
+      else if (c === ','){ row.push(field); field = ""; }
+      else if (c === '\n'){ row.push(field); rows.push(row); row = []; field = ""; }
+      else if (c === '\r'){ /* skip */ }
+      else { field += c; }
+    }
+  }
+  if (field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+async function fetchCSVRaw(url){
+  const res = await fetch(url);
+  const text = await res.text();
+  return parseCSVRaw(text);
+}
+// Biến 1 dải rows thô thành mảng object, lấy header ở đúng vị trí headerRowIdx (0-based)
+function rowsToObjects(rows, headerRowIdx){
+  const header = (rows[headerRowIdx] || []).map(h => h.trim());
+  return rows.slice(headerRowIdx + 1)
+    .filter(r => r.some(c => c !== ""))
+    .map(r => {
+      const obj = {};
+      header.forEach((h, idx) => obj[h] = (r[idx] || "").trim());
+      return obj;
+    });
+}
+// Số kiểu VN trong sheet: dấu chấm ngăn nghìn, dấu phẩy là thập phân, có thể kèm "%"
+// VD "19.999.217" -> 19999217 · "192,3" -> 192.3 · "-0,42%" -> -0.42
+function parseVNNumber(str){
+  if (str === undefined || str === null) return NaN;
+  str = String(str).trim();
+  if (!str) return NaN;
+  const clean = str.replace(/%/g, '').replace(/\./g, '').replace(',', '.');
+  return parseFloat(clean);
+}
+function fmtVND(n){ if (isNaN(n)) return '—'; return Math.round(n).toLocaleString('vi-VN') + ' đ'; }
+function fmtNum(n){ if (isNaN(n)) return '—'; return n.toLocaleString('vi-VN', { maximumFractionDigits: 1 }); }
+
+// ============================================================
 // LOAD DATA
 // ============================================================
 async function loadAll(){
@@ -483,8 +605,137 @@ async function loadAll(){
   document.getElementById('updated-at').textContent =
     "Nhà " + currentNha + " · Cập nhật lúc " + new Date().toLocaleString('vi-VN');
 
+  aiCtxRender();      // thanh chọn bài đang soạn của Trợ lý AI
   aiDriveRender();    // thanh Google Drive của Trợ lý AI
   aiLoadFromStorage(); // khôi phục hội thoại Trợ lý AI đã lưu trước đó cho đúng Nhà này (nếu có)
+
+  loadTrading();      // độc lập với Progress — không chặn màn hình chính nếu lỗi/chậm
+}
+
+// ============================================================
+// TRADING — đọc Onhand + Danh mục quỹ (chỉ đọc; phần vào lệnh/checklist chờ nối Apps Script)
+// ============================================================
+async function loadTrading(){
+  const hasTradingTab = (EXTRA_TABS_BY_NHA[currentNha] || []).some(t => t.key === 'trading');
+  const csvSet = TRADING_CSV_BY_NHA[currentNha];
+  if (!hasTradingTab || !csvSet) return;
+
+  const content = document.getElementById('trd-content');
+  try {
+    const [onhandRaw, dmqRaw] = await Promise.all([
+      fetchCSVRaw(csvSet.onhand),
+      fetchCSVRaw(csvSet.danhMucQuy)
+    ]);
+
+    // Onhand: dòng 0 là banner gộp ô ("On-hand stock" + 3 số tổng), header thật ở dòng 1
+    ONHAND = rowsToObjects(onhandRaw, 1);
+
+    // Danh mục quỹ: dòng 0-2 là NAV proxy / NAV hiện tại / NAV kỳ vọng, header thật ở dòng 3
+    const fundHeader = dmqRaw[3] || [];
+    const fundKeys = fundHeader.slice(1, 6).filter(Boolean); // DCDS, VCBF-BCF, VMEEF, VESAF, FUEVFVND
+    DMQ_SUMMARY = {};
+    fundKeys.forEach((k, i) => {
+      DMQ_SUMMARY[k] = {
+        proxy:   parseVNNumber(dmqRaw[0][i + 1]),
+        hienTai: parseVNNumber(dmqRaw[1][i + 1]),
+        kyVong:  parseVNNumber(dmqRaw[2][i + 1])
+      };
+    });
+    DANHMUCQUY = rowsToObjects(dmqRaw, 3);
+
+    renderOnhand();
+    renderDanhMucQuy();
+  } catch (err){
+    content.innerHTML = `
+      <div class="placeholder-block">
+        <div class="icon">⚠️</div>
+        <h3>Không tải được dữ liệu Trading</h3>
+        <p>Kiểm tra lại quyền chia sẻ sheet "Trading record" (cần "Anyone with the link"). Lỗi: ${err.message}</p>
+      </div>`;
+  }
+}
+
+function renderOnhand(){
+  const rows = ONHAND.filter(r => r['Mã']);
+  const open = rows.filter(r => (parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001);
+  const closed = rows.filter(r =>
+    !((parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001) &&
+    (parseVNNumber(r['Lãi/lỗ tất toán']) || 0) !== 0
+  );
+
+  let tongVon = 0, laiLoTrenGia = 0, laiLoTatToan = 0;
+  rows.forEach(r => {
+    tongVon      += parseVNNumber(r['Tổng vốn']) || 0;
+    laiLoTrenGia += parseVNNumber(r['Lãi/lỗ trên giá']) || 0;
+    laiLoTatToan += parseVNNumber(r['Lãi/lỗ tất toán']) || 0;
+  });
+
+  document.getElementById('trd-onhand-summary').innerHTML = `
+    <div class="trd-card">
+      <div class="label">Tổng vốn đang có</div>
+      <div class="value">${fmtVND(tongVon)}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Lãi/lỗ trên giá (chưa bán)</div>
+      <div class="value ${laiLoTrenGia >= 0 ? 'gain' : 'loss'}">${fmtVND(laiLoTrenGia)}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Lãi/lỗ đã tất toán</div>
+      <div class="value ${laiLoTatToan >= 0 ? 'gain' : 'loss'}">${fmtVND(laiLoTatToan)}</div>
+    </div>
+  `;
+
+  document.getElementById('trd-onhand-table').innerHTML = `
+    <div class="trd-row head"><div>Mã</div><div>SL</div><div>Giá vốn → hiện tại</div><div>Lãi/lỗ trên giá</div></div>
+    ${open.map(r => {
+      const sl = parseVNNumber(r['Số lượng đang giữ']);
+      const gv = parseVNNumber(r['Giá vốn bình quân']);
+      const gh = parseVNNumber(r['Giá hiện tại']);
+      const ll = parseVNNumber(r['Lãi/lỗ trên giá']) || 0;
+      const mau = gv * sl;
+      const pct = mau ? (ll / mau * 100) : 0;
+      return `
+        <div class="trd-row">
+          <div><div class="ma">${r['Mã']}</div><div class="loai-sub">${r['Loại hình'] || ''}</div></div>
+          <div class="num">${fmtNum(sl)}</div>
+          <div class="priceflow">${fmtNum(gv)} → ${fmtNum(gh)}</div>
+          <div class="num ${ll >= 0 ? 'gain' : 'loss'}"><b>${fmtVND(ll)}</b><br><span style="font-size:11px;">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></div>
+        </div>`;
+    }).join('')}
+  `;
+
+  document.getElementById('trd-onhand-closed').innerHTML = closed.length ? `
+    <div class="trd-closed">
+      <b>Đã tất toán:</b> ${closed.map(r => {
+        const v = parseVNNumber(r['Lãi/lỗ tất toán']) || 0;
+        return `${r['Mã']} ${v >= 0 ? '+' : ''}${fmtVND(v)}`;
+      }).join(' · ')}
+    </div>` : '';
+}
+
+function renderDanhMucQuy(){
+  const keys = Object.keys(DMQ_SUMMARY);
+  document.getElementById('trd-dmq-cards').innerHTML = keys.map(k => {
+    const s = DMQ_SUMMARY[k];
+    const proxy = s.proxy;
+    const hasNav = !isNaN(s.hienTai) && s.hienTai !== 0;
+    return `
+      <div class="trd-card">
+        <div class="label">${k}</div>
+        <div class="value ${isNaN(proxy) ? '' : (proxy >= 0 ? 'gain' : 'loss')}">${isNaN(proxy) ? '—' : (proxy >= 0 ? '+' : '') + proxy.toFixed(2) + '%'}</div>
+        <div class="sub">${hasNav ? fmtNum(s.hienTai) + ' → ' + fmtNum(s.kyVong) : 'Ước tính theo tỷ trọng'}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('trd-dmq-detail').innerHTML = DANHMUCQUY.filter(r => r['Mã CP']).map(r => {
+    const pct = parseVNNumber(r['% thay đổi giá']);
+    return `
+      <div class="trd-dmq-row">
+        <div><b>${r['Mã CP']}</b></div>
+        <div class="${isNaN(pct) ? '' : (pct >= 0 ? 'gain' : 'loss')}">${isNaN(pct) ? '—' : (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'}</div>
+        <div class="meta">${r['Ngày cập nhật'] || ''} ${r['Giờ cập nhật'] || ''}</div>
+      </div>`;
+  }).join('');
 }
 
 // ============================================================
@@ -1436,8 +1687,11 @@ async function aiSend(){
   }
 
   // Tài liệu Drive đang đính kèm (nếu có) — chỉ giữ trong bộ nhớ tab, KHÔNG lưu vào localStorage (quá nặng)
-  const attach = aiAttachment;
-  const attachLabel = attach ? attach.label : '';
+  const attachList = aiAttachments.slice();
+  const pdfs = attachList.filter(a => a.kind === 'pdf');
+  const texts = attachList.filter(a => a.kind === 'text');
+  const ctx = aiBuildContext(); // quy ước (Google Doc) + bài đang soạn (Lessons/Skills) — chữ thuần, rẻ
+  const attachLabel = [ ...ctx.tags, ...attachList.map(a => (a.kind === 'pdf' ? '📕 ' : '📄 ') + a.label) ].join(' · ');
 
   aiAppendMsg('user', aiAttachTagHtml(attachLabel) + escapeHtml(userText));
   aiPushTurn({ role: 'user', userText, attachLabel });
@@ -1450,10 +1704,17 @@ async function aiSend(){
   // Gửi kèm toàn bộ lịch sử hội thoại trước đó (của phiên đang mở) để giữ ngữ cảnh nhiều lượt, giống chat thông thường
   // PDF đính kèm được gửi lại ở lượt MỚI NHẤT mỗi lần (lịch sử cũ chỉ giữ chữ) — Gemini luôn thấy tài liệu
   // ngay cạnh câu hỏi. Mỗi lần gửi đều tính token cho số trang đính kèm -> càng ít trang càng đỡ tốn quota.
-  const currentParts = attach
-    ? [ { inline_data: { mime_type: 'application/pdf', data: attach.base64 } },
-        { text: `[Tài liệu đính kèm: ${attach.label}. Chỉ dựa vào nội dung trong tài liệu này khi ghi nguồn.]\n\n${userText}` } ]
-    : [ { text: userText } ];
+  // Bối cảnh (quy ước + bài đang soạn) cũng chỉ gửi ở lượt mới nhất -> luôn là bản mới nhất, không lặp trong lịch sử.
+  const hasDocs = pdfs.length || texts.length;
+  const textForModel = ctx.text
+    + texts.map(a => `=== TÀI LIỆU: ${a.label} ===\n${a.text}\n\n`).join('')
+    + (pdfs.length ? `[PDF đính kèm theo thứ tự: ${pdfs.map((a, i) => `(${i + 1}) ${a.label}`).join('; ')}]\n\n` : '')
+    + (hasDocs ? '[Câu hỏi lấy từ tài liệu nào phải ghi rõ tên tài liệu + trang/mục ở cột nguồn; không bịa nội dung không có trong tài liệu.]\n\n' : '')
+    + (ctx.text || hasDocs ? '=== YÊU CẦU ===\n' : '') + userText;
+  const currentParts = [
+    ...pdfs.map(a => ({ inline_data: { mime_type: 'application/pdf', data: a.base64 } })),
+    { text: textForModel }
+  ];
   const contents = [
     ...aiHistory.map(h => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: 'user', parts: currentParts }
@@ -1507,7 +1768,7 @@ async function aiSend(){
   } catch(err){
     thinkingEl.className = 'ai-msg error';
     if (err.name === 'AbortError'){
-      thinkingEl.innerHTML = `<b>Chờ quá lâu (${attach ? 90 : 45} giây) không thấy Gemini trả lời — đã huỷ.</b> Có thể do mạng đang chặn kết nối tới Google (hay gặp ở mạng công ty/trường học), hoặc yêu cầu quá nhiều câu cùng lúc. Thử lại với mạng khác hoặc yêu cầu ít câu hơn.`;
+      thinkingEl.innerHTML = `<b>Chờ quá lâu (${pdfs.length ? 90 : 45} giây) không thấy Gemini trả lời — đã huỷ.</b> Có thể do mạng đang chặn kết nối tới Google (hay gặp ở mạng công ty/trường học), hoặc yêu cầu quá nhiều câu cùng lúc. Thử lại với mạng khác hoặc yêu cầu ít câu hơn.`;
     } else {
       thinkingEl.innerHTML = `<b>Không kết nối được tới Gemini.</b> Kiểm tra lại mạng internet, hoặc thử lại sau ít phút.<div style="font-size:11px;color:var(--muted);margin-top:6px;">(Nguyên văn: ${escapeHtml(err.message)})</div>`;
     }
@@ -1531,17 +1792,46 @@ function aiClearChat(){
 // ============================================================
 // 8b. TÀI LIỆU TỪ GOOGLE DRIVE cho Trợ lý AI
 //     Đăng nhập Google (familyos-auth.js) -> kiểm tra email có trong bảng Nhà này + là Bố/Mẹ
-//     -> chọn PDF bằng hộp chọn của Google -> cắt đúng các trang của bài -> đính kèm vào lượt gửi Gemini.
-//     PDF chỉ nằm trong bộ nhớ tab: không lưu localStorage, không upload đi đâu ngoài Gemini.
+//     -> chọn tài liệu bằng hộp chọn của Google, đính kèm được NHIỀU tài liệu cùng lúc (vd SGK + SBT + SGV):
+//        • PDF          -> cắt đúng các trang của bài -> gửi dạng file
+//        • Google Doc   -> chuyển sang chữ thuần -> gửi dạng chữ (nhẹ, rẻ quota)
+//        • Google Sheet -> xuất .xlsx (đủ mọi tab) -> chọn tab, lọc theo mã bài -> gửi dạng bảng chữ
+//     Tài liệu chỉ nằm trong bộ nhớ tab: không lưu localStorage, không gửi đi đâu ngoài Gemini.
 // ============================================================
-const AI_ATTACH_MAX_BYTES = 18 * 1024 * 1024; // giới hạn an toàn cho dữ liệu gửi kèm trực tiếp trong 1 request Gemini
-const AI_ATTACH_WARN_PAGES = 30;              // quá số trang này thì hỏi lại — mỗi lượt gửi đều tính token cho từng trang
+// Giới hạn 1 lần gửi Gemini (file gửi kèm trực tiếp) ~20 MB SAU khi mã hoá base64 (phình thêm ~1/3)
+// -> tổng PDF thô tối đa ~14 MB cho an toàn.
+const AI_ATTACH_MAX_BYTES = 14 * 1024 * 1024;
+const AI_ATTACH_WARN_PAGES = 30;       // quá số trang này thì hỏi lại — mỗi lượt gửi đều tính token cho từng trang
+const AI_TEXT_MAX_CHARS = 150000;      // tổng chữ của Doc/Sheet đính kèm (~ vài chục nghìn token mỗi lượt gửi)
+const MIME_PDF = 'application/pdf';
+const MIME_GDOC = 'application/vnd.google-apps.document';
+const MIME_GSHEET = 'application/vnd.google-apps.spreadsheet';
+const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-let aiAttachment = null; // { label, base64, sizeBytes }
-let aiDrive = { role: null, roleError: '', file: null, pdfDoc: null, pageCount: 0, busy: '', error: '' };
+// aiAttachments: [{ id, kind:'pdf'|'text', label, base64?, sizeBytes?, text? }]
+let aiAttachments = [];
+let aiAttachSeq = 0;
+// aiDrive.file: tài liệu vừa chọn, đang chờ người dùng chọn trang (PDF) hoặc chọn tab (Sheet)
+let aiDrive = { role: null, roleError: '', file: null, pdfDoc: null, pageCount: 0, sheets: null, busy: '', error: '' };
+
+function aiAttachTotals(){
+  return {
+    pdfBytes: aiAttachments.filter(a => a.kind === 'pdf').reduce((t,a) => t + a.sizeBytes, 0),
+    textChars: aiAttachments.filter(a => a.kind === 'text').reduce((t,a) => t + a.text.length, 0)
+  };
+}
+function aiAddAttachment(item){
+  item.id = ++aiAttachSeq;
+  aiAttachments.push(item);
+  aiDrive.file = null; aiDrive.pdfDoc = null; aiDrive.pageCount = 0; aiDrive.sheets = null; // xong, dọn khu chọn
+}
+function aiRemoveAttachment(id){
+  aiAttachments = aiAttachments.filter(a => a.id !== id);
+  aiDriveRender();
+}
 
 function aiAttachTagHtml(label){
-  return label ? `<div class="ai-attach-tag">📎 ${escapeHtml(label)}</div><br>` : '';
+  return label ? `<div class="ai-attach-tag">${escapeHtml(label)}</div><br>` : '';
 }
 
 function aiDriveRender(){
@@ -1552,7 +1842,7 @@ function aiDriveRender(){
   let html = '';
 
   if (!FOAuth.isConfigured()){
-    bar.innerHTML = `<div class="who">📁 Tài liệu từ Google Drive: <b>chưa cấu hình</b> (cần điền CLIENT_ID / API key / Project number trong familyos-auth.js).</div>`;
+    bar.innerHTML = `<div class="who">📁 Tài liệu từ Google Drive: <b>chưa cấu hình</b> (cần điền CLIENT_ID / API key / Project number trong familyos-config.js).</div>`;
     return;
   }
 
@@ -1568,24 +1858,44 @@ function aiDriveRender(){
     if (aiDrive.roleError){
       html += `<div class="err">${escapeHtml(aiDrive.roleError)}</div>`;
     } else if (aiDrive.role){
-      html += `<div class="row"><button class="btn small" onclick="aiDrivePick()" ${aiDrive.busy ? 'disabled' : ''}>📄 Chọn PDF từ Drive</button>`;
+      html += `<div class="row"><button class="btn small" onclick="aiRulesPick()" ${aiDrive.busy ? 'disabled' : ''}>📋 ${aiRules ? 'Đổi' : 'Chọn'} file Quy ước (Google Doc)</button>
+               ${aiRules ? `<span class="who">Quy ước: <b>${escapeHtml(aiRules.name)}</b> (${aiRules.text.length.toLocaleString('vi-VN')} ký tự) — gửi kèm mọi tin nhắn</span>
+               <button class="btn small" onclick="aiRulesClear()">Bỏ</button>` : `<span class="who">Nên chọn trước khi soạn — để Gemini nắm khung chung.</span>`}</div>`;
+      html += `<div class="row"><button class="btn small" onclick="aiDrivePick()" ${aiDrive.busy ? 'disabled' : ''}>📄 Chọn tài liệu (PDF / Google Doc / Google Sheet)</button>`;
       if (aiDrive.file){
         html += `<span class="who"><b>${escapeHtml(aiDrive.file.name)}</b>${aiDrive.pageCount ? ` — ${aiDrive.pageCount} trang` : ''}
-                 ${aiDrive.file.url ? ` · <a href="${escapeHtml(aiDrive.file.url)}" target="_blank" rel="noopener">mở xem để dò số trang</a>` : ''}</span>`;
+                 ${aiDrive.file.url ? ` · <a href="${escapeHtml(aiDrive.file.url)}" target="_blank" rel="noopener">mở xem</a>` : ''}
+                 <button class="btn small" onclick="aiDrive.file=null;aiDrive.pdfDoc=null;aiDrive.sheets=null;aiDriveRender();">Huỷ chọn</button></span>`;
       }
       html += `</div>`;
+
+      // PDF: chọn khoảng trang
       if (aiDrive.file && aiDrive.pageCount){
         html += `<div class="row">Từ trang <input type="number" id="aiPageFrom" min="1" max="${aiDrive.pageCount}" value="${aiDrive.from || 1}">
                  đến <input type="number" id="aiPageTo" min="1" max="${aiDrive.pageCount}" value="${aiDrive.to || Math.min(aiDrive.pageCount, 5)}">
                  <button class="btn small" onclick="aiDriveAttach()" ${aiDrive.busy ? 'disabled' : ''}>📎 Đính kèm các trang này</button></div>
                  <div class="who" style="font-size:11px;">Số trang tính theo file PDF (ô số trang của trình xem PDF), có thể lệch với số in trên sách. Chỉ lấy đúng trang của bài đang soạn — mỗi lượt gửi đều tính quota cho từng trang.</div>`;
       }
+
+      // Sheet: chọn tab + lọc theo mã bài
+      if (aiDrive.file && aiDrive.sheets){
+        html += `<div class="who">Chọn tab cần gửi kèm:</div><div class="row">` +
+          aiDrive.sheets.map((sh, i) => `<label style="white-space:nowrap;"><input type="checkbox" class="aiSheetTab" value="${i}" ${sh.rows.length > 1 ? '' : 'disabled'}>
+             ${escapeHtml(sh.name)} <span class="who">(${Math.max(sh.rows.length - 1, 0)} dòng)</span></label>`).join(' ') + `</div>`;
+        html += `<div class="row"><label><input type="checkbox" id="aiSheetFilter" ${aiCtx.code ? 'checked' : 'disabled'}>
+                   Chỉ lấy dòng tiêu đề + các dòng có chứa mã bài đang soạn${aiCtx.code ? `: <b>${escapeHtml(aiCtx.code)}</b>` : ' (chưa chọn bài ở thanh 🎯)'}</label>
+                 <button class="btn small" onclick="aiSheetAttach()" ${aiDrive.busy ? 'disabled' : ''}>📎 Đính kèm các tab đã chọn</button></div>`;
+      }
     }
   }
 
-  if (aiAttachment){
-    html += `<div class="row attached">📎 Đang đính kèm: <b>${escapeHtml(aiAttachment.label)}</b> (${(aiAttachment.sizeBytes/1024/1024).toFixed(1)} MB) — gửi kèm mọi tin nhắn tiếp theo
-             <button class="btn small" onclick="aiDriveDetach()">Bỏ đính kèm</button></div>`;
+  if (aiAttachments.length){
+    const t = aiAttachTotals();
+    html += `<div class="attached"><div class="who" style="margin-bottom:4px;">📎 Đang đính kèm — gửi kèm mọi tin nhắn tiếp theo
+               (PDF ${(t.pdfBytes/1024/1024).toFixed(1)}/${AI_ATTACH_MAX_BYTES/1024/1024} MB · chữ ${t.textChars.toLocaleString('vi-VN')}/${AI_TEXT_MAX_CHARS.toLocaleString('vi-VN')} ký tự):</div>` +
+      aiAttachments.map(a => `<div class="row">${a.kind === 'pdf' ? '📕' : '📄'} <b>${escapeHtml(a.label)}</b>
+         <span class="who">${a.kind === 'pdf' ? (a.sizeBytes/1024/1024).toFixed(1) + ' MB' : a.text.length.toLocaleString('vi-VN') + ' ký tự'}</span>
+         <button class="btn small" onclick="aiRemoveAttachment(${a.id})">Bỏ</button></div>`).join('') + `</div>`;
   }
   if (aiDrive.busy) html += `<div class="who"><i>${escapeHtml(aiDrive.busy)}</i></div>`;
   if (aiDrive.error) html += `<div class="err">${escapeHtml(aiDrive.error)}</div>`;
@@ -1628,8 +1938,8 @@ async function aiDriveSignIn(){
 
 function aiDriveSignOut(){
   FOAuth.signOut();
-  aiDrive = { role: null, roleError: '', file: null, pdfDoc: null, pageCount: 0, busy: '', error: '' };
-  aiAttachment = null; // tài liệu lấy bằng tài khoản cũ -> bỏ luôn cho sạch
+  aiDrive = { role: null, roleError: '', file: null, pdfDoc: null, pageCount: 0, sheets: null, busy: '', error: '' };
+  aiAttachments = []; aiRules = null; // tài liệu lấy bằng tài khoản cũ -> bỏ luôn cho sạch
   aiDriveRender();
 }
 
@@ -1649,22 +1959,98 @@ async function aiLoadPdfLib(){
 async function aiDrivePick(){
   aiDrive.error = '';
   try {
-    const file = await FOAuth.pickDriveFile({ title: 'Chọn file PDF (SGK / SBT / SGV...)', mimeTypes: ['application/pdf'] });
+    const file = await FOAuth.pickDriveFile({ title: 'Chọn tài liệu: PDF, Google Doc hoặc Google Sheet', mimeTypes: [MIME_PDF, MIME_GDOC, MIME_GSHEET] });
     if (!file) return; // bấm Huỷ
-    aiDrive.file = file; aiDrive.pdfDoc = null; aiDrive.pageCount = 0; aiDrive.from = aiDrive.to = null;
-    const mb = file.sizeBytes ? ` (${(file.sizeBytes/1024/1024).toFixed(0)} MB)` : '';
-    aiDrive.busy = `Đang tải "${file.name}"${mb} từ Drive về trình duyệt... file SGK lớn có thể mất 1-2 phút.`;
-    aiDriveRender();
+    aiDrive.file = file; aiDrive.pdfDoc = null; aiDrive.pageCount = 0; aiDrive.sheets = null; aiDrive.from = aiDrive.to = null;
 
-    const [PDFLib, buf] = await Promise.all([ aiLoadPdfLib(), FOAuth.downloadDriveFile(file.id) ]);
-    aiDrive.busy = 'Đang đọc cấu trúc PDF...'; aiDriveRender();
-    aiDrive.pdfDoc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
-    aiDrive.pageCount = aiDrive.pdfDoc.getPageCount();
+    if (file.mimeType === MIME_GDOC){
+      // Google Doc: đọc thành chữ rồi đính kèm luôn — không cần chọn gì thêm
+      aiDrive.busy = `Đang đọc "${file.name}"...`; aiDriveRender();
+      const text = (await FOAuth.exportGoogleDocText(file.id)).trim();
+      if (!text) throw new Error('File trống.');
+      aiCheckTextRoom(text.length);
+      aiAddAttachment({ kind: 'text', label: file.name, text });
+
+    } else if (file.mimeType === MIME_GSHEET){
+      // Google Sheet: xuất .xlsx (đủ mọi tab) -> đọc bằng SheetJS -> cho chọn tab
+      aiDrive.busy = `Đang đọc "${file.name}" (tất cả các tab)...`; aiDriveRender();
+      const [XLSX, buf] = await Promise.all([ aiLoadSheetJs(), FOAuth.exportDriveFile(file.id, MIME_XLSX) ]);
+      const wb = XLSX.read(buf, { type: 'array' });
+      aiDrive.sheets = wb.SheetNames.map(name => ({
+        name,
+        rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '', raw: false, blankrows: false })
+      }));
+
+    } else {
+      // PDF: tải về, chờ chọn khoảng trang
+      const mb = file.sizeBytes ? ` (${(file.sizeBytes/1024/1024).toFixed(0)} MB)` : '';
+      aiDrive.busy = `Đang tải "${file.name}"${mb} từ Drive về trình duyệt... file SGK lớn có thể mất 1-2 phút.`;
+      aiDriveRender();
+      const [PDFLib, buf] = await Promise.all([ aiLoadPdfLib(), FOAuth.downloadDriveFile(file.id) ]);
+      aiDrive.busy = 'Đang đọc cấu trúc PDF...'; aiDriveRender();
+      aiDrive.pdfDoc = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true });
+      aiDrive.pageCount = aiDrive.pdfDoc.getPageCount();
+    }
   } catch(err){
     aiDrive.error = 'Không mở được file: ' + err.message;
-    aiDrive.file = null; aiDrive.pdfDoc = null;
+    aiDrive.file = null; aiDrive.pdfDoc = null; aiDrive.sheets = null;
   } finally {
     aiDrive.busy = ''; aiDriveRender();
+  }
+}
+
+// SheetJS: đọc file .xlsx ngay trong trình duyệt. Chỉ nạp khi cần, có nguồn dự phòng.
+async function aiLoadSheetJs(){
+  if (window.XLSX) return window.XLSX;
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  ];
+  for (const src of sources){
+    try { await FOAuth.loadScript(src); if (window.XLSX) return window.XLSX; } catch(e){ /* thử nguồn tiếp theo */ }
+  }
+  throw new Error('Không tải được thư viện đọc bảng tính (SheetJS) — kiểm tra mạng.');
+}
+
+function aiCheckTextRoom(addChars){
+  const used = aiAttachTotals().textChars;
+  if (used + addChars > AI_TEXT_MAX_CHARS){
+    throw new Error(`Tổng chữ đính kèm sẽ là ${(used + addChars).toLocaleString('vi-VN')} ký tự, vượt ${AI_TEXT_MAX_CHARS.toLocaleString('vi-VN')}. Bỏ bớt tài liệu, hoặc với Sheet thì tích "chỉ lấy dòng có mã bài".`);
+  }
+}
+
+// Bảng -> chữ: mỗi dòng 1 hàng, các ô cách nhau bằng " | " (bỏ cột trống ở cuối)
+function aiRowsToText(rows){
+  return rows.map(r => r.map(c => String(c).replace(/\s*\n\s*/g, ' ').trim()).join(' | ').replace(/( \| )+$/, '')).join('\n');
+}
+
+function aiSheetAttach(){
+  aiDrive.error = '';
+  try {
+    const picked = [...document.querySelectorAll('.aiSheetTab:checked')].map(el => aiDrive.sheets[+el.value]);
+    if (!picked.length) throw new Error('Chưa tích tab nào.');
+    const filterCode = document.getElementById('aiSheetFilter')?.checked ? aiCtx.code : '';
+
+    const parts = picked.map(sh => {
+      let rows = sh.rows;
+      if (filterCode){
+        rows = [rows[0], ...rows.slice(1).filter(r => r.some(c => String(c).includes(filterCode)))];
+      }
+      return { name: sh.name, rows };
+    });
+    const empty = parts.filter(p => p.rows.length <= 1).map(p => p.name);
+    if (empty.length === parts.length) throw new Error(`Không tab nào có dòng chứa mã ${filterCode}. Bỏ tích lọc, hoặc kiểm tra lại mã bài.`);
+
+    const text = parts.filter(p => p.rows.length > 1)
+      .map(p => `--- Tab "${p.name}" (${p.rows.length - 1} dòng${filterCode ? `, lọc theo ${filterCode}` : ''}) ---\n${aiRowsToText(p.rows)}`).join('\n\n');
+    aiCheckTextRoom(text.length);
+    const tabNames = parts.filter(p => p.rows.length > 1).map(p => p.name).join(', ');
+    aiAddAttachment({ kind: 'text', label: `${aiDrive.file.name} [${tabNames}]${filterCode ? ' · ' + filterCode : ''}`, text });
+    if (empty.length) aiDrive.error = `Lưu ý: tab ${empty.join(', ')} không có dòng nào chứa ${filterCode} nên không được gửi kèm.`;
+  } catch(err){
+    aiDrive.error = 'Không đính kèm được: ' + err.message;
+  } finally {
+    aiDriveRender();
   }
 }
 
@@ -1696,14 +2082,16 @@ async function aiDriveAttach(){
     const pages = await out.copyPages(aiDrive.pdfDoc, indices);
     pages.forEach(p => out.addPage(p));
     const bytes = await out.save();
-    if (bytes.length > AI_ATTACH_MAX_BYTES){
-      throw new Error(`Phần cắt ra nặng ${(bytes.length/1024/1024).toFixed(1)} MB, vượt giới hạn ${AI_ATTACH_MAX_BYTES/1024/1024} MB — chọn ít trang hơn.`);
+    const used = aiAttachTotals().pdfBytes;
+    if (used + bytes.length > AI_ATTACH_MAX_BYTES){
+      throw new Error(`Phần cắt ra nặng ${(bytes.length/1024/1024).toFixed(1)} MB; cộng với PDF đang đính kèm (${(used/1024/1024).toFixed(1)} MB) sẽ vượt giới hạn ${AI_ATTACH_MAX_BYTES/1024/1024} MB — chọn ít trang hơn, bỏ bớt PDF, hoặc dùng bản Google Doc của tài liệu này.`);
     }
-    aiAttachment = {
+    aiAddAttachment({
+      kind: 'pdf',
       label: `${aiDrive.file.name} — trang ${from}–${to}`,
       base64: aiBytesToBase64(bytes),
       sizeBytes: bytes.length
-    };
+    });
   } catch(err){
     aiDrive.error = 'Không cắt được trang: ' + err.message;
   } finally {
@@ -1711,9 +2099,98 @@ async function aiDriveAttach(){
   }
 }
 
-function aiDriveDetach(){
-  aiAttachment = null;
-  aiDriveRender();
+// ---------- Lớp 2: file Quy ước soạn quiz (Google Doc) — Tùng sửa Doc là mọi người dùng bản mới ----------
+const AI_RULES_MAX_CHARS = 40000; // ~10 nghìn token; quy ước "khung cơ bản" nên ngắn hơn nhiều
+let aiRules = null; // { name, text }
+
+async function aiRulesPick(){
+  aiDrive.error = '';
+  try {
+    const file = await FOAuth.pickDriveFile({ title: 'Chọn file Quy ước soạn quiz (Google Doc)', mimeTypes: ['application/vnd.google-apps.document'] });
+    if (!file) return;
+    aiDrive.busy = `Đang đọc "${file.name}"...`; aiDriveRender();
+    const text = (await FOAuth.exportGoogleDocText(file.id)).trim();
+    if (!text) throw new Error('File trống.');
+    if (text.length > AI_RULES_MAX_CHARS) throw new Error(`File dài ${text.length.toLocaleString('vi-VN')} ký tự, vượt ${AI_RULES_MAX_CHARS.toLocaleString('vi-VN')} — quy ước nên giữ ở mức khung cơ bản, rút gọn lại.`);
+    aiRules = { name: file.name, text };
+  } catch(err){
+    aiDrive.error = 'Không đọc được file quy ước: ' + err.message;
+  } finally {
+    aiDrive.busy = ''; aiDriveRender();
+  }
+}
+function aiRulesClear(){ aiRules = null; aiDriveRender(); }
+
+// ---------- Lớp 1: bài đang soạn — lấy từ Lessons + Skills (app đã tải sẵn lúc mở trang) ----------
+let aiCtx = { subject: '', code: '' };
+
+// Tên cột mã bài trong tab Skills (dò theo tên thường gặp, không phụ thuộc thứ tự cột)
+function aiSkillsCodeCol(){
+  const cols = SKILLS.length ? Object.keys(SKILLS[0]) : [];
+  return cols.find(c => /^(lesson code|mã bài|ma bai|mã)$/i.test(c.trim())) || '';
+}
+
+function aiCtxRender(){
+  const bar = document.getElementById('aiCtxBar');
+  if (!bar) return;
+  const subjects = [...new Set(LESSONS.map(l => l["Subject"]).filter(Boolean))];
+  const lessons = LESSONS.filter(l => l["Subject"] === aiCtx.subject && l["Lesson code"]);
+  const info = aiCtx.code ? aiBuildLessonContext() : null;
+
+  bar.innerHTML = `<div class="row">🎯 Bài đang soạn:
+      <select onchange="aiCtx.subject=this.value; aiCtx.code=''; aiCtxRender();">
+        <option value="">— Môn —</option>
+        ${subjects.map(s => `<option ${s===aiCtx.subject?'selected':''}>${escapeHtml(s)}</option>`).join('')}
+      </select>
+      <select onchange="aiCtx.code=this.value; aiCtxRender();" ${aiCtx.subject ? '' : 'disabled'} style="max-width:420px;">
+        <option value="">— Mã bài —</option>
+        ${lessons.map(l => `<option value="${escapeHtml(l["Lesson code"])}" ${l["Lesson code"]===aiCtx.code?'selected':''}>${escapeHtml(l["Lesson code"] + ' — ' + (l["Lesson name"]||''))}</option>`).join('')}
+      </select>
+      ${aiCtx.code ? `<button class="btn small" onclick="aiCtx.code=''; aiCtxRender();">Bỏ</button>` : ''}
+    </div>
+    <div class="who" style="font-size:11px;">${info
+      ? `Gửi kèm mọi tin nhắn: thông tin bài từ Lessons + ${info.lessonSkillCount} dòng Skill của bài + master list ${info.masterCount} Skill môn ${escapeHtml(aiCtx.subject)}.`
+      : 'Chọn bài → Gemini tự nhận mã bài, YCCĐ và danh sách Skill từ Sheet, không cần gõ tay.'}</div>`;
+}
+
+// Chuyển 1 dòng dữ liệu thành "Cột: giá trị" (bỏ ô trống) — không phụ thuộc tên cột YCCĐ cụ thể
+function aiRowToText(row){
+  return Object.entries(row).filter(([k,v]) => k && String(v).trim()).map(([k,v]) => `${k}: ${v}`).join(' | ');
+}
+
+function aiBuildLessonContext(){
+  const lesson = LESSONS.find(l => l["Lesson code"] === aiCtx.code);
+  if (!lesson) return null;
+  const codeCol = aiSkillsCodeCol();
+  const subjectCodes = new Set(LESSONS.filter(l => l["Subject"] === aiCtx.subject).map(l => l["Lesson code"]));
+
+  const lessonSkills = codeCol ? SKILLS.filter(s => s[codeCol] === aiCtx.code) : [];
+  const master = [];
+  const seen = new Set();
+  (codeCol ? SKILLS.filter(s => subjectCodes.has(s[codeCol])) : []).forEach(s => {
+    const key = (s["Layer 1"] || '') + '>' + (s["Skill"] || '');
+    if (s["Skill"] && !seen.has(key)){ seen.add(key); master.push(s["Layer 1"] ? `${s["Layer 1"]} > ${s["Skill"]}` : s["Skill"]); }
+  });
+
+  const text =
+    `--- BÀI ĐANG SOẠN (từ tab Lessons) ---\n${aiRowToText(lesson)}\n\n` +
+    (lessonSkills.length ? `--- CÁC DÒNG SKILL CỦA BÀI NÀY (từ tab Skills) ---\n${lessonSkills.map(aiRowToText).join('\n')}\n\n` : '') +
+    (master.length ? `--- MASTER LIST SKILL MÔN ${aiCtx.subject} (Layer 1 > Skill) — chỉ dùng Skill trong danh sách này; cần Skill mới thì đề xuất trong ghiChu, không tự tạo ---\n${master.join('\n')}\n\n` : '');
+  return { text, lessonSkillCount: lessonSkills.length, masterCount: master.length };
+}
+
+// Gộp bối cảnh gửi kèm lượt hiện tại: { text, tags }
+function aiBuildContext(){
+  let text = '', tags = [];
+  if (aiRules){
+    text += `=== QUY ƯỚC SOẠN QUIZ (file "${aiRules.name}") — khung cơ bản, chi tiết sẽ thảo luận thêm trong hội thoại ===\n${aiRules.text}\n\n`;
+    tags.push('📋 ' + aiRules.name);
+  }
+  if (aiCtx.code){
+    const info = aiBuildLessonContext();
+    if (info){ text += '=== BỐI CẢNH BÀI ===\n' + info.text; tags.push('🎯 ' + aiCtx.code); }
+  }
+  return { text, tags };
 }
 
 // Xuất CSV UTF-8 kèm BOM — tránh lỗi hiển thị sai dấu tiếng Việt khi mở bằng Excel
