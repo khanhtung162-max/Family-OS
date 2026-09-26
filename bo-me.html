@@ -192,7 +192,9 @@
   .ai-inputbar textarea{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13.5px;resize:vertical;min-height:44px;max-height:160px;background:var(--paper);}
   .ai-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:0 16px 12px;flex-shrink:0;}
 
-  /* ---- Trading — Vị thế hiện tại & Danh mục quỹ (đọc CSV, chưa có phần ghi) ---- */
+  /* ---- Trading — Training/Execution/Quỹ mở/Result (đọc CSV, chưa có phần ghi) ---- */
+  .trd-subpanel{display:none;}
+  .trd-subpanel.active{display:block;animation:fadeIn .2s ease;}
   .trd-section{margin-bottom:32px;}
   .trd-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
   @media (max-width:640px){.trd-cards{grid-template-columns:1fr 1fr;}}
@@ -308,31 +310,77 @@
       <footer>Dữ liệu tổng hợp từ Progress — dùng để hiểu con, không phải để chấm điểm.</footer>
     </div>
 
-    <!-- ============ TAB TRADING — phần đọc (Onhand + Danh mục quỹ); phần ghi (vào lệnh, checklist) chờ Apps Script ============ -->
+    <!-- ============ TAB TRADING — mô hình đầy đủ 4 sub-tab (Training/Execution/Quỹ mở/Result); phần ghi chờ Apps Script ============ -->
     <div class="main-panel" id="panel-trading">
       <div id="trd-content">
-        <section class="trd-section">
-          <div class="sec-head">
-            <h2>Vị thế hiện tại</h2>
-            <div class="why">Tự tính từ giá vốn bình quân và giá hiện tại đang ghi trong sheet Trading record — chưa có nút vào lệnh ở đây, ghi trực tiếp trên sheet trong lúc chờ nối phần ghi.</div>
-          </div>
-          <div class="trd-cards" id="trd-onhand-summary"></div>
-          <div class="trd-table" id="trd-onhand-table"></div>
-          <div id="trd-onhand-closed"></div>
-        </section>
+        <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
-        <section class="trd-section">
-          <div class="sec-head">
-            <h2>Danh mục quỹ — ước tính NAV trong ngày</h2>
-            <div class="why">Ước tính theo tỷ trọng Top holdings + % thay đổi giá bạn nhập tay trong sheet — không thay thế NAV chính thức cuối ngày.</div>
+        <div class="subject-tabs" id="trd-subtabs">
+          <div class="subj-tab active" data-trdkey="training" onclick="selectTrdTab('training')">Training</div>
+          <div class="subj-tab" data-trdkey="execution" onclick="selectTrdTab('execution')">Execution</div>
+          <div class="subj-tab" data-trdkey="quymo" onclick="selectTrdTab('quymo')">Quỹ mở</div>
+          <div class="subj-tab" data-trdkey="result" onclick="selectTrdTab('result')">Result</div>
+        </div>
+
+        <!-- Training — chưa có sheet nguồn, để khung chờ -->
+        <div class="trd-subpanel active" id="trd-panel-training">
+          <div class="placeholder-block">
+            <div class="icon">🎯</div>
+            <h3>Training — chưa có dữ liệu</h3>
+            <p>Chưa có sheet/tab Training (Sách / Mẫu hình / Intraday / Demo). Tạo tab đó rồi báo lại để nối vào đây.</p>
           </div>
-          <div class="trd-fund-grid" id="trd-dmq-cards"></div>
-          <div class="warn-summary" style="margin-top:14px;" onclick="this.classList.toggle('open'); document.getElementById('trd-dmq-detail').classList.toggle('open');">
-            <span>Xem % thay đổi giá theo từng mã</span>
-            <span class="caret">▸</span>
-          </div>
-          <div class="warn-list" id="trd-dmq-detail"></div>
-        </section>
+        </div>
+
+        <!-- Execution — cổ phiếu lẻ, lọc từ Onhand theo Loại hình = CP -->
+        <div class="trd-subpanel" id="trd-panel-execution">
+          <section class="trd-section">
+            <div class="sec-head">
+              <h2>Execution — cổ phiếu lẻ</h2>
+              <div class="why">Vị thế CP hiện tại, tự tính từ giá vốn bình quân và giá hiện tại đang ghi trong sheet. Chưa có checklist/nút vào lệnh — ghi trực tiếp trên sheet trong lúc chờ nối phần ghi.</div>
+            </div>
+            <div class="trd-cards" id="trd-exec-summary"></div>
+            <div class="trd-table" id="trd-exec-table"></div>
+            <div id="trd-exec-closed"></div>
+          </section>
+        </div>
+
+        <!-- Quỹ mở — ước tính NAV + vị thế CCQ/ETF -->
+        <div class="trd-subpanel" id="trd-panel-quymo">
+          <section class="trd-section">
+            <div class="sec-head">
+              <h2>Ước tính NAV trong ngày</h2>
+              <div class="why">Ước tính theo tỷ trọng Top holdings + % thay đổi giá bạn nhập tay trong sheet — không thay thế NAV chính thức cuối ngày.</div>
+            </div>
+            <div class="trd-fund-grid" id="trd-dmq-cards"></div>
+            <div class="warn-summary" style="margin-top:14px;" onclick="this.classList.toggle('open'); document.getElementById('trd-dmq-detail').classList.toggle('open');">
+              <span>Xem % thay đổi giá theo từng mã</span>
+              <span class="caret">▸</span>
+            </div>
+            <div class="warn-list" id="trd-dmq-detail"></div>
+          </section>
+
+          <section class="trd-section">
+            <div class="sec-head">
+              <h2>Vị thế CCQ/ETF đang giữ</h2>
+              <div class="why">Không gồm cổ phiếu lẻ — xem ở tab Execution.</div>
+            </div>
+            <div class="trd-cards" id="trd-quymo-summary"></div>
+            <div class="trd-table" id="trd-quymo-table"></div>
+            <div id="trd-quymo-closed"></div>
+          </section>
+        </div>
+
+        <!-- Result — tổng hợp lãi/lỗ tất toán (In-out) + dòng tiền (Ipower) -->
+        <div class="trd-subpanel" id="trd-panel-result">
+          <section class="trd-section">
+            <div class="sec-head">
+              <h2>Result</h2>
+              <div class="why">Lãi/lỗ đã tất toán từ các lệnh Bán, cổ tức thực nhận sau thuế — chưa có 3 số đẩy sang Thu chi (Thu chi vẫn đang khoanh lại bàn sau).</div>
+            </div>
+            <div class="trd-cards" id="trd-result-summary"></div>
+            <div class="trd-table" id="trd-result-table"></div>
+          </section>
+        </div>
       </div>
     </div>
 
@@ -420,7 +468,7 @@ const TRADING_CSV_BY_NHA = {
     onhand:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531442378"
   }
 };
-let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {};
+let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {}, INOUT = [], IPOWER = [];
 
 // ==== Cấu hình tab riêng theo từng Nhà — mở cho mọi Nhà tự khai báo nhu cầu riêng ====
 // 'ketqua' luôn có mặt mặc định cho mọi Nhà (không cần khai báo lại ở đây).
@@ -613,8 +661,25 @@ async function loadAll(){
 }
 
 // ============================================================
-// TRADING — đọc Onhand + Danh mục quỹ (chỉ đọc; phần vào lệnh/checklist chờ nối Apps Script)
+// TRADING — mô hình đầy đủ 4 sub-tab (Training/Execution/Quỹ mở/Result), chỉ đọc.
+// Phần vào lệnh/checklist/nhập % thay đổi giá chờ nối Apps Script.
 // ============================================================
+const VN_MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+function parseTradingDate(str){
+  const m = String(str || '').trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/);
+  if (!m) return new Date(NaN);
+  const day = +m[1], mon = VN_MONTHS[m[2]], yRaw = +m[3];
+  if (mon === undefined) return new Date(NaN);
+  return new Date(yRaw < 100 ? 2000 + yRaw : yRaw, mon, day);
+}
+
+function selectTrdTab(key){
+  document.querySelectorAll('#trd-subtabs .subj-tab').forEach(b => b.classList.toggle('active', b.dataset.trdkey === key));
+  document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('trd-panel-' + key);
+  if (panel) panel.classList.add('active');
+}
+
 async function loadTrading(){
   const hasTradingTab = (EXTRA_TABS_BY_NHA[currentNha] || []).some(t => t.key === 'trading');
   const csvSet = TRADING_CSV_BY_NHA[currentNha];
@@ -622,13 +687,17 @@ async function loadTrading(){
 
   const content = document.getElementById('trd-content');
   try {
-    const [onhandRaw, dmqRaw] = await Promise.all([
+    const [onhandRaw, dmqRaw, inoutRows, ipowerRows] = await Promise.all([
       fetchCSVRaw(csvSet.onhand),
-      fetchCSVRaw(csvSet.danhMucQuy)
+      fetchCSVRaw(csvSet.danhMucQuy),
+      fetchCSV(csvSet.inout),
+      fetchCSV(csvSet.ipower)
     ]);
 
     // Onhand: dòng 0 là banner gộp ô ("On-hand stock" + 3 số tổng), header thật ở dòng 1
     ONHAND = rowsToObjects(onhandRaw, 1);
+    INOUT = inoutRows;
+    IPOWER = ipowerRows;
 
     // Danh mục quỹ: dòng 0-2 là NAV proxy / NAV hiện tại / NAV kỳ vọng, header thật ở dòng 3
     const fundHeader = dmqRaw[3] || [];
@@ -643,8 +712,11 @@ async function loadTrading(){
     });
     DANHMUCQUY = rowsToObjects(dmqRaw, 3);
 
-    renderOnhand();
+    renderIpowerBanner();
+    renderExecution();
     renderDanhMucQuy();
+    renderQuyMoPositions();
+    renderResult();
   } catch (err){
     content.innerHTML = `
       <div class="placeholder-block">
@@ -655,8 +727,36 @@ async function loadTrading(){
   }
 }
 
-function renderOnhand(){
-  const rows = ONHAND.filter(r => r['Mã']);
+// Banner Vốn khả dụng (Ipower) — nằm ngoài 4 sub-tab vì không thuộc riêng Execution hay Quỹ mở
+function renderIpowerBanner(){
+  const el = document.getElementById('trd-ipower-summary');
+  if (!IPOWER.length){ el.innerHTML = ''; return; }
+  const last = IPOWER[IPOWER.length - 1];
+  const soDu = parseVNNumber(last['Số dư lũy kế']);
+  let tongNap = 0, tongRut = 0;
+  IPOWER.forEach(r => {
+    const v = parseVNNumber(r['Số tiền']) || 0;
+    if (v >= 0) tongNap += v; else tongRut += -v;
+  });
+  el.innerHTML = `
+    <div class="trd-card">
+      <div class="label">Vốn khả dụng (Ipower)</div>
+      <div class="value">${fmtVND(soDu)}</div>
+      <div class="sub">Cập nhật ${last['Ngày'] || ''}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Tổng đã nạp</div>
+      <div class="value gain">${fmtVND(tongNap)}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Tổng đã rút</div>
+      <div class="value loss">${fmtVND(tongRut)}</div>
+    </div>
+  `;
+}
+
+// Dùng chung cho Execution (CP) và Quỹ mở (CCQ/ETF) — cùng cấu trúc cột trong Onhand
+function renderPositionGroup(rows, elIds){
   const open = rows.filter(r => (parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001);
   const closed = rows.filter(r =>
     !((parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001) &&
@@ -670,7 +770,7 @@ function renderOnhand(){
     laiLoTatToan += parseVNNumber(r['Lãi/lỗ tất toán']) || 0;
   });
 
-  document.getElementById('trd-onhand-summary').innerHTML = `
+  document.getElementById(elIds.summary).innerHTML = `
     <div class="trd-card">
       <div class="label">Tổng vốn đang có</div>
       <div class="value">${fmtVND(tongVon)}</div>
@@ -685,7 +785,7 @@ function renderOnhand(){
     </div>
   `;
 
-  document.getElementById('trd-onhand-table').innerHTML = `
+  document.getElementById(elIds.table).innerHTML = open.length ? `
     <div class="trd-row head"><div>Mã</div><div>SL</div><div>Giá vốn → hiện tại</div><div>Lãi/lỗ trên giá</div></div>
     ${open.map(r => {
       const sl = parseVNNumber(r['Số lượng đang giữ']);
@@ -702,15 +802,68 @@ function renderOnhand(){
           <div class="num ${ll >= 0 ? 'gain' : 'loss'}"><b>${fmtVND(ll)}</b><br><span style="font-size:11px;">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></div>
         </div>`;
     }).join('')}
-  `;
+  ` : `<div class="trd-closed">Không có vị thế đang mở.</div>`;
 
-  document.getElementById('trd-onhand-closed').innerHTML = closed.length ? `
+  document.getElementById(elIds.closed).innerHTML = closed.length ? `
     <div class="trd-closed">
       <b>Đã tất toán:</b> ${closed.map(r => {
         const v = parseVNNumber(r['Lãi/lỗ tất toán']) || 0;
         return `${r['Mã']} ${v >= 0 ? '+' : ''}${fmtVND(v)}`;
       }).join(' · ')}
     </div>` : '';
+}
+
+function renderExecution(){
+  const rows = ONHAND.filter(r => r['Mã'] && r['Loại hình'] === 'CP');
+  renderPositionGroup(rows, { summary: 'trd-exec-summary', table: 'trd-exec-table', closed: 'trd-exec-closed' });
+}
+
+function renderQuyMoPositions(){
+  const rows = ONHAND.filter(r => r['Mã'] && (r['Loại hình'] === 'CCQ' || r['Loại hình'] === 'ETF'));
+  renderPositionGroup(rows, { summary: 'trd-quymo-summary', table: 'trd-quymo-table', closed: 'trd-quymo-closed' });
+}
+
+// Result — lãi/lỗ đã tất toán (từ In-out, dòng "Bán") + cổ tức thực nhận sau thuế (từ dòng "Yield tiền")
+function renderResult(){
+  const sells = INOUT.filter(r => r['Loại giao dịch'] === 'Bán');
+  const yields = INOUT.filter(r => r['Loại giao dịch'] === 'Yield tiền');
+
+  let tongLaiLoTatToan = 0;
+  sells.forEach(r => tongLaiLoTatToan += parseVNNumber(r['Lãi/lỗ']) || 0);
+
+  let tongCoTuc = 0;
+  yields.forEach(r => {
+    const vonGocGiam = Math.abs(parseVNNumber(r['Vốn gốc giảm']) || 0);
+    const thue = parseVNNumber(r['Thuế']) || 0; // dạng %, VD 5 nghĩa là 5%
+    tongCoTuc += vonGocGiam * (1 - thue / 100);
+  });
+
+  document.getElementById('trd-result-summary').innerHTML = `
+    <div class="trd-card">
+      <div class="label">Lãi/lỗ đã tất toán</div>
+      <div class="value ${tongLaiLoTatToan >= 0 ? 'gain' : 'loss'}">${fmtVND(tongLaiLoTatToan)}</div>
+      <div class="sub">${sells.length} lệnh bán</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Cổ tức thực nhận (ước, sau thuế)</div>
+      <div class="value gain">${fmtVND(tongCoTuc)}</div>
+      <div class="sub">${yields.length} đợt chia</div>
+    </div>
+  `;
+
+  const rows = sells.slice().sort((a, b) => parseTradingDate(b['Ngày']) - parseTradingDate(a['Ngày']));
+  document.getElementById('trd-result-table').innerHTML = rows.length ? `
+    <div class="trd-row head" style="grid-template-columns:1fr 1fr 1fr;"><div>Ngày</div><div>Mã</div><div>Lãi/lỗ</div></div>
+    ${rows.map(r => {
+      const ll = parseVNNumber(r['Lãi/lỗ']) || 0;
+      return `
+        <div class="trd-row" style="grid-template-columns:1fr 1fr 1fr;">
+          <div class="num" style="text-align:left;">${r['Ngày']}</div>
+          <div class="ma">${r['Mã']}</div>
+          <div class="num ${ll >= 0 ? 'gain' : 'loss'}"><b>${fmtVND(ll)}</b></div>
+        </div>`;
+    }).join('')}
+  ` : `<div class="trd-closed">Chưa có lệnh bán nào.</div>`;
 }
 
 function renderDanhMucQuy(){
