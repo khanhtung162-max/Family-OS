@@ -805,33 +805,28 @@ async function triggerPriceUpdate(){
   const dateCurr = document.getElementById('price-date-curr').value;
   const isHistorical = datePrev && dateCurr;
 
+  let url = PRICE_UPDATE_URL + '?key=' + PRICE_SECRET_KEY;
+  if(datePrev) url += '&prev=' + datePrev;
+  if(dateCurr) url += '&curr=' + dateCurr;
+
+  // Mở tab mới để chạy Apps Script (tránh CORS)
+  const mode = isHistorical ? '(lịch sử)' : '(realtime)';
+  window.open(url, '_blank');
+
   btn.disabled = true;
   icon.textContent = '⏳';
-  const mode = isHistorical ? '(lịch sử)' : '(realtime)';
-  status.textContent = 'Đang gửi lệnh cập nhật ' + mode + '...';
+  status.textContent = '⏳ Tab mới đã mở — chờ kết quả JSON rồi đóng tab. Đang chờ reload...';
   status.style.color = 'var(--muted)';
 
-  try {
-    let url = PRICE_UPDATE_URL + '?key=' + PRICE_SECRET_KEY;
-    if(datePrev) url += '&prev=' + datePrev;
-    if(dateCurr) url += '&curr=' + dateCurr;
+  // Chờ Apps Script xử lý
+  const waitSec = isHistorical ? 45 : 12;
+  await new Promise(r => setTimeout(r, waitSec * 1000));
 
-    // no-cors: request vẫn đi, script vẫn chạy, chỉ không đọc response
-    await fetch(url, { mode: 'no-cors', redirect: 'follow' });
+  status.textContent = '🔄 Đang tải lại dữ liệu...';
+  await loadTrading();
+  status.textContent = '✅ Đã cập nhật ' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
+  status.style.color = 'var(--gain, #16a34a)';
 
-    // Chờ Apps Script xử lý xong rồi reload dữ liệu
-    const waitSec = isHistorical ? 40 : 10;
-    status.textContent = '⏳ Đang chờ Apps Script xử lý... (~' + waitSec + 's)';
-    await new Promise(r => setTimeout(r, waitSec * 1000));
-
-    status.textContent = '🔄 Đang tải lại dữ liệu...';
-    await loadTrading();
-    status.textContent = '✅ Đã cập nhật ' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
-    status.style.color = 'var(--gain, #16a34a)';
-  } catch(e){
-    status.textContent = '❌ Không gửi được — kiểm tra mạng';
-    status.style.color = 'var(--loss, #dc2626)';
-  }
   icon.textContent = '⟳';
   btn.disabled = false;
 }
