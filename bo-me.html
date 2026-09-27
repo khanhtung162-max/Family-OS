@@ -324,7 +324,6 @@
       <div id="trd-content">
         <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
-        <iframe name="price-frame" style="display:none;"></iframe>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
           <label style="font-size:.85rem;color:var(--muted);">Phiên trước:
             <input type="date" id="price-date-prev" style="
@@ -808,56 +807,31 @@ async function triggerPriceUpdate(){
 
   btn.disabled = true;
   icon.textContent = '⏳';
-  status.textContent = 'Đang cập nhật' + (isHistorical ? ' (lịch sử)...' : '...');
+  const mode = isHistorical ? '(lịch sử)' : '(realtime)';
+  status.textContent = 'Đang gửi lệnh cập nhật ' + mode + '...';
   status.style.color = 'var(--muted)';
 
-  // Dùng iframe form submit — tránh CORS/CORB hoàn toàn
-  const iframe = document.querySelector('iframe[name="price-frame"]');
-  const form = document.createElement('form');
-  form.method = 'GET';
-  form.action = PRICE_UPDATE_URL;
-  form.target = 'price-frame';
-  form.style.display = 'none';
-
-  // Thêm params
-  const addField = (name, val) => {
-    const inp = document.createElement('input');
-    inp.type = 'hidden'; inp.name = name; inp.value = val;
-    form.appendChild(inp);
-  };
-  addField('key', PRICE_SECRET_KEY);
-  if(datePrev) addField('prev', datePrev);
-  if(dateCurr) addField('curr', dateCurr);
-
-  document.body.appendChild(form);
-
   try {
-    await new Promise((resolve) => {
-      const onDone = async () => {
-        iframe.removeEventListener('load', onDone);
-        clearTimeout(timer);
-        status.textContent = '✅ Đã cập nhật — đang tải lại dữ liệu...';
-        status.style.color = 'var(--gain, #16a34a)';
-        await loadTrading();
-        const mode = isHistorical ? ' (lịch sử)' : ' (realtime)';
-        status.textContent = '✅ Đã cập nhật' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
-        resolve();
-      };
-      iframe.addEventListener('load', onDone);
-      form.submit();
-      // Timeout 60s cho historical (nhiều mã)
-      const timer = setTimeout(() => {
-        iframe.removeEventListener('load', onDone);
-        status.textContent = '⏳ Đang xử lý... kiểm tra sheet sau 1 phút';
-        status.style.color = 'var(--muted)';
-        resolve();
-      }, 60000);
-    });
+    let url = PRICE_UPDATE_URL + '?key=' + PRICE_SECRET_KEY;
+    if(datePrev) url += '&prev=' + datePrev;
+    if(dateCurr) url += '&curr=' + dateCurr;
+
+    // no-cors: request vẫn đi, script vẫn chạy, chỉ không đọc response
+    await fetch(url, { mode: 'no-cors', redirect: 'follow' });
+
+    // Chờ Apps Script xử lý xong rồi reload dữ liệu
+    const waitSec = isHistorical ? 40 : 10;
+    status.textContent = '⏳ Đang chờ Apps Script xử lý... (~' + waitSec + 's)';
+    await new Promise(r => setTimeout(r, waitSec * 1000));
+
+    status.textContent = '🔄 Đang tải lại dữ liệu...';
+    await loadTrading();
+    status.textContent = '✅ Đã cập nhật ' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
+    status.style.color = 'var(--gain, #16a34a)';
   } catch(e){
-    status.textContent = '❌ Không kết nối được';
+    status.textContent = '❌ Không gửi được — kiểm tra mạng';
     status.style.color = 'var(--loss, #dc2626)';
   }
-  form.remove();
   icon.textContent = '⟳';
   btn.disabled = false;
 }
