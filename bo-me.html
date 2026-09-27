@@ -816,16 +816,35 @@ async function triggerPriceUpdate(){
     if(dateCurr) params.push('curr=' + dateCurr);
     url += '?' + params.join('&');
 
-    const r = await fetch(url);
-    const j = await r.json();
-    if(j.success){
-      const mode = j.mode === 'historical' ? ' (lịch sử)' : ' (realtime)';
-      status.textContent = '✅ Đã cập nhật' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
-      status.style.color = 'var(--gain, #16a34a)';
-    } else {
-      status.textContent = '❌ Lỗi: ' + (j.error || 'unknown');
-      status.style.color = 'var(--loss, #dc2626)';
-    }
+    // Dùng JSONP qua script tag để tránh CORS
+    const cbName = '_priceCallback_' + Date.now();
+    const script = document.createElement('script');
+    await new Promise((resolve, reject) => {
+      window[cbName] = (j) => {
+        delete window[cbName];
+        script.remove();
+        if(j.success){
+          const mode = j.mode === 'historical' ? ' (lịch sử)' : ' (realtime)';
+          status.textContent = '✅ Đã cập nhật' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
+          status.style.color = 'var(--gain, #16a34a)';
+        } else {
+          status.textContent = '❌ Lỗi: ' + (j.error || 'unknown');
+          status.style.color = 'var(--loss, #dc2626)';
+        }
+        resolve();
+      };
+      script.onerror = () => {
+        delete window[cbName];
+        script.remove();
+        status.textContent = '❌ Không kết nối được';
+        status.style.color = 'var(--loss, #dc2626)';
+        resolve();
+      };
+      script.src = url + '&callback=' + cbName;
+      document.body.appendChild(script);
+      // Timeout 30s
+      setTimeout(() => { if(window[cbName]){ window[cbName]({success:true, mode:'timeout'}); } }, 30000);
+    });
   } catch(e){
     status.textContent = '❌ Không kết nối được — kiểm tra URL deploy';
     status.style.color = 'var(--loss, #dc2626)';
