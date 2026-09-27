@@ -206,7 +206,8 @@
   .gain{color:var(--moss);} .loss{color:var(--danger);}
 
   .trd-table{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;overflow-x:auto;margin-bottom:10px;}
-  .trd-row{display:grid;grid-template-columns:1.2fr .7fr 1fr 1.1fr;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);gap:8px;font-size:13px;min-width:480px;}
+  /* 5 cols: Mã | SL | Giá vốn→hiện tại | Lãi/lỗ trên giá | Cổ tức */
+  .trd-row{display:grid;grid-template-columns:1.3fr .5fr 1.1fr 1fr .85fr;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);gap:8px;font-size:13px;min-width:520px;}
   .trd-row:last-child{border-bottom:none;}
   .trd-row.head{background:var(--paper);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:8px 14px;}
   .trd-row .ma{font-weight:700;}
@@ -217,9 +218,17 @@
   .trd-closed{font-size:12.5px;color:var(--muted);padding:10px 2px;line-height:1.6;}
   .trd-closed b{color:var(--ink);}
 
-  .trd-dmq-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:10px;}
+  /* Fund card active state */
+  .trd-card{cursor:default;}
+  .trd-card.trd-active{border-color:var(--moss);background:var(--moss-soft);}
+  .trd-card.trd-active .label{color:var(--moss);font-weight:600;}
+  .fund-filter-hint{font-size:11.5px;color:var(--moss);margin:6px 0 2px;display:flex;align-items:center;gap:8px;}
+  .fund-filter-hint a{color:var(--muted);text-decoration:underline;cursor:pointer;}
+
+  .trd-dmq-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;gap:12px;}
   .trd-dmq-row:last-child{border-bottom:none;}
-  .trd-dmq-row .meta{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .trd-dmq-row .meta{font-size:11px;color:var(--muted);font-family:'IBM Plex Mono',monospace;text-align:right;}
+  .fund-badge{display:inline-block;font-size:9.5px;background:var(--gold-soft);color:var(--gold);border-radius:3px;padding:1px 5px;margin-left:4px;font-weight:600;letter-spacing:.02em;}
 </style>
 </head>
 <body>
@@ -315,6 +324,28 @@
       <div id="trd-content">
         <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
+          <label style="font-size:.85rem;color:var(--muted);">Phiên trước:
+            <input type="date" id="price-date-prev" style="
+              padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;
+              background:var(--card-bg);color:var(--fg);margin-left:4px;
+            ">
+          </label>
+          <label style="font-size:.85rem;color:var(--muted);">Phiên hiện tại:
+            <input type="date" id="price-date-curr" style="
+              padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;
+              background:var(--card-bg);color:var(--fg);margin-left:4px;
+            ">
+          </label>
+          <button id="btn-update-price" onclick="triggerPriceUpdate()" style="
+            padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.95rem;
+            background:var(--accent);color:#fff;display:inline-flex;align-items:center;gap:6px;
+          ">
+            <span id="btn-price-icon">⟳</span> Cập nhật giá
+          </button>
+          <span id="price-update-status" style="font-size:.85rem;color:var(--muted);"></span>
+        </div>
+
         <div class="subject-tabs" id="trd-subtabs">
           <div class="subj-tab active" data-trdkey="training" onclick="selectTrdTab('training')">Training</div>
           <div class="subj-tab" data-trdkey="execution" onclick="selectTrdTab('execution')">Execution</div>
@@ -352,8 +383,8 @@
               <div class="why">Ước tính theo tỷ trọng Top holdings + % thay đổi giá bạn nhập tay trong sheet — không thay thế NAV chính thức cuối ngày.</div>
             </div>
             <div class="trd-fund-grid" id="trd-dmq-cards"></div>
-            <div class="warn-summary" style="margin-top:14px;" onclick="this.classList.toggle('open'); document.getElementById('trd-dmq-detail').classList.toggle('open');">
-              <span>Xem % thay đổi giá theo từng mã</span>
+            <div id="trd-dmq-toggle" class="warn-summary" style="margin-top:14px;" onclick="this.classList.toggle('open'); document.getElementById('trd-dmq-detail').classList.toggle('open');">
+              <span id="trd-dmq-toggle-label">Xem % thay đổi giá theo từng mã</span>
               <span class="caret">▸</span>
             </div>
             <div class="warn-list" id="trd-dmq-detail"></div>
@@ -469,6 +500,33 @@ const TRADING_CSV_BY_NHA = {
   }
 };
 let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {}, INOUT = [], IPOWER = [];
+let ONHAND_BANNER = { tongVon: 0, laiLoTrenGia: 0, laiLoTatToan: 0, tongVonGoc: 0 };
+let selectedFund = null;
+
+// Cổ tức thực nhận theo từng mã CP (từ INOUT, dòng "Yield tiền")
+function buildCoTucByMa(){
+  const map = {};
+  INOUT.filter(r => r['Loại giao dịch'] === 'Yield tiền').forEach(r => {
+    const ma = (r['Mã'] || '').trim();
+    if (!ma) return;
+    const v = parseVNNumber(r['Lãi/lỗ']) || 0;
+    map[ma] = (map[ma] || 0) + v;
+  });
+  return map;
+}
+
+// Click vào fund card → lọc danh mục CP của quỹ đó
+function selectFund(k){
+  selectedFund = (selectedFund === k) ? null : k;
+  renderDanhMucQuy();
+  // Auto-mở detail khi chọn quỹ
+  if (selectedFund) {
+    const detail = document.getElementById('trd-dmq-detail');
+    const toggle = document.getElementById('trd-dmq-toggle');
+    if (detail) detail.classList.add('open');
+    if (toggle) toggle.classList.add('open');
+  }
+}
 
 // ==== Cấu hình tab riêng theo từng Nhà — mở cho mọi Nhà tự khai báo nhu cầu riêng ====
 // 'ketqua' luôn có mặt mặc định cho mọi Nhà (không cần khai báo lại ở đây).
@@ -695,6 +753,14 @@ async function loadTrading(){
     ]);
 
     // Onhand: dòng 0 là banner gộp ô ("On-hand stock" + 3 số tổng), header thật ở dòng 1
+    // Col F=5: Tổng vốn, G=6: Lãi/lỗ trên giá, H=7: Lãi/lỗ tất toán, I=8: Tổng vốn gốc
+    const bannerRow = onhandRaw[0] || [];
+    ONHAND_BANNER = {
+      tongVon:      parseVNNumber(bannerRow[5]) || 0,
+      laiLoTrenGia: parseVNNumber(bannerRow[6]) || 0,
+      laiLoTatToan: parseVNNumber(bannerRow[7]) || 0,
+      tongVonGoc:   parseVNNumber(bannerRow[8]) || 0
+    };
     ONHAND = rowsToObjects(onhandRaw, 1);
     INOUT = inoutRows;
     IPOWER = ipowerRows;
@@ -727,17 +793,65 @@ async function loadTrading(){
   }
 }
 
+// ---- Cập nhật giá từ Apps Script Web App ----
+const PRICE_UPDATE_URL = 'https://script.google.com/macros/s/AKfycbzvCya7oJiy69VsGo0u9LGrDV1Ur9ikO9u-x0BSx96ro3fI0WMganfNLpHHKv1nsq5SqA/exec';
+const PRICE_SECRET_KEY = 'tungfamilyos2026';         // ← Phải khớp với SECRET_KEY trong Apps Script
+
+async function triggerPriceUpdate(){
+  const btn = document.getElementById('btn-update-price');
+  const icon = document.getElementById('btn-price-icon');
+  const status = document.getElementById('price-update-status');
+  const datePrev = document.getElementById('price-date-prev').value;
+  const dateCurr = document.getElementById('price-date-curr').value;
+
+  btn.disabled = true;
+  icon.textContent = '⏳';
+  status.textContent = 'Đang cập nhật...';
+  status.style.color = 'var(--muted)';
+
+  try {
+    let url = PRICE_UPDATE_URL;
+    const params = ['key=' + PRICE_SECRET_KEY];
+    if(datePrev) params.push('prev=' + datePrev);
+    if(dateCurr) params.push('curr=' + dateCurr);
+    url += '?' + params.join('&');
+
+    const r = await fetch(url);
+    const j = await r.json();
+    if(j.success){
+      const mode = j.mode === 'historical' ? ' (lịch sử)' : ' (realtime)';
+      status.textContent = '✅ Đã cập nhật' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
+      status.style.color = 'var(--gain, #16a34a)';
+    } else {
+      status.textContent = '❌ Lỗi: ' + (j.error || 'unknown');
+      status.style.color = 'var(--loss, #dc2626)';
+    }
+  } catch(e){
+    status.textContent = '❌ Không kết nối được — kiểm tra URL deploy';
+    status.style.color = 'var(--loss, #dc2626)';
+  }
+  icon.textContent = '⟳';
+  btn.disabled = false;
+}
+
 // Banner Vốn khả dụng (Ipower) — nằm ngoài 4 sub-tab vì không thuộc riêng Execution hay Quỹ mở
 function renderIpowerBanner(){
   const el = document.getElementById('trd-ipower-summary');
   if (!IPOWER.length){ el.innerHTML = ''; return; }
   const last = IPOWER[IPOWER.length - 1];
   const soDu = parseVNNumber(last['Số dư lũy kế']);
-  let tongNap = 0, tongRut = 0;
-  IPOWER.forEach(r => {
-    const v = parseVNNumber(r['Số tiền']) || 0;
-    if (v >= 0) tongNap += v; else tongRut += -v;
-  });
+
+  // Vốn gốc thực sự = Tổng vốn hiện tại + |lỗ trên giá| + |lỗ tất toán| (từ Onhand banner row)
+  const tongVonGoc = ONHAND_BANNER.tongVonGoc
+    || (ONHAND_BANNER.tongVon - ONHAND_BANNER.laiLoTrenGia - ONHAND_BANNER.laiLoTatToan);
+  const laiLoChua = ONHAND_BANNER.laiLoTrenGia;  // âm = đang lỗ
+  const laiLoThuc = ONHAND_BANNER.laiLoTatToan;  // âm = đã lỗ
+
+  const clsChua = laiLoChua >= 0 ? 'gain' : 'loss';
+  const clsThuc = laiLoThuc >= 0 ? 'gain' : 'loss';
+  const signChua = laiLoChua >= 0 ? '+' : '';
+  const signThuc = laiLoThuc >= 0 ? '+' : '';
+
   el.innerHTML = `
     <div class="trd-card">
       <div class="label">Vốn khả dụng (Ipower)</div>
@@ -745,30 +859,44 @@ function renderIpowerBanner(){
       <div class="sub">Cập nhật ${last['Ngày'] || ''}</div>
     </div>
     <div class="trd-card">
-      <div class="label">Tổng đã nạp</div>
-      <div class="value gain">${fmtVND(tongNap)}</div>
+      <div class="label">Tổng vốn gốc đã đầu tư</div>
+      <div class="value">${fmtVND(tongVonGoc)}</div>
+      <div class="sub">= Giá trị thị trường + lỗ tích lũy</div>
     </div>
     <div class="trd-card">
-      <div class="label">Tổng đã rút</div>
-      <div class="value loss">${fmtVND(tongRut)}</div>
+      <div class="label">Tổng vốn hiện tại</div>
+      <div class="value">${fmtVND(ONHAND_BANNER.tongVon)}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Lãi/lỗ chưa bán</div>
+      <div class="value ${clsChua}">${signChua}${fmtVND(laiLoChua)}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Lãi/lỗ đã tất toán</div>
+      <div class="value ${clsThuc}">${signThuc}${fmtVND(laiLoThuc)}</div>
     </div>
   `;
 }
 
 // Dùng chung cho Execution (CP) và Quỹ mở (CCQ/ETF) — cùng cấu trúc cột trong Onhand
-function renderPositionGroup(rows, elIds){
+// coTucByMa: { 'SSI': 475000, 'DPM': 427500, ... }
+function renderPositionGroup(rows, elIds, coTucByMa){
+  coTucByMa = coTucByMa || {};
   const open = rows.filter(r => (parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001);
   const closed = rows.filter(r =>
     !((parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001) &&
     (parseVNNumber(r['Lãi/lỗ tất toán']) || 0) !== 0
   );
 
-  let tongVon = 0, laiLoTrenGia = 0, laiLoTatToan = 0;
+  let tongVon = 0, laiLoTrenGia = 0, laiLoTatToan = 0, tongCoTuc = 0;
   rows.forEach(r => {
     tongVon      += parseVNNumber(r['Tổng vốn']) || 0;
     laiLoTrenGia += parseVNNumber(r['Lãi/lỗ trên giá']) || 0;
     laiLoTatToan += parseVNNumber(r['Lãi/lỗ tất toán']) || 0;
+    tongCoTuc    += coTucByMa[r['Mã']] || 0;
   });
+  const totalReturn = laiLoTrenGia + laiLoTatToan + tongCoTuc;
+  const hasCoTuc = tongCoTuc > 0;
 
   document.getElementById(elIds.summary).innerHTML = `
     <div class="trd-card">
@@ -776,22 +904,32 @@ function renderPositionGroup(rows, elIds){
       <div class="value">${fmtVND(tongVon)}</div>
     </div>
     <div class="trd-card">
-      <div class="label">Lãi/lỗ trên giá (chưa bán)</div>
+      <div class="label">Lãi/lỗ trên giá</div>
       <div class="value ${laiLoTrenGia >= 0 ? 'gain' : 'loss'}">${fmtVND(laiLoTrenGia)}</div>
     </div>
     <div class="trd-card">
       <div class="label">Lãi/lỗ đã tất toán</div>
       <div class="value ${laiLoTatToan >= 0 ? 'gain' : 'loss'}">${fmtVND(laiLoTatToan)}</div>
     </div>
+    ${hasCoTuc ? `
+    <div class="trd-card">
+      <div class="label">Cổ tức nhận được</div>
+      <div class="value gain">${fmtVND(tongCoTuc)}</div>
+    </div>
+    <div class="trd-card">
+      <div class="label">Total Return</div>
+      <div class="value ${totalReturn >= 0 ? 'gain' : 'loss'}">${totalReturn >= 0 ? '+' : ''}${fmtVND(totalReturn)}</div>
+    </div>` : ''}
   `;
 
   document.getElementById(elIds.table).innerHTML = open.length ? `
-    <div class="trd-row head"><div>Mã</div><div>SL</div><div>Giá vốn → hiện tại</div><div>Lãi/lỗ trên giá</div></div>
+    <div class="trd-row head"><div>Mã</div><div>SL</div><div>Giá vốn → hiện tại</div><div>Lãi/lỗ trên giá</div><div>Cổ tức</div></div>
     ${open.map(r => {
-      const sl = parseVNNumber(r['Số lượng đang giữ']);
-      const gv = parseVNNumber(r['Giá vốn bình quân']);
-      const gh = parseVNNumber(r['Giá hiện tại']);
-      const ll = parseVNNumber(r['Lãi/lỗ trên giá']) || 0;
+      const sl  = parseVNNumber(r['Số lượng đang giữ']);
+      const gv  = parseVNNumber(r['Giá vốn bình quân']);
+      const gh  = parseVNNumber(r['Giá hiện tại']);
+      const ll  = parseVNNumber(r['Lãi/lỗ trên giá']) || 0;
+      const ct  = coTucByMa[r['Mã']] || 0;
       const mau = gv * sl;
       const pct = mau ? (ll / mau * 100) : 0;
       return `
@@ -800,6 +938,7 @@ function renderPositionGroup(rows, elIds){
           <div class="num">${fmtNum(sl)}</div>
           <div class="priceflow">${fmtNum(gv)} → ${fmtNum(gh)}</div>
           <div class="num ${ll >= 0 ? 'gain' : 'loss'}"><b>${fmtVND(ll)}</b><br><span style="font-size:11px;">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></div>
+          <div class="num ${ct > 0 ? 'gain' : ''}" style="color:${ct > 0 ? '' : 'var(--muted)'}"><b>${ct > 0 ? fmtVND(ct) : '—'}</b></div>
         </div>`;
     }).join('')}
   ` : `<div class="trd-closed">Không có vị thế đang mở.</div>`;
@@ -814,13 +953,15 @@ function renderPositionGroup(rows, elIds){
 }
 
 function renderExecution(){
+  const coTucByMa = buildCoTucByMa();
   const rows = ONHAND.filter(r => r['Mã'] && r['Loại hình'] === 'CP');
-  renderPositionGroup(rows, { summary: 'trd-exec-summary', table: 'trd-exec-table', closed: 'trd-exec-closed' });
+  renderPositionGroup(rows, { summary: 'trd-exec-summary', table: 'trd-exec-table', closed: 'trd-exec-closed' }, coTucByMa);
 }
 
 function renderQuyMoPositions(){
+  // Quỹ mở không trả cổ tức tiền mặt (lãi đã tính vào NAV), truyền map rỗng
   const rows = ONHAND.filter(r => r['Mã'] && (r['Loại hình'] === 'CCQ' || r['Loại hình'] === 'ETF'));
-  renderPositionGroup(rows, { summary: 'trd-quymo-summary', table: 'trd-quymo-table', closed: 'trd-quymo-closed' });
+  renderPositionGroup(rows, { summary: 'trd-quymo-summary', table: 'trd-quymo-table', closed: 'trd-quymo-closed' }, {});
 }
 
 // Result — lãi/lỗ đã tất toán (từ In-out, dòng "Bán") + cổ tức thực nhận sau thuế (từ dòng "Yield tiền")
@@ -868,27 +1009,59 @@ function renderResult(){
 
 function renderDanhMucQuy(){
   const keys = Object.keys(DMQ_SUMMARY);
+  // Fund cards — click để lọc danh mục CP của quỹ đó
   document.getElementById('trd-dmq-cards').innerHTML = keys.map(k => {
     const s = DMQ_SUMMARY[k];
     const proxy = s.proxy;
     const hasNav = !isNaN(s.hienTai) && s.hienTai !== 0;
+    const isActive = selectedFund === k;
     return `
-      <div class="trd-card">
+      <div class="trd-card${isActive ? ' trd-active' : ''}" style="cursor:pointer;" onclick="selectFund('${k}')">
         <div class="label">${k}</div>
         <div class="value ${isNaN(proxy) ? '' : (proxy >= 0 ? 'gain' : 'loss')}">${isNaN(proxy) ? '—' : (proxy >= 0 ? '+' : '') + proxy.toFixed(2) + '%'}</div>
-        <div class="sub">${hasNav ? fmtNum(s.hienTai) + ' → ' + fmtNum(s.kyVong) : 'Ước tính theo tỷ trọng'}</div>
+        <div class="sub">${hasNav ? fmtNum(s.hienTai) + ' → ' + fmtNum(s.kyVong) : 'Tap để xem danh mục'}</div>
       </div>`;
   }).join('');
 
-  document.getElementById('trd-dmq-detail').innerHTML = DANHMUCQUY.filter(r => r['Mã CP']).map(r => {
+  // Update toggle label
+  const toggleLabel = document.getElementById('trd-dmq-toggle-label');
+  if (toggleLabel) {
+    toggleLabel.textContent = selectedFund
+      ? `Danh mục ${selectedFund} (${countFundRows(selectedFund)} mã)`
+      : 'Xem % thay đổi giá theo từng mã';
+  }
+
+  // Filter rows by selected fund
+  let rows = DANHMUCQUY.filter(r => r['Mã CP']);
+  if (selectedFund) {
+    rows = rows.filter(r => {
+      const v = r[selectedFund];
+      return v && String(v).trim() !== '' && String(v).trim() !== '0';
+    });
+  }
+
+  const filterHint = selectedFund
+    ? `<div class="fund-filter-hint">Đang lọc: <b>${selectedFund}</b> &nbsp;·&nbsp; <a onclick="selectFund('${selectedFund}');return false;">bỏ lọc</a></div>`
+    : '';
+
+  document.getElementById('trd-dmq-detail').innerHTML = filterHint + rows.map(r => {
     const pct = parseVNNumber(r['% thay đổi giá']);
+    // Badge cho các quỹ giữ mã này (chỉ hiện khi chưa lọc)
+    const fundBadges = !selectedFund
+      ? keys.filter(k => { const v = r[k]; return v && String(v).trim() !== '' && String(v).trim() !== '0'; })
+            .map(k => `<span class="fund-badge">${k}</span>`).join('')
+      : '';
     return `
       <div class="trd-dmq-row">
-        <div><b>${r['Mã CP']}</b></div>
+        <div><b>${r['Mã CP']}</b>${fundBadges}</div>
         <div class="${isNaN(pct) ? '' : (pct >= 0 ? 'gain' : 'loss')}">${isNaN(pct) ? '—' : (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'}</div>
         <div class="meta">${r['Ngày cập nhật'] || ''} ${r['Giờ cập nhật'] || ''}</div>
       </div>`;
-  }).join('');
+  }).join('') || `<div style="font-size:12.5px;color:var(--muted);padding:10px 0;">Chưa có dữ liệu cho quỹ này.</div>`;
+}
+
+function countFundRows(fund){
+  return DANHMUCQUY.filter(r => r['Mã CP'] && r[fund] && String(r[fund]).trim() !== '' && String(r[fund]).trim() !== '0').length;
 }
 
 // ============================================================
