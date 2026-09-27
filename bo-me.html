@@ -324,6 +324,7 @@
       <div id="trd-content">
         <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
+        <iframe name="price-frame" style="display:none;"></iframe>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
           <label style="font-size:.85rem;color:var(--muted);">Phiên trước:
             <input type="date" id="price-date-prev" style="
@@ -795,7 +796,7 @@ async function loadTrading(){
 
 // ---- Cập nhật giá từ Apps Script Web App ----
 const PRICE_UPDATE_URL = 'https://script.google.com/macros/s/AKfycbzvCya7oJiy69VsGo0u9LGrDV1Ur9ikO9u-x0BSx96ro3fI0WMganfNLpHHKv1nsq5SqA/exec';
-const PRICE_SECRET_KEY = 'tungfamilyos2026';         // ← Phải khớp với SECRET_KEY trong Apps Script
+const PRICE_SECRET_KEY = 'tungfamilyos2026';
 
 async function triggerPriceUpdate(){
   const btn = document.getElementById('btn-update-price');
@@ -803,52 +804,60 @@ async function triggerPriceUpdate(){
   const status = document.getElementById('price-update-status');
   const datePrev = document.getElementById('price-date-prev').value;
   const dateCurr = document.getElementById('price-date-curr').value;
+  const isHistorical = datePrev && dateCurr;
 
   btn.disabled = true;
   icon.textContent = '⏳';
-  status.textContent = 'Đang cập nhật...';
+  status.textContent = 'Đang cập nhật' + (isHistorical ? ' (lịch sử)...' : '...');
   status.style.color = 'var(--muted)';
 
-  try {
-    let url = PRICE_UPDATE_URL;
-    const params = ['key=' + PRICE_SECRET_KEY];
-    if(datePrev) params.push('prev=' + datePrev);
-    if(dateCurr) params.push('curr=' + dateCurr);
-    url += '?' + params.join('&');
+  // Dùng iframe form submit — tránh CORS/CORB hoàn toàn
+  const iframe = document.querySelector('iframe[name="price-frame"]');
+  const form = document.createElement('form');
+  form.method = 'GET';
+  form.action = PRICE_UPDATE_URL;
+  form.target = 'price-frame';
+  form.style.display = 'none';
 
-    // Dùng JSONP qua script tag để tránh CORS
-    const cbName = '_priceCallback_' + Date.now();
-    const script = document.createElement('script');
-    await new Promise((resolve, reject) => {
-      window[cbName] = (j) => {
-        delete window[cbName];
-        script.remove();
-        if(j.success){
-          const mode = j.mode === 'historical' ? ' (lịch sử)' : ' (realtime)';
-          status.textContent = '✅ Đã cập nhật' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
-          status.style.color = 'var(--gain, #16a34a)';
-        } else {
-          status.textContent = '❌ Lỗi: ' + (j.error || 'unknown');
-          status.style.color = 'var(--loss, #dc2626)';
-        }
+  // Thêm params
+  const addField = (name, val) => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = name; inp.value = val;
+    form.appendChild(inp);
+  };
+  addField('key', PRICE_SECRET_KEY);
+  if(datePrev) addField('prev', datePrev);
+  if(dateCurr) addField('curr', dateCurr);
+
+  document.body.appendChild(form);
+
+  try {
+    await new Promise((resolve) => {
+      const onDone = async () => {
+        iframe.removeEventListener('load', onDone);
+        clearTimeout(timer);
+        status.textContent = '✅ Đã cập nhật — đang tải lại dữ liệu...';
+        status.style.color = 'var(--gain, #16a34a)';
+        await loadTrading();
+        const mode = isHistorical ? ' (lịch sử)' : ' (realtime)';
+        status.textContent = '✅ Đã cập nhật' + mode + ' lúc ' + new Date().toLocaleTimeString('vi-VN');
         resolve();
       };
-      script.onerror = () => {
-        delete window[cbName];
-        script.remove();
-        status.textContent = '❌ Không kết nối được';
-        status.style.color = 'var(--loss, #dc2626)';
+      iframe.addEventListener('load', onDone);
+      form.submit();
+      // Timeout 60s cho historical (nhiều mã)
+      const timer = setTimeout(() => {
+        iframe.removeEventListener('load', onDone);
+        status.textContent = '⏳ Đang xử lý... kiểm tra sheet sau 1 phút';
+        status.style.color = 'var(--muted)';
         resolve();
-      };
-      script.src = url + '&callback=' + cbName;
-      document.body.appendChild(script);
-      // Timeout 30s
-      setTimeout(() => { if(window[cbName]){ window[cbName]({success:true, mode:'timeout'}); } }, 30000);
+      }, 60000);
     });
   } catch(e){
-    status.textContent = '❌ Không kết nối được — kiểm tra URL deploy';
+    status.textContent = '❌ Không kết nối được';
     status.style.color = 'var(--loss, #dc2626)';
   }
+  form.remove();
   icon.textContent = '⟳';
   btn.disabled = false;
 }
