@@ -208,6 +208,23 @@
     #trd-content.trd-mode-tong #trd-panel-quymo,
     #trd-content.trd-mode-tong #trd-panel-result{max-height:none;overflow-y:visible;margin-bottom:20px;}
   }
+  .trd-nhanh-wrap{max-width:480px;margin:0 auto;padding:4px 0 40px;}
+  .trd-nhanh-ipower{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--muted);text-align:center;}
+  .trd-nhanh-ipower b{color:var(--ink);font-family:'IBM Plex Mono',monospace;}
+  .trd-nhanh-field{margin-bottom:12px;}
+  .trd-nhanh-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;}
+  .trd-nhanh-field-row{display:flex;gap:10px;}
+  .trd-nhanh-field-row .trd-nhanh-field{flex:1;}
+  .trd-nhanh-input{width:100%;padding:12px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font-size:16px;font-family:'IBM Plex Mono',monospace;box-sizing:border-box;}
+  .trd-nhanh-input-big{font-size:20px;font-weight:700;text-transform:uppercase;text-align:center;letter-spacing:1px;}
+  select.trd-nhanh-input{font-family:inherit;font-size:15px;}
+  .nh-chk-btn.on{background:var(--moss);color:#fff;border-color:var(--moss);}
+  .trd-nhanh-preview{text-align:center;font-size:14px;color:var(--muted);margin:8px 0 14px;font-family:'IBM Plex Mono',monospace;}
+  .trd-nhanh-savebtn{width:100%;padding:16px;font-size:16px;font-weight:700;border-radius:12px;}
+  .trd-nhanh-recent .exec-hist-row,.trd-nhanh-recent .trd-row{font-size:12px;}
+  .trd-nhanh-recent-item{display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px;}
+  .trd-nhanh-recent-item .ma{font-weight:700;}
+  .trd-nhanh-recent-item .tag{font-size:11px;padding:2px 7px;border-radius:6px;background:var(--paper-raised);color:var(--muted);}
   .trd-section{margin-bottom:32px;}
   .trd-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
   @media (max-width:640px){.trd-cards{grid-template-columns:1fr 1fr;}}
@@ -442,6 +459,86 @@
           <div class="subj-tab" data-trdkey="quymo" onclick="selectTrdTab('quymo')">Chứng chỉ quỹ</div>
           <div class="subj-tab" data-trdkey="result" onclick="selectTrdTab('result')">Result</div>
           <button id="trdModeToggleBtn" class="gia-edit-btn" style="margin-left:auto;padding:6px 12px;font-size:12px;" onclick="toggleTrdMode()">⊞ Chế độ Tổng hợp</button>
+          <button id="trdNhanhToggleBtn" class="gia-edit-btn" style="padding:6px 12px;font-size:12px;" onclick="toggleNhanhMode()">⚡ Nhanh</button>
+        </div>
+
+        <!-- Chế độ Nhanh — form nhập lệnh tối giản cho mobile -->
+        <div class="trd-subpanel" id="trd-panel-nhanh">
+          <div class="trd-nhanh-wrap">
+            <div class="trd-nhanh-ipower" id="trdNhanhIpower"></div>
+
+            <div class="exec-toggle-row">
+              <button class="exec-toggle-btn on" id="nhAssetCP" onclick="nhanhSetAsset('CP')">Cổ phiếu lẻ</button>
+              <button class="exec-toggle-btn" id="nhAssetCCQ" onclick="nhanhSetAsset('CCQ')">CCQ/ETF</button>
+            </div>
+
+            <div class="exec-toggle-row" id="nhLoaiRow">
+              <button class="exec-toggle-btn on" id="nhToggleMua" onclick="nhanhSetLoai('Mua')">Mua</button>
+              <button class="exec-toggle-btn" id="nhToggleBan" onclick="nhanhSetLoai('Bán')">Bán</button>
+              <button class="exec-toggle-btn" id="nhToggleYTien" onclick="nhanhSetLoai('Yield tiền')">Cổ tức tiền</button>
+              <button class="exec-toggle-btn" id="nhToggleYCp" onclick="nhanhSetLoai('Yield CP')">Cổ tức CP</button>
+            </div>
+
+            <div class="trd-nhanh-field" id="nhLoaiHinhRow" style="display:none;">
+              <label>Loại hình</label>
+              <select id="nhLoaiHinh" class="trd-nhanh-input">
+                <option value="CCQ">Quỹ mở (CCQ)</option>
+                <option value="ETF">ETF</option>
+              </select>
+            </div>
+
+            <div class="trd-nhanh-field">
+              <label>Ngày thực hiện</label>
+              <input type="date" id="nhNgay" class="trd-nhanh-input">
+            </div>
+
+            <div class="trd-nhanh-field">
+              <label>Mã</label>
+              <input type="text" id="nhMa" class="trd-nhanh-input trd-nhanh-input-big" placeholder="VD: DPM" autocapitalize="characters">
+            </div>
+
+            <div id="nhChkBlock" style="display:none;margin:10px 0;">
+              <div class="why" style="margin-bottom:6px;">Checklist trước khi Mua</div>
+              <div class="exec-toggle-row">
+                <button class="exec-toggle-btn nh-chk-btn" data-k="w" onclick="nhanhSetChk('w')">W trend ↑</button>
+                <button class="exec-toggle-btn nh-chk-btn" data-k="m" onclick="nhanhSetChk('m')">MACD+Vol ✓</button>
+                <button class="exec-toggle-btn nh-chk-btn" data-k="e" onclick="nhanhSetChk('e')">Entry hỗ trợ</button>
+              </div>
+            </div>
+
+            <div id="nhTradeRow">
+              <div class="trd-nhanh-field-row">
+                <div class="trd-nhanh-field">
+                  <label id="nhGiaLabel">Giá (nghìn đ)</label>
+                  <input type="number" id="nhGia" class="trd-nhanh-input" inputmode="decimal" oninput="nhanhUpdatePreview()">
+                </div>
+                <div class="trd-nhanh-field">
+                  <label>Khối lượng</label>
+                  <input type="number" id="nhSL" class="trd-nhanh-input" inputmode="numeric" oninput="nhanhUpdatePreview()">
+                </div>
+              </div>
+            </div>
+
+            <div class="trd-nhanh-field" id="nhYieldRow" style="display:none;">
+              <label>Tỉ lệ cổ tức (%)</label>
+              <input type="number" id="nhTiLeYield" class="trd-nhanh-input" inputmode="decimal">
+            </div>
+
+            <div class="trd-nhanh-field" id="nhPhiBanRow" style="display:none;">
+              <label>Phí bán trước hạn (%)</label>
+              <input type="number" id="nhPhiBan" class="trd-nhanh-input" inputmode="decimal" value="0" oninput="nhanhUpdatePreview()">
+            </div>
+
+            <div class="trd-nhanh-preview" id="nhPreview">—</div>
+
+            <button class="btn-price-update trd-nhanh-savebtn" id="nhSaveBtn" onclick="nhanhSaveOrder()">Lưu giao dịch</button>
+            <div id="nhSaveNote" style="font-size:.85rem;margin-top:6px;text-align:center;"></div>
+
+            <div class="trd-nhanh-recent">
+              <div class="why" style="margin:16px 0 8px;">5 giao dịch gần nhất</div>
+              <div id="nhRecentList"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Training — chưa có sheet nguồn, để khung chờ -->
@@ -989,6 +1086,187 @@ function toggleTrdMode(){
     }
   } catch(e){}
 })();
+
+// ---- Chế độ Nhanh — form nhập lệnh tối giản cho mobile ----
+let nhAsset = 'CP';
+let nhLoai = 'Mua';
+let nhChk = { w: null, m: null, e: null };
+let nhPrevTabKey = 'training';
+
+function toggleNhanhMode(){
+  const content = document.getElementById('trd-content');
+  const isOn = document.getElementById('trd-panel-nhanh').classList.contains('active');
+  if (isOn){
+    document.getElementById('trd-panel-nhanh').classList.remove('active');
+    selectTrdTab(nhPrevTabKey);
+    document.getElementById('trdNhanhToggleBtn').textContent = '⚡ Nhanh';
+  } else {
+    const activeTab = document.querySelector('#trd-subtabs .subj-tab.active');
+    nhPrevTabKey = activeTab ? activeTab.dataset.trdkey : 'training';
+    content.classList.remove('trd-mode-tong');
+    document.getElementById('trdModeToggleBtn').textContent = '⊞ Chế độ Tổng hợp';
+    document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
+    document.getElementById('trd-panel-nhanh').classList.add('active');
+    document.getElementById('trdNhanhToggleBtn').textContent = '✕ Thoát Nhanh';
+    nhanhRenderIpower();
+    nhanhRenderRecent();
+    const dEl = document.getElementById('nhNgay');
+    if (dEl && !dEl.value) dEl.value = new Date().toISOString().slice(0,10);
+  }
+}
+
+function nhanhSetAsset(v){
+  nhAsset = v;
+  document.getElementById('nhAssetCP').classList.toggle('on', v === 'CP');
+  document.getElementById('nhAssetCCQ').classList.toggle('on', v === 'CCQ');
+  document.getElementById('nhToggleYCp').style.display = (v === 'CP') ? '' : 'none';
+  document.getElementById('nhLoaiHinhRow').style.display = (v === 'CCQ' && nhLoai !== 'Yield tiền') ? '' : 'none';
+  document.getElementById('nhGiaLabel').textContent = (v === 'CP') ? 'Giá (nghìn đ)' : 'Giá NAV';
+  if (v === 'CCQ' && nhLoai === 'Yield CP') nhanhSetLoai('Mua');
+  else nhanhSetLoai(nhLoai);
+}
+
+function nhanhSetLoai(v){
+  nhLoai = v;
+  const isYield = (v === 'Yield tiền' || v === 'Yield CP');
+  document.getElementById('nhToggleMua').classList.toggle('on', v === 'Mua');
+  document.getElementById('nhToggleBan').classList.toggle('on', v === 'Bán');
+  document.getElementById('nhToggleYTien').classList.toggle('on', v === 'Yield tiền');
+  document.getElementById('nhToggleYCp').classList.toggle('on', v === 'Yield CP');
+  document.getElementById('nhChkBlock').style.display = (nhAsset === 'CP' && v === 'Mua') ? '' : 'none';
+  document.getElementById('nhTradeRow').style.display = isYield ? 'none' : '';
+  document.getElementById('nhYieldRow').style.display = isYield ? '' : 'none';
+  document.getElementById('nhPhiBanRow').style.display = (nhAsset === 'CCQ' && v === 'Bán') ? '' : 'none';
+  document.getElementById('nhLoaiHinhRow').style.display = (nhAsset === 'CCQ' && v !== 'Yield tiền') ? '' : 'none';
+  nhanhUpdatePreview();
+}
+
+function nhanhSetChk(k){
+  nhChk[k] = !nhChk[k] ? true : null;
+  document.querySelectorAll('.nh-chk-btn').forEach(b=>{
+    b.classList.toggle('on', !!nhChk[b.dataset.k]);
+  });
+}
+
+function nhanhUpdatePreview(){
+  const gia = parseFloat(document.getElementById('nhGia').value) || 0;
+  const sl  = parseFloat(document.getElementById('nhSL').value) || 0;
+  const phiBan = (parseFloat(document.getElementById('nhPhiBan').value) || 0) / 100;
+  const el = document.getElementById('nhPreview');
+  if (!gia || !sl){ el.textContent = '—'; return; }
+  let tien;
+  if (nhAsset === 'CP'){
+    tien = gia * 1000 * sl;
+  } else {
+    tien = gia * sl * (nhLoai === 'Bán' ? (1 - phiBan) : 1);
+  }
+  el.textContent = 'Giá trị: ' + Math.round(tien).toLocaleString('vi-VN') + ' đ';
+}
+
+function nhanhRenderIpower(){
+  const el = document.getElementById('trdNhanhIpower');
+  if (!el) return;
+  if (!IPOWER || !IPOWER.length){ el.textContent = 'Chưa có dữ liệu Ipower.'; return; }
+  const last = IPOWER[IPOWER.length - 1] || {};
+  const soDu = parseVNNumber(last['Số dư lũy kế']) || 0;
+  el.innerHTML = 'Số dư Ipower: <b>' + soDu.toLocaleString('vi-VN') + ' đ</b>';
+}
+
+function nhanhRenderRecent(){
+  const el = document.getElementById('nhRecentList');
+  if (!el) return;
+  if (!INOUT || !INOUT.length){ el.innerHTML = '<div class="why">Chưa có dữ liệu.</div>'; return; }
+  const rows = INOUT.filter(r => r['Mã']).slice(-5).reverse();
+  if (!rows.length){ el.innerHTML = '<div class="why">Chưa có giao dịch.</div>'; return; }
+  el.innerHTML = rows.map(r => `
+    <div class="trd-nhanh-recent-item">
+      <span class="ma">${r['Mã']}</span>
+      <span class="tag">${r['Loại giao dịch'] || ''}</span>
+      <span>${r['Ngày'] || ''}</span>
+    </div>
+  `).join('');
+}
+
+function nhanhSaveOrder(){
+  const ma = (document.getElementById('nhMa').value || '').trim().toUpperCase();
+  const isYield = (nhLoai === 'Yield tiền' || nhLoai === 'Yield CP');
+  const gia = parseFloat(document.getElementById('nhGia').value) || 0;
+  const sl  = parseFloat(document.getElementById('nhSL').value) || 0;
+  const tiLeYield = (parseFloat(document.getElementById('nhTiLeYield').value) || 0) / 100;
+  const phiBan = (parseFloat(document.getElementById('nhPhiBan').value) || 0) / 100;
+  const ngay = document.getElementById('nhNgay').value || '';
+  const loaiHinh = document.getElementById('nhLoaiHinh') ? document.getElementById('nhLoaiHinh').value : 'CCQ';
+  const noteEl = document.getElementById('nhSaveNote');
+  const btn = document.getElementById('nhSaveBtn');
+
+  if (!ma){ noteEl.style.color = 'var(--danger)'; noteEl.textContent = 'Thiếu Mã.'; return; }
+  if (isYield && !tiLeYield){ noteEl.style.color = 'var(--danger)'; noteEl.textContent = 'Thiếu Tỉ lệ cổ tức.'; return; }
+  if (!isYield && (!gia || !sl)){ noteEl.style.color = 'var(--danger)'; noteEl.textContent = 'Thiếu Giá / Khối lượng.'; return; }
+  if (nhAsset === 'CP' && nhLoai === 'Mua' && (nhChk.w === null || nhChk.m === null || nhChk.e === null)){
+    noteEl.style.color = 'var(--danger)'; noteEl.textContent = 'Trả lời đủ 3 câu checklist trước khi lưu.'; return;
+  }
+
+  btn.disabled = true;
+  noteEl.style.color = 'var(--muted)';
+  noteEl.textContent = 'Đang lưu...';
+
+  const params = (nhAsset === 'CP') ? {
+    key: TRADING_SECRET_KEY,
+    action: 'addTrade',
+    loaiTaiSan: 'CP',
+    ma: ma,
+    loaiGiaoDich: nhLoai,
+    ngay: ngay,
+    soLuong: sl,
+    gia: gia * 1000,
+    phi: FEE_BROKER,
+    thue: (nhLoai === 'Bán') ? TAX_BAN_CP : (nhLoai === 'Yield tiền' ? TAX_YIELD_TIEN : 0),
+    tiLeYield: tiLeYield,
+    clWtrend: nhLoai === 'Mua' ? nhChk.w : '',
+    clMacdVol: nhLoai === 'Mua' ? nhChk.m : '',
+    clEntry: nhLoai === 'Mua' ? nhChk.e : '',
+    camXuc: '',
+    note: '',
+    nguonTien: 'Ipower'
+  } : {
+    key: TRADING_SECRET_KEY,
+    action: 'addTrade',
+    loaiTaiSan: isYield ? 'CCQ' : loaiHinh,
+    ma: ma,
+    loaiGiaoDich: nhLoai,
+    ngay: ngay,
+    soLuong: sl,
+    gia: gia,
+    phi: (nhLoai === 'Bán') ? phiBan : 0,
+    thue: 0,
+    tiLeYield: tiLeYield,
+    clWtrend: '',
+    clMacdVol: '',
+    clEntry: '',
+    camXuc: '',
+    note: '',
+    nguonTien: 'Ipower'
+  };
+
+  jsonpRequest(TRADING_ADDTRADE_URL, params, function(err, data){
+    btn.disabled = false;
+    if (err || !data || !data.success){
+      noteEl.style.color = 'var(--danger)';
+      noteEl.textContent = 'Lỗi: ' + (err ? err.message : (data && data.error) || 'không rõ');
+      return;
+    }
+    noteEl.style.color = 'var(--moss)';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '.';
+    document.getElementById('nhMa').value = '';
+    document.getElementById('nhGia').value = '';
+    document.getElementById('nhSL').value = '';
+    document.getElementById('nhTiLeYield').value = '';
+    nhChk = { w: null, m: null, e: null };
+    document.querySelectorAll('.nh-chk-btn').forEach(b=>b.classList.remove('on'));
+    nhanhUpdatePreview();
+    if (typeof loadTrading === 'function') loadTrading().then(()=>{ nhanhRenderIpower(); nhanhRenderRecent(); }).catch(()=>{});
+  });
+}
 
 async function loadTrading(){
   const hasTradingTab = (EXTRA_TABS_BY_NHA[currentNha] || []).some(t => t.key === 'trading');
