@@ -361,6 +361,36 @@
       <div id="trd-content">
         <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
+        <div class="exec-form-card">
+          <h3>+ Nạp/Rút tiền (Ipower)</h3>
+
+          <div class="exec-toggle-row">
+            <button class="exec-toggle-btn on" id="ipToggleNap" onclick="ipSetLoai('Nạp')">Nạp</button>
+            <button class="exec-toggle-btn" id="ipToggleRut" onclick="ipSetLoai('Rút')">Rút</button>
+          </div>
+
+          <div class="exec-form-row">
+            <div class="exec-form-field"><label>Ngày thực hiện</label><input type="date" id="ipNgay"></div>
+            <div class="exec-form-field">
+              <label>Mục đích</label>
+              <select id="ipMucDich">
+                <option value="Trade">Trade</option>
+                <option value="Non trade">Non trade</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="exec-form-row">
+            <div class="exec-form-field" style="flex:2;"><label>Nội dung</label><input type="text" id="ipNoiDung" placeholder="VD: DCDS, Lương T9..."></div>
+            <div class="exec-form-field"><label>Số tiền</label><input type="number" id="ipSoTien" step="1000" placeholder="1000000"></div>
+          </div>
+
+          <div class="exec-von-row"><span id="ipSoDuLabel">Số dư sau giao dịch (ước tính)</span><b id="ipSoDuPreview">—</b></div>
+
+          <button class="exec-btn-save" id="ipSaveBtn" onclick="ipSaveOrder()">Lưu giao dịch</button>
+          <div class="exec-save-note" id="ipSaveNote"></div>
+        </div>
+
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
           <label style="font-size:.85rem;color:var(--muted);">Phiên trước:
             <input type="date" id="price-date-prev" style="
@@ -938,6 +968,7 @@ async function loadTrading(){
     DANHMUCQUY = rowsToObjects(dmqRaw, 3);
 
     renderIpowerBanner();
+    ipUpdatePreview();
     renderExecution();
     renderExecViaQuy();
     renderDanhMucQuy();
@@ -989,6 +1020,74 @@ async function triggerPriceUpdate(){
 
   icon.textContent = '⟳';
   btn.disabled = false;
+}
+
+// ---- Form "+ Nạp/Rút tiền" (Ipower) ----
+let ipLoai = 'Nạp';
+
+function ipSetLoai(v){
+  ipLoai = v;
+  document.getElementById('ipToggleNap').classList.toggle('on', v === 'Nạp');
+  document.getElementById('ipToggleRut').classList.toggle('on', v === 'Rút');
+  ipUpdatePreview();
+}
+
+function ipUpdatePreview(){
+  const soTienEl = document.getElementById('ipSoTien');
+  if (!soTienEl) return;
+  const soTien = Math.abs(parseFloat(soTienEl.value) || 0);
+  const soDuHienTai = IPOWER.length ? (parseVNNumber(IPOWER[IPOWER.length - 1]['Số dư lũy kế']) || 0) : 0;
+  const soDuMoi = soDuHienTai + (ipLoai === 'Rút' ? -soTien : soTien);
+  document.getElementById('ipSoDuPreview').textContent = fmtVND(soDuMoi);
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  const el = document.getElementById('ipSoTien');
+  if (el) el.addEventListener('input', ipUpdatePreview);
+  const dEl = document.getElementById('ipNgay');
+  if (dEl) dEl.value = new Date().toISOString().slice(0,10);
+});
+
+function ipSaveOrder(){
+  const ngay = document.getElementById('ipNgay').value || '';
+  const mucDich = document.getElementById('ipMucDich').value || 'Trade';
+  const noiDung = document.getElementById('ipNoiDung').value || '';
+  const soTien = Math.abs(parseFloat(document.getElementById('ipSoTien').value) || 0);
+  const noteEl = document.getElementById('ipSaveNote');
+  const btn = document.getElementById('ipSaveBtn');
+
+  if (!soTien){
+    noteEl.textContent = 'Thiếu Số tiền.';
+    noteEl.style.color = 'var(--danger)';
+    return;
+  }
+
+  btn.disabled = true;
+  noteEl.style.color = 'var(--muted)';
+  noteEl.textContent = 'Đang lưu...';
+
+  jsonpRequest(TRADING_ADDTRADE_URL, {
+    key: TRADING_SECRET_KEY,
+    action: 'addIpower',
+    ngay: ngay,
+    loai: ipLoai,
+    mucDich: mucDich,
+    noiDung: noiDung,
+    soTien: soTien
+  }, function(err, data){
+    btn.disabled = false;
+    if (err || !data || !data.success){
+      noteEl.style.color = 'var(--danger)';
+      noteEl.textContent = 'Lỗi: ' + (err ? err.message : (data && data.error) || 'không rõ');
+      return;
+    }
+    noteEl.style.color = 'var(--moss)';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + '. Số dư mới: ' + fmtVND(data.soDu);
+    document.getElementById('ipNoiDung').value = '';
+    document.getElementById('ipSoTien').value = '';
+    document.getElementById('ipNgay').value = new Date().toISOString().slice(0,10);
+    ipUpdatePreview();
+    if (typeof loadTrading === 'function') loadTrading();
+  });
 }
 
 // Banner Vốn khả dụng (Ipower) — nằm ngoài 4 sub-tab vì không thuộc riêng Execution hay Quỹ mở
@@ -1386,7 +1485,7 @@ function execSaveOrder(){
       return;
     }
     noteEl.style.color = 'var(--moss)';
-    noteEl.textContent = 'Đã lưu dòng ' + data.row + '. Đang tải lại...';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '. Đang tải lại...';
     document.getElementById('execMa').value = '';
     document.getElementById('execGia').value = '';
     document.getElementById('execSL').value = '';
@@ -1514,7 +1613,7 @@ function qmSaveOrder(){
       return;
     }
     noteEl.style.color = 'var(--moss)';
-    noteEl.textContent = 'Đã lưu dòng ' + data.row + '. Đang tải lại...';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '. Đang tải lại...';
     document.getElementById('qmMa').value = '';
     document.getElementById('qmMaYield').value = '';
     document.getElementById('qmTiLeYield').value = '';
