@@ -1320,6 +1320,7 @@ const TRADING_SECRET_KEY   = PRICE_SECRET_KEY;
 // Phí/thuế mặc định — đúng theo dữ liệu thật trong sheet
 const FEE_BROKER = 0.0015; // 0.15% phí broker mua/bán CP
 const TAX_BAN_CP  = 0.0010; // 0.10% thuế bán CP
+const TAX_YIELD_TIEN = 0.05; // 5% thuế cổ tức tiền mặt
 
 // Gọi Apps Script qua JSONP (script tag) — tránh lỗi CORS của fetch() thẳng
 function jsonpRequest(url, params, callback){
@@ -1469,7 +1470,7 @@ function execSaveOrder(){
     soLuong: sl,
     gia: giaThuc,
     phi: FEE_BROKER,
-    thue: (execLoai === 'Bán') ? TAX_BAN_CP : 0,
+    thue: (execLoai === 'Bán') ? TAX_BAN_CP : (execLoai === 'Yield tiền' ? TAX_YIELD_TIEN : 0),
     tiLeYield: tiLeYield,
     clWtrend: execLoai === 'Mua' ? execChk.w : '',
     clMacdVol: execLoai === 'Mua' ? execChk.m : '',
