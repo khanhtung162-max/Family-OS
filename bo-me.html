@@ -404,39 +404,46 @@
             <div class="exec-form-card">
               <h3>Vào lệnh mới</h3>
 
-              <div class="exec-chk-row">
-                <div class="exec-chk-label">W trend thuận?</div>
-                <div class="exec-chk-btns">
-                  <button class="exec-chk-btn yes" data-q="w" data-v="Có" onclick="execSetChk('w','Có')">Có</button>
-                  <button class="exec-chk-btn no" data-q="w" data-v="Không" onclick="execSetChk('w','Không')">Không</button>
-                </div>
-              </div>
-              <div class="exec-chk-row">
-                <div class="exec-chk-label">D1 MACD crossover + volume xác nhận?</div>
-                <div class="exec-chk-btns">
-                  <button class="exec-chk-btn yes" data-q="m" data-v="Có" onclick="execSetChk('m','Có')">Có</button>
-                  <button class="exec-chk-btn no" data-q="m" data-v="Không" onclick="execSetChk('m','Không')">Không</button>
-                </div>
-              </div>
-              <div class="exec-chk-row">
-                <div class="exec-chk-label">Entry đúng vùng hỗ trợ?</div>
-                <div class="exec-chk-btns">
-                  <button class="exec-chk-btn yes" data-q="e" data-v="Có" onclick="execSetChk('e','Có')">Có</button>
-                  <button class="exec-chk-btn no" data-q="e" data-v="Không" onclick="execSetChk('e','Không')">Không</button>
-                </div>
+              <div class="exec-toggle-row">
+                <button class="exec-toggle-btn on" id="execToggleMua" onclick="execSetLoai('Mua')">Mua</button>
+                <button class="exec-toggle-btn" id="execToggleBan" onclick="execSetLoai('Bán')">Bán</button>
               </div>
 
-              <div class="exec-result-pill fail" id="execResultPill">
-                <div class="num" id="execScoreNum">0/3</div>
-                <div class="txt"><b id="execScoreLabel">Chưa đủ điều kiện</b><span>Quy tắc: cần ≥ 2/3 câu đúng</span></div>
+              <div id="execChkBlock">
+                <div class="exec-chk-row">
+                  <div class="exec-chk-label">W trend thuận?</div>
+                  <div class="exec-chk-btns">
+                    <button class="exec-chk-btn yes" data-q="w" data-v="Có" onclick="execSetChk('w','Có')">Có</button>
+                    <button class="exec-chk-btn no" data-q="w" data-v="Không" onclick="execSetChk('w','Không')">Không</button>
+                  </div>
+                </div>
+                <div class="exec-chk-row">
+                  <div class="exec-chk-label">D1 MACD crossover + volume xác nhận?</div>
+                  <div class="exec-chk-btns">
+                    <button class="exec-chk-btn yes" data-q="m" data-v="Có" onclick="execSetChk('m','Có')">Có</button>
+                    <button class="exec-chk-btn no" data-q="m" data-v="Không" onclick="execSetChk('m','Không')">Không</button>
+                  </div>
+                </div>
+                <div class="exec-chk-row">
+                  <div class="exec-chk-label">Entry đúng vùng hỗ trợ?</div>
+                  <div class="exec-chk-btns">
+                    <button class="exec-chk-btn yes" data-q="e" data-v="Có" onclick="execSetChk('e','Có')">Có</button>
+                    <button class="exec-chk-btn no" data-q="e" data-v="Không" onclick="execSetChk('e','Không')">Không</button>
+                  </div>
+                </div>
+
+                <div class="exec-result-pill fail" id="execResultPill">
+                  <div class="num" id="execScoreNum">0/3</div>
+                  <div class="txt"><b id="execScoreLabel">Chưa đủ điều kiện</b><span>Quy tắc: cần ≥ 2/3 câu đúng</span></div>
+                </div>
               </div>
 
               <div class="exec-form-row">
                 <div class="exec-form-field"><label>Mã CP</label><input type="text" id="execMa" placeholder="VD: SSI" style="text-transform:uppercase;"></div>
-                <div class="exec-form-field"><label>Giá vào (nghìn đ)</label><input type="number" id="execGia" step="0.01" placeholder="28.50"></div>
+                <div class="exec-form-field"><label id="execGiaLabel">Giá vào (nghìn đ)</label><input type="number" id="execGia" step="0.01" placeholder="28.50"></div>
                 <div class="exec-form-field"><label>Khối lượng</label><input type="number" id="execSL" step="1" placeholder="1000"></div>
               </div>
-              <div class="exec-von-row"><span>Vốn (đã gồm phí 0.15%)</span><b id="execVonPreview">—</b></div>
+              <div class="exec-von-row"><span id="execVonLabel">Vốn (đã gồm phí 0.15%)</span><b id="execVonPreview">—</b></div>
 
               <div class="exec-emoji-row" id="execEmojiRow">
                 <button class="exec-emoji-btn" data-v="Tự tin" onclick="execSetEmo('Tự tin')">Tự tin</button>
@@ -1102,9 +1109,22 @@ function jsonpRequest(url, params, callback){
   document.body.appendChild(script);
 }
 
-// ---- Execution (CP) — checklist 3 câu + vào lệnh Mua ----
+// ---- Execution (CP) — checklist 3 câu (chỉ áp dụng khi Mua) + vào lệnh Mua/Bán ----
 let execChk = { w: null, m: null, e: null };
 let execEmo = null;
+let execLoai = 'Mua';
+
+function execSetLoai(v){
+  execLoai = v;
+  document.getElementById('execToggleMua').classList.toggle('on', v === 'Mua');
+  document.getElementById('execToggleBan').classList.toggle('on', v === 'Bán');
+  document.getElementById('execChkBlock').style.display = (v === 'Bán') ? 'none' : '';
+  document.getElementById('execGiaLabel').textContent = (v === 'Bán') ? 'Giá bán (nghìn đ)' : 'Giá vào (nghìn đ)';
+  document.getElementById('execVonLabel').textContent = (v === 'Bán')
+    ? 'Tiền nhận (đã trừ phí 0.15% + thuế 0.10%)'
+    : 'Vốn (đã gồm phí 0.15%)';
+  execUpdatePreview();
+}
 
 function execSetChk(q, v){
   execChk[q] = v;
@@ -1146,7 +1166,9 @@ function execUpdatePreview(){
   if (!giaEl || !slEl) return;
   const gia = parseFloat(giaEl.value) || 0;
   const sl  = parseFloat(slEl.value) || 0;
-  const von = gia * 1000 * sl * (1 + FEE_BROKER);
+  const von = (execLoai === 'Bán')
+    ? gia * 1000 * sl * (1 - FEE_BROKER - TAX_BAN_CP)
+    : gia * 1000 * sl * (1 + FEE_BROKER);
   document.getElementById('execVonPreview').textContent =
     von ? Math.round(von).toLocaleString('vi-VN') + ' đ' : '—';
 }
@@ -1170,7 +1192,7 @@ function execSaveOrder(){
     noteEl.style.color = 'var(--danger)';
     return;
   }
-  if (execChk.w === null || execChk.m === null || execChk.e === null){
+  if (execLoai === 'Mua' && (execChk.w === null || execChk.m === null || execChk.e === null)){
     noteEl.textContent = 'Trả lời đủ 3 câu checklist trước khi lưu.';
     noteEl.style.color = 'var(--danger)';
     return;
@@ -1187,14 +1209,14 @@ function execSaveOrder(){
     action: 'addTrade',
     loaiTaiSan: 'CP',
     ma: ma,
-    loaiGiaoDich: 'Mua',
+    loaiGiaoDich: execLoai,
     soLuong: sl,
     gia: giaThuc,
     phi: FEE_BROKER,
-    thue: 0,
-    clWtrend: execChk.w,
-    clMacdVol: execChk.m,
-    clEntry: execChk.e,
+    thue: (execLoai === 'Bán') ? TAX_BAN_CP : 0,
+    clWtrend: execLoai === 'Mua' ? execChk.w : '',
+    clMacdVol: execLoai === 'Mua' ? execChk.m : '',
+    clEntry: execLoai === 'Mua' ? execChk.e : '',
     camXuc: execEmo || '',
     note: note,
     nguonTien: 'Ipower'
@@ -1282,8 +1304,8 @@ function qmSaveOrder(){
     loaiGiaoDich: qmLoai,
     soLuong: sl,
     gia: gia,
-    phi: 0,
-    thue: (qmLoai === 'Bán') ? phiBan : 0,
+    phi: (qmLoai === 'Bán') ? phiBan : 0,
+    thue: 0,
     clWtrend: '',
     clMacdVol: '',
     clEntry: '',
