@@ -257,8 +257,9 @@
   .exec-btn-save{width:100%;background:var(--moss);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;}
   .exec-btn-save:disabled{opacity:.5;cursor:not-allowed;}
   .exec-save-note{text-align:center;font-size:11px;color:var(--muted);margin-top:8px;min-height:14px;}
-  .exec-toggle-row{display:flex;gap:6px;margin-bottom:12px;}
-  .exec-toggle-btn{flex:1;text-align:center;font-size:13px;padding:8px 0;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--muted);cursor:pointer;font-weight:600;}
+  .exec-toggle-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .exec-toggle-row .exec-toggle-btn{min-width:70px;}
+  .exec-toggle-btn{flex:1;text-align:center;font-size:12px;padding:8px 4px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--muted);cursor:pointer;font-weight:600;white-space:nowrap;}
   .exec-toggle-btn.on{background:var(--ink);color:#fff;border-color:var(--ink);}
 </style>
 </head>
@@ -380,7 +381,7 @@
         <div class="subject-tabs" id="trd-subtabs">
           <div class="subj-tab active" data-trdkey="training" onclick="selectTrdTab('training')">Training</div>
           <div class="subj-tab" data-trdkey="execution" onclick="selectTrdTab('execution')">Execution</div>
-          <div class="subj-tab" data-trdkey="quymo" onclick="selectTrdTab('quymo')">Quỹ mở</div>
+          <div class="subj-tab" data-trdkey="quymo" onclick="selectTrdTab('quymo')">Chứng chỉ quỹ</div>
           <div class="subj-tab" data-trdkey="result" onclick="selectTrdTab('result')">Result</div>
         </div>
 
@@ -407,6 +408,13 @@
               <div class="exec-toggle-row">
                 <button class="exec-toggle-btn on" id="execToggleMua" onclick="execSetLoai('Mua')">Mua</button>
                 <button class="exec-toggle-btn" id="execToggleBan" onclick="execSetLoai('Bán')">Bán</button>
+                <button class="exec-toggle-btn" id="execToggleYTien" onclick="execSetLoai('Yield tiền')">Cổ tức tiền</button>
+                <button class="exec-toggle-btn" id="execToggleYCp" onclick="execSetLoai('Yield CP')">Cổ tức CP</button>
+              </div>
+
+              <div class="exec-form-row">
+                <div class="exec-form-field"><label>Ngày thực hiện</label><input type="date" id="execNgay"></div>
+                <div class="exec-form-field"><label>Mã CP</label><input type="text" id="execMa" placeholder="VD: SSI" style="text-transform:uppercase;"></div>
               </div>
 
               <div id="execChkBlock">
@@ -438,12 +446,14 @@
                 </div>
               </div>
 
-              <div class="exec-form-row">
-                <div class="exec-form-field"><label>Mã CP</label><input type="text" id="execMa" placeholder="VD: SSI" style="text-transform:uppercase;"></div>
+              <div class="exec-form-row" id="execTradeRow">
                 <div class="exec-form-field"><label id="execGiaLabel">Giá vào (nghìn đ)</label><input type="number" id="execGia" step="0.01" placeholder="28.50"></div>
                 <div class="exec-form-field"><label>Khối lượng</label><input type="number" id="execSL" step="1" placeholder="1000"></div>
               </div>
-              <div class="exec-von-row"><span id="execVonLabel">Vốn (đã gồm phí 0.15%)</span><b id="execVonPreview">—</b></div>
+              <div class="exec-form-row" id="execYieldRow" style="display:none;">
+                <div class="exec-form-field"><label id="execYieldLabel">Tỉ lệ cổ tức tiền (% mệnh giá)</label><input type="number" id="execTiLeYield" step="0.1" placeholder="10"></div>
+              </div>
+              <div class="exec-von-row" id="execVonRow"><span id="execVonLabel">Vốn (đã gồm phí 0.15%)</span><b id="execVonPreview">—</b></div>
 
               <div class="exec-emoji-row" id="execEmojiRow">
                 <button class="exec-emoji-btn" data-v="Tự tin" onclick="execSetEmo('Tự tin')">Tự tin</button>
@@ -463,6 +473,14 @@
             <div class="trd-cards" id="trd-exec-summary"></div>
             <div class="trd-table" id="trd-exec-table"></div>
             <div id="trd-exec-closed"></div>
+          </section>
+
+          <section class="trd-section">
+            <div class="sec-head">
+              <h2>Giá trị CP nắm giữ gián tiếp qua quỹ</h2>
+              <div class="why">Tổng hợp từ tỷ trọng từng mã trong các quỹ đang nắm (DCDS/VESAF/DCBF/VFF...) — lấy đúng cột "Tỉ lệ CP nắm giữ"/"Tổng vốn nắm giữ trên CP" đã tính sẵn trong sheet "Fund stock list". Không gồm CP mua lẻ trực tiếp.</div>
+            </div>
+            <div class="trd-table" id="trd-exec-viaquy-table"></div>
           </section>
         </div>
 
@@ -488,24 +506,40 @@
             </div>
 
             <div class="exec-form-card">
-              <h3>+ Giao dịch CCQ/ETF</h3>
+              <h3>+ Giao dịch chứng chỉ quỹ</h3>
 
               <div class="exec-toggle-row">
                 <button class="exec-toggle-btn on" id="qmToggleMua" onclick="qmSetLoai('Mua')">Mua</button>
                 <button class="exec-toggle-btn" id="qmToggleBan" onclick="qmSetLoai('Bán')">Bán</button>
+                <button class="exec-toggle-btn" id="qmToggleYTien" onclick="qmSetLoai('Yield tiền')">Cổ tức tiền (CCQ)</button>
               </div>
 
               <div class="exec-form-row">
+                <div class="exec-form-field"><label>Ngày thực hiện</label><input type="date" id="qmNgay"></div>
+                <div class="exec-form-field">
+                  <label>Loại hình</label>
+                  <select id="qmLoaiHinh">
+                    <option value="CCQ">Quỹ mở (CCQ)</option>
+                    <option value="ETF">ETF</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="exec-form-row" id="qmTradeRow">
                 <div class="exec-form-field"><label>Mã quỹ</label><input type="text" id="qmMa" placeholder="VD: DCDS" style="text-transform:uppercase;"></div>
                 <div class="exec-form-field"><label>Giá NAV (đ/CCQ)</label><input type="number" id="qmGia" step="0.01" placeholder="38500"></div>
                 <div class="exec-form-field"><label>Khối lượng</label><input type="number" id="qmSL" step="0.01" placeholder="1000"></div>
+              </div>
+              <div class="exec-form-row" id="qmYieldRow" style="display:none;">
+                <div class="exec-form-field"><label>Mã quỹ</label><input type="text" id="qmMaYield" placeholder="VD: DCDS" style="text-transform:uppercase;"></div>
+                <div class="exec-form-field"><label>Tỉ lệ cổ tức (%)</label><input type="number" id="qmTiLeYield" step="0.1" placeholder="10"></div>
               </div>
 
               <div class="exec-form-row" id="qmPhiBanRow" style="display:none;">
                 <div class="exec-form-field"><label>Phí bán trước hạn (%)</label><input type="number" id="qmPhiBan" step="0.01" placeholder="0"></div>
               </div>
 
-              <div class="exec-von-row"><span id="qmVonLabel">Vốn (chưa phí)</span><b id="qmVonPreview">—</b></div>
+              <div class="exec-von-row" id="qmVonRow"><span id="qmVonLabel">Vốn (chưa phí)</span><b id="qmVonPreview">—</b></div>
 
               <div class="exec-form-row">
                 <div class="exec-form-field" style="flex:2;"><label>Note (tuỳ chọn)</label><input type="text" id="qmNote" placeholder="Ghi chú nhanh..."></div>
@@ -900,6 +934,7 @@ async function loadTrading(){
 
     renderIpowerBanner();
     renderExecution();
+    renderExecViaQuy();
     renderDanhMucQuy();
     renderQuyMoPositions();
     renderResult();
@@ -997,8 +1032,12 @@ function renderIpowerBanner(){
 
 // Dùng chung cho Execution (CP) và Quỹ mở (CCQ/ETF) — cùng cấu trúc cột trong Onhand
 // coTucByMa: { 'SSI': 475000, 'DPM': 427500, ... }
-function renderPositionGroup(rows, elIds, coTucByMa){
+function renderPositionGroup(rows, elIds, coTucByMa, viaQuyByMa){
   coTucByMa = coTucByMa || {};
+  const showTong = !!viaQuyByMa; // chỉ bật cột "Tổng giá trị DM" khi được truyền map (dùng cho tab CP lẻ)
+  const cols5 = '1.3fr .5fr 1.1fr 1fr .85fr';
+  const cols6 = '1.15fr .45fr 1fr .9fr .75fr 1.1fr';
+  const gridStyle = showTong ? ` style="grid-template-columns:${cols6};"` : '';
   const open = rows.filter(r => (parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001);
   const closed = rows.filter(r =>
     !((parseVNNumber(r['Số lượng đang giữ']) || 0) > 0.0001) &&
@@ -1040,7 +1079,7 @@ function renderPositionGroup(rows, elIds, coTucByMa){
   `;
 
   document.getElementById(elIds.table).innerHTML = open.length ? `
-    <div class="trd-row head"><div>Mã</div><div>SL</div><div>Giá vốn → hiện tại</div><div>Lãi/lỗ trên giá</div><div>Cổ tức</div></div>
+    <div class="trd-row head"${gridStyle}><div>Mã</div><div>SL</div><div>Giá vốn → hiện tại</div><div>Lãi/lỗ trên giá</div><div>Cổ tức</div>${showTong ? '<div>Tổng giá trị DM</div>' : ''}</div>
     ${open.map(r => {
       const sl  = parseVNNumber(r['Số lượng đang giữ']);
       const gv  = parseVNNumber(r['Giá vốn bình quân']);
@@ -1049,13 +1088,17 @@ function renderPositionGroup(rows, elIds, coTucByMa){
       const ct  = coTucByMa[r['Mã']] || 0;
       const mau = gv * sl;
       const pct = mau ? (ll / mau * 100) : 0;
+      const giaTriTrucTiep = sl * gh;
+      const giaTriGianTiep = showTong ? (viaQuyByMa[r['Mã']] || 0) : 0;
+      const tongGiaTri = giaTriTrucTiep + giaTriGianTiep;
       return `
-        <div class="trd-row">
+        <div class="trd-row"${gridStyle}>
           <div><div class="ma">${r['Mã']}</div><div class="loai-sub">${r['Loại hình'] || ''}</div></div>
           <div class="num">${fmtNum(sl)}</div>
           <div class="priceflow">${fmtNum(gv)} → ${fmtNum(gh)}</div>
           <div class="num ${ll >= 0 ? 'gain' : 'loss'}"><b>${fmtVND(ll)}</b><br><span style="font-size:11px;">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></div>
           <div class="num ${ct > 0 ? 'gain' : ''}" style="color:${ct > 0 ? '' : 'var(--muted)'}"><b>${ct > 0 ? fmtVND(ct) : '—'}</b></div>
+          ${showTong ? `<div class="num"><b>${fmtVND(tongGiaTri)}</b>${giaTriGianTiep > 0 ? `<br><span style="font-size:10.5px;color:var(--muted);">lẻ ${fmtNum(giaTriTrucTiep/1000)}k + quỹ ${fmtNum(giaTriGianTiep/1000)}k</span>` : ''}</div>` : ''}
         </div>`;
     }).join('')}
   ` : `<div class="trd-closed">Không có vị thế đang mở.</div>`;
@@ -1069,10 +1112,60 @@ function renderPositionGroup(rows, elIds, coTucByMa){
     </div>` : '';
 }
 
+// Giá trị nắm giữ gián tiếp theo mã CP, tính từ cột "Tổng vốn nắm giữ trên CP" trong DANHMUCQUY/Fund stock list
+function buildViaQuyByMa(){
+  const map = {};
+  DANHMUCQUY.filter(r => r['Mã CP']).forEach(r => {
+    const gt = parseVNNumber(r['Tổng vốn nắm giữ trên CP']);
+    if (!isNaN(gt) && gt !== 0) map[r['Mã CP']] = gt;
+  });
+  return map;
+}
+
 function renderExecution(){
   const coTucByMa = buildCoTucByMa();
+  const viaQuyByMa = buildViaQuyByMa();
   const rows = ONHAND.filter(r => r['Mã'] && r['Loại hình'] === 'CP');
-  renderPositionGroup(rows, { summary: 'trd-exec-summary', table: 'trd-exec-table', closed: 'trd-exec-closed' }, coTucByMa);
+  renderPositionGroup(rows, { summary: 'trd-exec-summary', table: 'trd-exec-table', closed: 'trd-exec-closed' }, coTucByMa, viaQuyByMa);
+}
+
+// Giá trị CP nắm giữ gián tiếp qua quỹ — lấy thẳng cột đã tính sẵn trong sheet "Fund stock list"
+// (cùng nguồn dữ liệu DANHMUCQUY, cột "Tỉ lệ CP nắm giữ" / "Tổng vốn nắm giữ trên CP" / "Ngành")
+function renderExecViaQuy(){
+  const el = document.getElementById('trd-exec-viaquy-table');
+  if (!el) return;
+  let rows = DANHMUCQUY
+    .filter(r => r['Mã CP'] && r['Tổng vốn nắm giữ trên CP'])
+    .map(r => ({
+      ma: r['Mã CP'],
+      nganh: r['Ngành'] || '',
+      tiLe: parseVNNumber(r['Tỉ lệ CP nắm giữ']),
+      gt: parseVNNumber(r['Tổng vốn nắm giữ trên CP'])
+    }))
+    .filter(r => !isNaN(r.gt) && r.gt !== 0)
+    .sort((a, b) => b.gt - a.gt);
+
+  if (!rows.length){
+    el.innerHTML = `<div class="trd-closed">Chưa có dữ liệu.</div>`;
+    return;
+  }
+
+  const tong = rows.reduce((s, r) => s + r.gt, 0);
+
+  el.innerHTML = `
+    <div class="trd-row head" style="grid-template-columns:1fr 1.2fr 1fr 1.2fr;"><div>Mã</div><div>Ngành</div><div>Tỉ lệ</div><div>Giá trị</div></div>
+    ${rows.map(r => `
+      <div class="trd-row" style="grid-template-columns:1fr 1.2fr 1fr 1.2fr;">
+        <div class="ma">${r.ma}</div>
+        <div style="text-align:left;font-size:12px;color:var(--muted);">${r.nganh}</div>
+        <div class="num">${isNaN(r.tiLe) ? '—' : r.tiLe.toFixed(2) + '%'}</div>
+        <div class="num"><b>${fmtVND(r.gt)}</b></div>
+      </div>`).join('')}
+    <div class="trd-row" style="grid-template-columns:1fr 1.2fr 1fr 1.2fr;border-top:1px solid var(--line);">
+      <div class="ma">Tổng</div><div></div><div></div>
+      <div class="num"><b>${fmtVND(tong)}</b></div>
+    </div>
+  `;
 }
 
 function renderQuyMoPositions(){
@@ -1118,7 +1211,19 @@ function execSetLoai(v){
   execLoai = v;
   document.getElementById('execToggleMua').classList.toggle('on', v === 'Mua');
   document.getElementById('execToggleBan').classList.toggle('on', v === 'Bán');
-  document.getElementById('execChkBlock').style.display = (v === 'Bán') ? 'none' : '';
+  document.getElementById('execToggleYTien').classList.toggle('on', v === 'Yield tiền');
+  document.getElementById('execToggleYCp').classList.toggle('on', v === 'Yield CP');
+
+  const isYield = (v === 'Yield tiền' || v === 'Yield CP');
+  document.getElementById('execChkBlock').style.display = (v === 'Mua') ? '' : 'none';
+  document.getElementById('execTradeRow').style.display = isYield ? 'none' : '';
+  document.getElementById('execYieldRow').style.display = isYield ? '' : 'none';
+  document.getElementById('execVonRow').style.display = isYield ? 'none' : '';
+  document.getElementById('execEmojiRow').style.display = isYield ? 'none' : '';
+
+  if (v === 'Yield tiền') document.getElementById('execYieldLabel').textContent = 'Tỉ lệ cổ tức tiền (% mệnh giá)';
+  if (v === 'Yield CP') document.getElementById('execYieldLabel').textContent = 'Tỉ lệ cổ tức CP (%)';
+
   document.getElementById('execGiaLabel').textContent = (v === 'Bán') ? 'Giá bán (nghìn đ)' : 'Giá vào (nghìn đ)';
   document.getElementById('execVonLabel').textContent = (v === 'Bán')
     ? 'Tiền nhận (đã trừ phí 0.15% + thuế 0.10%)'
@@ -1177,18 +1282,33 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', execUpdatePreview);
   });
+  const dEl = document.getElementById('execNgay');
+  if (dEl) dEl.value = new Date().toISOString().slice(0,10);
 });
 
 function execSaveOrder(){
   const ma  = (document.getElementById('execMa').value || '').trim().toUpperCase();
+  const isYield = (execLoai === 'Yield tiền' || execLoai === 'Yield CP');
   const gia = parseFloat(document.getElementById('execGia').value) || 0;
   const sl  = parseFloat(document.getElementById('execSL').value) || 0;
+  const tiLeYield = (parseFloat(document.getElementById('execTiLeYield').value) || 0) / 100; // nhập %, gửi dạng thập phân (VD 20% -> 0.2)
+  const ngay = document.getElementById('execNgay').value || '';
   const note = document.getElementById('execNote').value || '';
   const noteEl = document.getElementById('execSaveNote');
   const btn = document.getElementById('execSaveBtn');
 
-  if (!ma || !gia || !sl){
-    noteEl.textContent = 'Thiếu Mã / Giá / Khối lượng.';
+  if (!ma){
+    noteEl.textContent = 'Thiếu Mã CP.';
+    noteEl.style.color = 'var(--danger)';
+    return;
+  }
+  if (isYield && !tiLeYield){
+    noteEl.textContent = 'Thiếu Tỉ lệ cổ tức.';
+    noteEl.style.color = 'var(--danger)';
+    return;
+  }
+  if (!isYield && (!gia || !sl)){
+    noteEl.textContent = 'Thiếu Giá / Khối lượng.';
     noteEl.style.color = 'var(--danger)';
     return;
   }
@@ -1210,10 +1330,12 @@ function execSaveOrder(){
     loaiTaiSan: 'CP',
     ma: ma,
     loaiGiaoDich: execLoai,
+    ngay: ngay,
     soLuong: sl,
     gia: giaThuc,
     phi: FEE_BROKER,
     thue: (execLoai === 'Bán') ? TAX_BAN_CP : 0,
+    tiLeYield: tiLeYield,
     clWtrend: execLoai === 'Mua' ? execChk.w : '',
     clMacdVol: execLoai === 'Mua' ? execChk.m : '',
     clEntry: execLoai === 'Mua' ? execChk.e : '',
@@ -1232,7 +1354,9 @@ function execSaveOrder(){
     document.getElementById('execMa').value = '';
     document.getElementById('execGia').value = '';
     document.getElementById('execSL').value = '';
+    document.getElementById('execTiLeYield').value = '';
     document.getElementById('execNote').value = '';
+    document.getElementById('execNgay').value = new Date().toISOString().slice(0,10);
     execChk = { w: null, m: null, e: null };
     execEmo = null;
     document.querySelectorAll('.exec-chk-btn').forEach(b=>b.classList.remove('on'));
@@ -1248,9 +1372,23 @@ let qmLoai = 'Mua';
 
 function qmSetLoai(v){
   qmLoai = v;
+  const isYield = (v === 'Yield tiền');
   document.getElementById('qmToggleMua').classList.toggle('on', v === 'Mua');
   document.getElementById('qmToggleBan').classList.toggle('on', v === 'Bán');
+  document.getElementById('qmToggleYTien').classList.toggle('on', isYield);
   document.getElementById('qmPhiBanRow').style.display = (v === 'Bán') ? '' : 'none';
+  document.getElementById('qmTradeRow').style.display = isYield ? 'none' : '';
+  document.getElementById('qmYieldRow').style.display = isYield ? '' : 'none';
+  document.getElementById('qmVonRow').style.display = isYield ? 'none' : '';
+
+  const loaiHinhEl = document.getElementById('qmLoaiHinh');
+  if (isYield){
+    loaiHinhEl.value = 'CCQ'; // ETF không chia cổ tức tiền — khoá về CCQ (Quỹ mở)
+    loaiHinhEl.disabled = true;
+  } else {
+    loaiHinhEl.disabled = false;
+  }
+
   document.getElementById('qmVonLabel').textContent = (v === 'Bán') ? 'Tiền nhận (đã trừ phí bán trước hạn)' : 'Vốn (chưa phí)';
   qmUpdatePreview();
 }
@@ -1275,19 +1413,37 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', qmUpdatePreview);
   });
+  const dEl = document.getElementById('qmNgay');
+  if (dEl) dEl.value = new Date().toISOString().slice(0,10);
 });
 
 function qmSaveOrder(){
-  const ma  = (document.getElementById('qmMa').value || '').trim().toUpperCase();
+  const isYield = (qmLoai === 'Yield tiền');
+  const ma  = isYield
+    ? (document.getElementById('qmMaYield').value || '').trim().toUpperCase()
+    : (document.getElementById('qmMa').value || '').trim().toUpperCase();
   const gia = parseFloat(document.getElementById('qmGia').value) || 0;
   const sl  = parseFloat(document.getElementById('qmSL').value) || 0;
+  const tiLeYield = (parseFloat(document.getElementById('qmTiLeYield').value) || 0) / 100; // nhập %, gửi dạng thập phân
   const phiBan = (parseFloat(document.getElementById('qmPhiBan').value) || 0) / 100;
+  const ngay = document.getElementById('qmNgay').value || '';
+  const loaiHinh = document.getElementById('qmLoaiHinh').value || 'CCQ';
   const note = document.getElementById('qmNote').value || '';
   const noteEl = document.getElementById('qmSaveNote');
   const btn = document.getElementById('qmSaveBtn');
 
-  if (!ma || !gia || !sl){
-    noteEl.textContent = 'Thiếu Mã quỹ / Giá NAV / Khối lượng.';
+  if (!ma){
+    noteEl.textContent = 'Thiếu Mã quỹ.';
+    noteEl.style.color = 'var(--danger)';
+    return;
+  }
+  if (isYield && !tiLeYield){
+    noteEl.textContent = 'Thiếu Tỉ lệ cổ tức.';
+    noteEl.style.color = 'var(--danger)';
+    return;
+  }
+  if (!isYield && (!gia || !sl)){
+    noteEl.textContent = 'Thiếu Giá NAV / Khối lượng.';
     noteEl.style.color = 'var(--danger)';
     return;
   }
@@ -1299,13 +1455,15 @@ function qmSaveOrder(){
   jsonpRequest(TRADING_ADDTRADE_URL, {
     key: TRADING_SECRET_KEY,
     action: 'addTrade',
-    loaiTaiSan: 'CCQ',
+    loaiTaiSan: isYield ? 'CCQ' : loaiHinh,
     ma: ma,
     loaiGiaoDich: qmLoai,
+    ngay: ngay,
     soLuong: sl,
     gia: gia,
     phi: (qmLoai === 'Bán') ? phiBan : 0,
     thue: 0,
+    tiLeYield: tiLeYield,
     clWtrend: '',
     clMacdVol: '',
     clEntry: '',
@@ -1322,10 +1480,13 @@ function qmSaveOrder(){
     noteEl.style.color = 'var(--moss)';
     noteEl.textContent = 'Đã lưu dòng ' + data.row + '. Đang tải lại...';
     document.getElementById('qmMa').value = '';
+    document.getElementById('qmMaYield').value = '';
+    document.getElementById('qmTiLeYield').value = '';
     document.getElementById('qmGia').value = '';
     document.getElementById('qmSL').value = '';
     document.getElementById('qmPhiBan').value = '';
     document.getElementById('qmNote').value = '';
+    document.getElementById('qmNgay').value = new Date().toISOString().slice(0,10);
     qmUpdatePreview();
     if (typeof loadTrading === 'function') loadTrading();
   });
