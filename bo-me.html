@@ -488,10 +488,10 @@
         <nav class="trd-sidebar" id="trd-sidebar">
           <div class="trd-sidebar-logo">📊 Trading OS</div>
           <div class="trd-sidebar-nav" id="trd-subtabs">
-            <button class="trd-nav-item active" data-trdkey="training" onclick="selectTrdTab('training')"><span class="ic">📘</span>Training</button>
+            <button class="trd-nav-item active" data-trdkey="result" onclick="selectTrdTab('result')"><span class="ic">📈</span>Result</button>
+            <button class="trd-nav-item" data-trdkey="training" onclick="selectTrdTab('training')"><span class="ic">📘</span>Training</button>
             <button class="trd-nav-item" data-trdkey="execution" onclick="selectTrdTab('execution')"><span class="ic">⚡</span>Execution</button>
             <button class="trd-nav-item" data-trdkey="quymo" onclick="selectTrdTab('quymo')"><span class="ic">🏦</span>Chứng chỉ quỹ</button>
-            <button class="trd-nav-item" data-trdkey="result" onclick="selectTrdTab('result')"><span class="ic">📈</span>Result</button>
           </div>
           <div class="trd-sidebar-foot">
             <button id="trdModeToggleBtn" class="trd-nav-item trd-nav-ghost" onclick="toggleTrdMode()"><span class="ic">⊞</span>Chế độ Tổng hợp</button>
@@ -499,6 +499,7 @@
           </div>
         </nav>
         <div class="trd-main">
+        <div id="trd-money-widgets">
         <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
         <div class="exec-form-card">
@@ -552,6 +553,7 @@
           </button>
           <span id="price-update-status" style="font-size:.85rem;color:var(--muted);"></span>
         </div>
+        </div><!-- /#trd-money-widgets -->
 
         <!-- Chế độ Nhanh — form nhập lệnh tối giản cho mobile -->
         <div class="trd-subpanel" id="trd-panel-nhanh">
@@ -633,7 +635,7 @@
         </div>
 
         <!-- Training — chưa có sheet nguồn, để khung chờ -->
-        <div class="trd-subpanel active" id="trd-panel-training">
+        <div class="trd-subpanel" id="trd-panel-training">
           <section class="trd-section">
             <div class="sec-head">
               <h2>Training</h2>
@@ -658,6 +660,7 @@
               <div class="subj-tab" data-trnkey="mauhinh" onclick="selectTrnTab('mauhinh')">Mẫu hình</div>
               <div class="subj-tab" data-trnkey="intraday" onclick="selectTrnTab('intraday')">Intraday</div>
               <div class="subj-tab" data-trnkey="demo" onclick="selectTrnTab('demo')">Demo</div>
+              <div class="subj-tab" data-trnkey="muclucsach" onclick="selectTrnTab('muclucsach')">Mục lục sách</div>
             </div>
 
             <div class="trn-bars" id="trn-bars"></div>
@@ -665,6 +668,18 @@
             <div class="trn-gate" id="trn-gate">Điều kiện mở Demo: cả 4 chỉ số ≥ 5/10</div>
 
             <div class="trn-detail" id="trn-detail"></div>
+
+            <!-- Mục lục sách: 1) lịch học từng kỳ + YCCĐ  2) mục lục chi tiết từng chương -->
+            <div class="trn-mucluc" id="trn-mucluc" style="display:none;">
+              <div class="trn-mf-wrap" id="trn-mucluc-ky">
+                <div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div>
+                <div class="why">Đang tải dữ liệu từ sheet "Thời khoá biểu"...</div>
+              </div>
+              <div class="trn-mf-wrap" id="trn-mucluc-chuong" style="margin-top:14px;">
+                <div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div>
+                <div class="why">Đang tải dữ liệu từ sheet "Mục lục sách"...</div>
+              </div>
+            </div>
           </section>
         </div>
 
@@ -830,7 +845,7 @@
         </div>
 
         <!-- Result — tổng hợp lãi/lỗ tất toán (In-out) + dòng tiền (Ipower) -->
-        <div class="trd-subpanel" id="trd-panel-result">
+        <div class="trd-subpanel active" id="trd-panel-result">
           <section class="trd-section">
             <div class="sec-head">
               <h2>Result</h2>
@@ -951,6 +966,15 @@ const MF_CSV = {
   marketHealth: "https://docs.google.com/spreadsheets/d/1Plih0CjiCJyOQNj6f7VfPa7vOn0Xh9cZOuGSu-aMGXg/export?format=csv&gid=1666509811",
   radar:        "https://docs.google.com/spreadsheets/d/1Plih0CjiCJyOQNj6f7VfPa7vOn0Xh9cZOuGSu-aMGXg/export?format=csv&gid=1364613675"
 };
+
+// Mục lục sách — đọc trực tiếp từ 2 tab trong Trading journal (nguồn duy nhất, ghi tay trong Sheet).
+// Dùng gviz theo TÊN sheet (không cần gid) vì 2 tab này không có gid cố định sẵn trong code.
+const TRJ_FILE_ID = "1Plih0CjiCJyOQNj6f7VfPa7vOn0Xh9cZOuGSu-aMGXg";
+function trjSheetCsvUrl(sheetName){
+  return `https://docs.google.com/spreadsheets/d/${TRJ_FILE_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+}
+const MUCLUC_KY_CSV     = trjSheetCsvUrl('THời khóa biểu');
+const MUCLUC_CHUONG_CSV = trjSheetCsvUrl('Mục lục sách');
 let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {}, INOUT = [], IPOWER = [];
 let ONHAND_BANNER = { tongVon: 0, laiLoTrenGia: 0, laiLoTatToan: 0, tongVonGoc: 0 };
 let selectedFund = null;
@@ -1188,6 +1212,8 @@ function selectTrdTab(key){
   document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('trd-panel-' + key);
   if (panel) panel.classList.add('active');
+  const moneyBox = document.getElementById('trd-money-widgets');
+  if (moneyBox) moneyBox.style.display = (key === 'result') ? '' : 'none';
 }
 
 function toggleTrdMode(){
@@ -1542,8 +1568,24 @@ function renderTrnBars(){
 }
 
 function selectTrnTab(key){
-  trnActiveKey = key;
   document.querySelectorAll('#trn-subtabs .subj-tab').forEach(b => b.classList.toggle('active', b.dataset.trnkey === key));
+  const barsEl = document.getElementById('trn-bars');
+  const gateEl = document.getElementById('trn-gate');
+  const detailEl = document.getElementById('trn-detail');
+  const mucLucEl = document.getElementById('trn-mucluc');
+  if (key === 'muclucsach'){
+    if (barsEl) barsEl.style.display = 'none';
+    if (gateEl) gateEl.style.display = 'none';
+    if (detailEl) detailEl.style.display = 'none';
+    if (mucLucEl) mucLucEl.style.display = '';
+    loadMucLucSach();
+    return;
+  }
+  if (barsEl) barsEl.style.display = '';
+  if (gateEl) gateEl.style.display = '';
+  if (detailEl) detailEl.style.display = '';
+  if (mucLucEl) mucLucEl.style.display = 'none';
+  trnActiveKey = key;
   renderTrnDetail();
 }
 
@@ -1579,6 +1621,80 @@ function trnAdjust(delta){
 document.addEventListener('DOMContentLoaded', renderTrnBars);
 document.addEventListener('DOMContentLoaded', loadMF);
 
+// ---- Mục lục sách: 1) lịch học từng kỳ + YCCĐ (tab "Thời khoá biểu")  ----
+// ----              2) mục lục chi tiết từng chương (tab "Mục lục sách") ----
+let mucLucLoaded = false;
+async function loadMucLucSach(){
+  if (mucLucLoaded) return;
+  mucLucLoaded = true;
+  try {
+    const kyRows = await fetchCSVRaw(MUCLUC_KY_CSV);
+    const kyHeaderIdx = kyRows.findIndex(r => (r[0]||'').trim() === 'Kỳ');
+    const kyData = kyHeaderIdx >= 0 ? rowsToObjects(kyRows, kyHeaderIdx) : [];
+    renderMucLucKy(kyData);
+  } catch(e){
+    document.getElementById('trn-mucluc-ky').innerHTML =
+      `<div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div><div class="why">Không tải được tab "Thời khoá biểu": ${e.message}</div>`;
+  }
+  try {
+    const chuongRows = await fetchCSVRaw(MUCLUC_CHUONG_CSV);
+    const chuongHeaderIdx = chuongRows.findIndex(r => (r[0]||'').trim() === 'Loại hình');
+    const chuongData = chuongHeaderIdx >= 0 ? rowsToObjects(chuongRows, chuongHeaderIdx) : [];
+    renderMucLucChuong(chuongData);
+  } catch(e){
+    document.getElementById('trn-mucluc-chuong').innerHTML =
+      `<div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div><div class="why">Không tải được tab "Mục lục sách": ${e.message}</div>`;
+  }
+}
+
+function renderMucLucKy(rows){
+  const el = document.getElementById('trn-mucluc-ky');
+  if (!rows.length){
+    el.innerHTML = `<div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div><div class="why">Chưa có dữ liệu.</div>`;
+    return;
+  }
+  const body = rows.map(r => `
+    <tr>
+      <td><b>${r['Kỳ']||''}</b></td>
+      <td>${r['Sách TA']||''}</td>
+      <td>${r['Mẫu hình']||''}</td>
+      <td>${r['Intraday']||''}</td>
+      <td>${r['Demo']||''}</td>
+      <td>${r['Sách FA']||''}</td>
+      <td style="min-width:260px;">${r['Tiêu chuẩn FA']||''}</td>
+    </tr>`).join('');
+  el.innerHTML = `
+    <div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div>
+    <div class="tkb-scroll"><table class="tkb-table">
+      <thead><tr><th>Kỳ</th><th>Sách TA</th><th>Mẫu hình</th><th>Intraday</th><th>Demo</th><th>Sách FA</th><th>Tiêu chuẩn FA (YCCĐ)</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>`;
+}
+
+function renderMucLucChuong(rows){
+  const el = document.getElementById('trn-mucluc-chuong');
+  if (!rows.length){
+    el.innerHTML = `<div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div><div class="why">Chưa có dữ liệu.</div>`;
+    return;
+  }
+  const body = rows.map(r => `
+    <tr>
+      <td>${r['Loại hình']||''}</td>
+      <td>${r['Cuốn']||''}</td>
+      <td>${r['Chương']||''}</td>
+      <td>${r['Tiêu đề']||''}</td>
+      <td>${r['Tuần']||''}</td>
+      <td>${r['Năm']||''}</td>
+      <td>${r['Học kỳ']||''}</td>
+    </tr>`).join('');
+  el.innerHTML = `
+    <div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div>
+    <div class="tkb-scroll"><table class="tkb-table">
+      <thead><tr><th>Loại hình</th><th>Cuốn</th><th>Chương</th><th>Tiêu đề</th><th>Tuần</th><th>Năm</th><th>Học kỳ</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>`;
+}
+
 // ---- Chế độ Nhanh — form nhập lệnh tối giản cho mobile ----
 let nhAsset = 'CP';
 let nhLoai = 'Mua';
@@ -1600,6 +1716,8 @@ function toggleNhanhMode(){
     document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
     document.getElementById('trd-panel-nhanh').classList.add('active');
     document.getElementById('trdNhanhToggleBtn').innerHTML = '<span class="ic">✕</span>Thoát Nhanh';
+    const moneyBox = document.getElementById('trd-money-widgets');
+    if (moneyBox) moneyBox.style.display = 'none';
     nhanhRenderIpower();
     nhanhRenderRecent();
     const dEl = document.getElementById('nhNgay');
