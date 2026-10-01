@@ -195,18 +195,38 @@
   /* ---- Trading — Training/Execution/Quỹ mở/Result (đọc CSV, chưa có phần ghi) ---- */
   .trd-subpanel{display:none;}
   .trd-subpanel.active{display:block;animation:fadeIn .2s ease;}
-  #trd-content.trd-mode-tong{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
-  #trd-content.trd-mode-tong #trd-subtabs .subj-tab{display:none;}
-  #trd-content.trd-mode-tong #trd-subtabs{grid-column:1/-1;display:flex;justify-content:flex-end;}
-  #trd-content.trd-mode-tong #trd-panel-training{display:none !important;}
-  #trd-content.trd-mode-tong #trd-panel-execution,
-  #trd-content.trd-mode-tong #trd-panel-quymo,
-  #trd-content.trd-mode-tong #trd-panel-result{display:block !important;grid-column:auto;max-height:82vh;overflow-y:auto;padding-right:6px;}
+
+  /* ---- Trading app shell: sidebar + main (full laptop width) ---- */
+  .trd-shell{display:flex;align-items:flex-start;gap:0;background:#f4f5f7;margin:-20px;padding:0;min-height:calc(100vh - 140px);}
+  .trd-sidebar{flex:0 0 220px;background:#fff;border-right:1px solid var(--line);min-height:calc(100vh - 140px);position:sticky;top:0;padding:18px 12px;display:flex;flex-direction:column;}
+  .trd-sidebar-logo{font-weight:700;font-size:14px;color:var(--ink);padding:4px 10px 18px;}
+  .trd-sidebar-nav{display:flex;flex-direction:column;gap:3px;}
+  .trd-nav-item{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border:none;background:none;border-radius:8px;font-size:13.5px;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .trd-nav-item .ic{font-size:15px;width:18px;text-align:center;}
+  .trd-nav-item:hover{background:#f2f3f5;color:var(--ink);}
+  .trd-nav-item.active{background:#eef2ff;color:#3a4fd1;font-weight:600;}
+  .trd-sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:3px;}
+  .trd-nav-ghost{color:var(--muted);}
+  .trd-main{flex:1 1 auto;min-width:0;padding:20px 28px;background:#f4f5f7;}
+  @media (max-width:900px){
+    .trd-shell{display:block;margin:0;min-height:0;}
+    .trd-sidebar{flex-direction:row;overflow-x:auto;position:static;min-height:0;width:100%;padding:10px;}
+    .trd-sidebar-nav{flex-direction:row;}
+    .trd-sidebar-foot{margin-top:0;border-top:none;flex-direction:row;}
+    .trd-sidebar-logo{display:none;}
+    .trd-main{padding:14px;}
+  }
+
+  .trd-main.trd-mode-tong{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start;}
+  .trd-main.trd-mode-tong #trd-panel-training{display:none !important;}
+  .trd-main.trd-mode-tong #trd-panel-execution,
+  .trd-main.trd-mode-tong #trd-panel-quymo,
+  .trd-main.trd-mode-tong #trd-panel-result{display:block !important;grid-column:auto;max-height:82vh;overflow-y:auto;padding-right:6px;}
   @media (max-width:1100px){
-    #trd-content.trd-mode-tong{display:block;}
-    #trd-content.trd-mode-tong #trd-panel-execution,
-    #trd-content.trd-mode-tong #trd-panel-quymo,
-    #trd-content.trd-mode-tong #trd-panel-result{max-height:none;overflow-y:visible;margin-bottom:20px;}
+    .trd-main.trd-mode-tong{display:block;}
+    .trd-main.trd-mode-tong #trd-panel-execution,
+    .trd-main.trd-mode-tong #trd-panel-quymo,
+    .trd-main.trd-mode-tong #trd-panel-result{max-height:none;overflow-y:visible;margin-bottom:20px;}
   }
   .trd-nhanh-wrap{max-width:480px;margin:0 auto;padding:4px 0 40px;}
   .trd-nhanh-ipower{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--muted);text-align:center;}
@@ -287,6 +307,13 @@
   .trd-section{margin-bottom:32px;}
   .trd-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px;}
   @media (max-width:640px){.trd-cards{grid-template-columns:1fr 1fr;}}
+
+  /* AEON-style section heading + stat cards, scoped to Trading main content only */
+  .trd-main .sec-head{margin-bottom:16px;}
+  .trd-main .sec-head h2{font-family:inherit;font-size:14px;font-weight:700;color:#444;border-left:3px solid #3a4fd1;padding-left:10px;}
+  .trd-main .trd-card{background:#fff;border:1px solid #eceef2;border-radius:14px;padding:16px 18px;box-shadow:0 1px 4px rgba(20,20,43,.05);}
+  .trd-main .trd-card .label{font-size:12px;color:#8a8f98;}
+  .trd-main .trd-card .value{font-family:inherit;font-size:26px;font-weight:700;color:#1b1d2a;}
   .trd-fund-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
   .trd-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
   .trd-card .label{font-size:12px;color:var(--muted);margin-bottom:5px;}
@@ -457,7 +484,21 @@
 
     <!-- ============ TAB TRADING — mô hình đầy đủ 4 sub-tab (Training/Execution/Quỹ mở/Result); phần ghi chờ Apps Script ============ -->
     <div class="main-panel" id="panel-trading">
-      <div id="trd-content">
+      <div id="trd-content" class="trd-shell">
+        <nav class="trd-sidebar" id="trd-sidebar">
+          <div class="trd-sidebar-logo">📊 Trading OS</div>
+          <div class="trd-sidebar-nav" id="trd-subtabs">
+            <button class="trd-nav-item active" data-trdkey="training" onclick="selectTrdTab('training')"><span class="ic">📘</span>Training</button>
+            <button class="trd-nav-item" data-trdkey="execution" onclick="selectTrdTab('execution')"><span class="ic">⚡</span>Execution</button>
+            <button class="trd-nav-item" data-trdkey="quymo" onclick="selectTrdTab('quymo')"><span class="ic">🏦</span>Chứng chỉ quỹ</button>
+            <button class="trd-nav-item" data-trdkey="result" onclick="selectTrdTab('result')"><span class="ic">📈</span>Result</button>
+          </div>
+          <div class="trd-sidebar-foot">
+            <button id="trdModeToggleBtn" class="trd-nav-item trd-nav-ghost" onclick="toggleTrdMode()"><span class="ic">⊞</span>Chế độ Tổng hợp</button>
+            <button id="trdNhanhToggleBtn" class="trd-nav-item trd-nav-ghost" onclick="toggleNhanhMode()"><span class="ic">📱</span>Chế độ Nhanh</button>
+          </div>
+        </nav>
+        <div class="trd-main">
         <div class="trd-cards" id="trd-ipower-summary" style="margin-bottom:20px;"></div>
 
         <div class="exec-form-card">
@@ -510,15 +551,6 @@
             <span id="btn-price-icon">⟳</span> Cập nhật giá
           </button>
           <span id="price-update-status" style="font-size:.85rem;color:var(--muted);"></span>
-        </div>
-
-        <div class="subject-tabs" id="trd-subtabs" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <div class="subj-tab active" data-trdkey="training" onclick="selectTrdTab('training')">Training</div>
-          <div class="subj-tab" data-trdkey="execution" onclick="selectTrdTab('execution')">Execution</div>
-          <div class="subj-tab" data-trdkey="quymo" onclick="selectTrdTab('quymo')">Chứng chỉ quỹ</div>
-          <div class="subj-tab" data-trdkey="result" onclick="selectTrdTab('result')">Result</div>
-          <button id="trdModeToggleBtn" class="gia-edit-btn" style="margin-left:auto;padding:6px 12px;font-size:12px;" onclick="toggleTrdMode()">⊞ Chế độ Tổng hợp</button>
-          <button id="trdNhanhToggleBtn" class="gia-edit-btn" style="padding:6px 12px;font-size:12px;" onclick="toggleNhanhMode()">⚡ Nhanh</button>
         </div>
 
         <!-- Chế độ Nhanh — form nhập lệnh tối giản cho mobile -->
@@ -825,6 +857,7 @@
             <div class="trd-cards" id="trd-hieusuat-summary"></div>
             <div class="trd-table" id="trd-hieusuat-table"></div>
           </section>
+        </div>
         </div>
       </div>
     </div>
@@ -1151,17 +1184,17 @@ function parseTradingDate(str){
 }
 
 function selectTrdTab(key){
-  document.querySelectorAll('#trd-subtabs .subj-tab').forEach(b => b.classList.toggle('active', b.dataset.trdkey === key));
+  document.querySelectorAll('#trd-subtabs .trd-nav-item').forEach(b => b.classList.toggle('active', b.dataset.trdkey === key));
   document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('trd-panel-' + key);
   if (panel) panel.classList.add('active');
 }
 
 function toggleTrdMode(){
-  const content = document.getElementById('trd-content');
+  const main = document.querySelector('#trd-content .trd-main');
   const btn = document.getElementById('trdModeToggleBtn');
-  const on = content.classList.toggle('trd-mode-tong');
-  btn.textContent = on ? '☰ Chế độ Tab' : '⊞ Chế độ Tổng hợp';
+  const on = main.classList.toggle('trd-mode-tong');
+  btn.innerHTML = on ? '<span class="ic">☰</span>Chế độ Tab' : '<span class="ic">⊞</span>Chế độ Tổng hợp';
   try { localStorage.setItem('trdModeTong', on ? '1' : '0'); } catch(e){}
 }
 
@@ -1169,10 +1202,10 @@ function toggleTrdMode(){
   try {
     if (localStorage.getItem('trdModeTong') === '1') {
       document.addEventListener('DOMContentLoaded', function(){
-        const content = document.getElementById('trd-content');
+        const main = document.querySelector('#trd-content .trd-main');
         const btn = document.getElementById('trdModeToggleBtn');
-        if (content) content.classList.add('trd-mode-tong');
-        if (btn) btn.textContent = '☰ Chế độ Tab';
+        if (main) main.classList.add('trd-mode-tong');
+        if (btn) btn.innerHTML = '<span class="ic">☰</span>Chế độ Tab';
       });
     }
   } catch(e){}
@@ -1299,7 +1332,7 @@ function renderTKB(){
   const todayJs = new Date().getDay();
   const isCurWeek = viewWeek === curWeek;
 
-  let html = `<thead><tr><th>Buổi</th>${TKB_DAYS.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
+  let html = `<thead><tr><th>Tuần</th><th>Buổi</th>${TKB_DAYS.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
   ['Sáng','Chiều','Tối'].forEach((buoi,bi) => {
     html += `<tr>`;
     if (bi===0) html += `<td class="wk${isCurWeek?' curwk':''}" rowspan="3">${tkbWeekDates(viewWeek)}</td>`;
@@ -1553,20 +1586,20 @@ let nhChk = { w: null, m: null, e: null };
 let nhPrevTabKey = 'training';
 
 function toggleNhanhMode(){
-  const content = document.getElementById('trd-content');
+  const main = document.querySelector('#trd-content .trd-main');
   const isOn = document.getElementById('trd-panel-nhanh').classList.contains('active');
   if (isOn){
     document.getElementById('trd-panel-nhanh').classList.remove('active');
     selectTrdTab(nhPrevTabKey);
-    document.getElementById('trdNhanhToggleBtn').textContent = '⚡ Nhanh';
+    document.getElementById('trdNhanhToggleBtn').innerHTML = '<span class="ic">📱</span>Chế độ Nhanh';
   } else {
-    const activeTab = document.querySelector('#trd-subtabs .subj-tab.active');
+    const activeTab = document.querySelector('#trd-subtabs .trd-nav-item.active');
     nhPrevTabKey = activeTab ? activeTab.dataset.trdkey : 'training';
-    content.classList.remove('trd-mode-tong');
-    document.getElementById('trdModeToggleBtn').textContent = '⊞ Chế độ Tổng hợp';
+    main.classList.remove('trd-mode-tong');
+    document.getElementById('trdModeToggleBtn').innerHTML = '<span class="ic">⊞</span>Chế độ Tổng hợp';
     document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
     document.getElementById('trd-panel-nhanh').classList.add('active');
-    document.getElementById('trdNhanhToggleBtn').textContent = '✕ Thoát Nhanh';
+    document.getElementById('trdNhanhToggleBtn').innerHTML = '<span class="ic">✕</span>Thoát Nhanh';
     nhanhRenderIpower();
     nhanhRenderRecent();
     const dEl = document.getElementById('nhNgay');
