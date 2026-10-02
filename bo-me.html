@@ -1577,6 +1577,56 @@ async function loadTienDo(){
   renderTrnBars();
 }
 
+// ---- Form Tiến độ: Kỳ/Sách/Chương lấy theo dropdown từ "Mục lục sách", Năm học tự suy ra ----
+let tdSachLoaiMap = {}; // { 'Nison – Nến Nhật': 'TA', 'Fisher – ...': 'FA' } — theo kỳ đang chọn
+function tdOnKyChange(){
+  const kyEl = document.getElementById('tdKyHoc');
+  const namEl = document.getElementById('tdNamHoc');
+  const sachEl = document.getElementById('tdSach');
+  if (!kyEl || !sachEl) return;
+  const kyLabel = kyEl.value;
+  const row = mucLucKyData.find(r => r['Kỳ'] === kyLabel) || {};
+
+  const yearMatch = (kyLabel||'').match(/\d{4}/);
+  if (namEl) namEl.value = yearMatch ? yearMatch[0] : '';
+
+  tdSachLoaiMap = {};
+  const opts = [];
+  if (row['Sách TA']){ opts.push(row['Sách TA']); tdSachLoaiMap[row['Sách TA']] = 'TA'; }
+  if (row['Sách FA']){ opts.push(row['Sách FA']); tdSachLoaiMap[row['Sách FA']] = 'FA'; }
+  if (sachEl.tagName === 'SELECT'){
+    sachEl.innerHTML = opts.map((s,i) => `<option value="${s}" ${i===0?'selected':''}>${s}</option>`).join('')
+      || `<option value="">(Kỳ này chưa có tên sách)</option>`;
+    sachEl.onchange = tdOnSachChange;
+  }
+  tdOnSachChange();
+}
+function tdOnSachChange(){
+  const sachEl = document.getElementById('tdSach');
+  const wrap = document.getElementById('tdChuongWrap');
+  if (!sachEl || !wrap) return;
+  const sachName = (sachEl.value||'').trim();
+  // Lọc đúng theo tên Cuốn đang chọn (ko chỉ theo Loại hình TA/FA) — vì 1 Loại hình có thể
+  // có nhiều Cuốn khác nhau trong "Mục lục sách" (vd FA có cả sách chính lẫn dòng "DỰ PHÒNG").
+  const chapters = mucLucChuongData.filter(r => (r['Cuốn']||'').trim() === sachName);
+  if (chapters.length){
+    // Ghép Chương + Tiêu đề thành 1 giá trị duy nhất — vì nhiều dòng (vd Phần I/II/III của sách FA)
+    // dùng chung 1 giá trị "Chương" cho nhiều mục con khác nhau ở cột Tiêu đề.
+    const opts = chapters
+      .filter(r => (r['Tiêu đề']||'').trim() && (r['Tiêu đề']||'').trim() !== sachName) // bỏ dòng lỗi Tiêu đề trùng tên Cuốn
+      .map((r,i) => {
+        const chuong = (r['Chương']||'').trim().replace(/:\s*$/,''); // bỏ dấu ":" cuối, vd "PHẦN II:" -> "PHẦN II"
+        const tieuDe = (r['Tiêu đề']||'').trim();
+        const composite = chuong && tieuDe ? `${chuong} - ${tieuDe}` : (tieuDe || chuong);
+        return `<option value="${composite}" ${i===0?'selected':''}>${composite}</option>`;
+      }).join('');
+    wrap.innerHTML = `<select id="tdChuong">${opts}</select>`;
+  } else {
+    // Chưa cataloged trong "Mục lục sách" — gõ tay
+    wrap.innerHTML = `<input type="text" id="tdChuong" placeholder="Chương/Phần (chưa có trong mục lục, gõ tay)">`;
+  }
+}
+
 // ---- Ghi 1 dòng tiến độ ngay trong app — Apps Script RIÊNG, gắn thẳng vào file Trading journal ----
 // (tách biệt với APPS_SCRIPT_URL/PRICE_UPDATE_URL ở trên — những cái đó ghi vào Trading_record, file khác)
 const TRJ_WRITE_URL  = 'https://script.google.com/macros/s/AKfycbyMpQ5dYtOrJaIJNm7QT0sLFzmBoiaLDxLIk5hn3_Okb1bTfu7Yzi3t_MQLiH-umRkxOg/exec';
@@ -1705,6 +1755,20 @@ function renderTrnDetail(){
   if (it.key === 'sach'){
     const errNote = tienDoState === 'error' ? `<div class="trn-note" style="color:var(--rose,#c0392b);">Không tải được tab "Tiến độ" — đang hiện 0/10 tạm thời.</div>` : '';
     const today = new Date().toISOString().slice(0,10);
+
+    let kyFieldHtml, sachFieldHtml;
+    if (mucLucState === 'loading'){
+      kyFieldHtml = `<input type="text" id="tdKyHoc" placeholder="Đang tải danh mục...">`;
+      sachFieldHtml = `<input type="text" id="tdSach" placeholder="Đang tải danh mục...">`;
+    } else if (mucLucState === 'error' || !mucLucKyData.length){
+      kyFieldHtml = `<input type="text" id="tdKyHoc" placeholder="HK2 2026">`;
+      sachFieldHtml = `<input type="text" id="tdSach" placeholder="Nison – Nến Nhật">`;
+    } else {
+      const kyOptions = mucLucKyData.map((r,i) => `<option value="${r['Kỳ']}" ${i===0?'selected':''}>${r['Kỳ']}</option>`).join('');
+      kyFieldHtml = `<select id="tdKyHoc" onchange="tdOnKyChange()">${kyOptions}</select>`;
+      sachFieldHtml = `<select id="tdSach"></select>`; // điền bằng tdOnKyChange() ngay sau khi render
+    }
+
     el.innerHTML = `
       <h4>${it.label}</h4>
       <div class="trn-counter-row"><span class="num">${v}/10</span></div>
@@ -1715,12 +1779,12 @@ function renderTrnDetail(){
         <h3>+ Ghi tiến độ đọc sách</h3>
         <div class="exec-form-row">
           <div class="exec-form-field"><label>Ngày</label><input type="date" id="tdNgay" value="${today}"></div>
-          <div class="exec-form-field"><label>Năm học</label><input type="text" id="tdNamHoc" placeholder="2026"></div>
-          <div class="exec-form-field"><label>Kỳ học</label><input type="text" id="tdKyHoc" placeholder="HK2 2026"></div>
+          <div class="exec-form-field"><label>Năm học</label><input type="text" id="tdNamHoc" readonly></div>
+          <div class="exec-form-field"><label>Kỳ học</label>${kyFieldHtml}</div>
         </div>
         <div class="exec-form-row">
-          <div class="exec-form-field" style="flex:2;"><label>Sách đang đọc</label><input type="text" id="tdSach" placeholder="Nison – Nến Nhật"></div>
-          <div class="exec-form-field"><label>Chương/Phần</label><input type="text" id="tdChuong" placeholder="Chương 1"></div>
+          <div class="exec-form-field" style="flex:2;"><label>Sách đang đọc</label>${sachFieldHtml}</div>
+          <div class="exec-form-field" style="flex:2;"><label>Chương/Phần</label><div id="tdChuongWrap"><input type="text" id="tdChuong" placeholder="Chương 1"></div></div>
         </div>
         <div class="exec-form-row">
           <div class="exec-form-field" style="flex:1;"><label>Tự ghi chú</label><textarea id="tdGhiChu" rows="2" placeholder="Ý chính rút ra..."></textarea></div>
@@ -1736,6 +1800,7 @@ function renderTrnDetail(){
         <div class="exec-save-note" id="tdSaveNote"></div>
       </div>
     `;
+    if (mucLucState === 'ok' && mucLucKyData.length) tdOnKyChange();
     return;
   }
 
@@ -1771,6 +1836,7 @@ document.addEventListener('DOMContentLoaded', renderTrnBars);
 document.addEventListener('DOMContentLoaded', loadMF);
 document.addEventListener('DOMContentLoaded', loadTienDo);
 document.addEventListener('DOMContentLoaded', loadMauHinh);
+document.addEventListener('DOMContentLoaded', loadMucLucSach);
 
 // ---- Mục lục sách: 1 sheet, 2 khối cạnh nhau ----
 // Khối trái (cột A-F, header ở dòng 2): Loại hình/Cuốn/Chương/Tiêu đề/Độ khó/Tuần
@@ -1789,20 +1855,25 @@ function subTableFromCols(rows, headerRowIdx, colStart, colCount){
 }
 
 let mucLucLoaded = false;
+let mucLucKyData = [], mucLucChuongData = [], mucLucState = 'loading'; // dùng chung cho tab Mục lục sách + dropdown form Tiến độ
 async function loadMucLucSach(){
   if (mucLucLoaded) return;
   mucLucLoaded = true;
   try {
     const rows = await fetchCSVRaw(MUCLUC_SHEET_CSV);
-    const kyData     = subTableFromCols(rows, 0, 8, 7); // I:O
-    const chuongData = subTableFromCols(rows, 1, 0, 6); // A:F
-    renderMucLucKy(kyData);
-    renderMucLucChuong(chuongData);
+    mucLucKyData     = subTableFromCols(rows, 0, 8, 7); // I:O
+    mucLucChuongData = subTableFromCols(rows, 1, 0, 6); // A:F
+    mucLucState = 'ok';
+    if (document.getElementById('trn-mucluc-ky')) renderMucLucKy(mucLucKyData);
+    if (document.getElementById('trn-mucluc-chuong')) renderMucLucChuong(mucLucChuongData);
   } catch(e){
+    mucLucState = 'error';
     const msg = `<div class="why">Không tải được tab "Mục lục sách": ${e.message}</div>`;
-    document.getElementById('trn-mucluc-ky').innerHTML = `<div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div>${msg}`;
-    document.getElementById('trn-mucluc-chuong').innerHTML = `<div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div>${msg}`;
+    if (document.getElementById('trn-mucluc-ky')) document.getElementById('trn-mucluc-ky').innerHTML = `<div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div>${msg}`;
+    if (document.getElementById('trn-mucluc-chuong')) document.getElementById('trn-mucluc-chuong').innerHTML = `<div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div>${msg}`;
   }
+  // Mục lục sách tải xong rồi mà đang đứng ở tab Tiến độ thì vẽ lại form để có dropdown thật
+  if (trnActiveKey === 'sach') renderTrnDetail();
 }
 
 function renderMucLucKy(rows){
