@@ -1579,6 +1579,13 @@ async function loadTienDo(){
 
 // ---- Form Tiến độ: Kỳ/Sách/Chương lấy theo dropdown từ "Mục lục sách", Năm học tự suy ra ----
 let tdSachLoaiMap = {}; // { 'Nison – Nến Nhật': 'TA', 'Fisher – ...': 'FA' } — theo kỳ đang chọn
+// Ánh xạ tên sách ở khối Kỳ học (cột Sách TA/Sách FA) sang đúng tên Cuốn ở khối mục lục chương,
+// vì 2 khối trong "Mục lục sách" đặt tên theo 2 quy ước khác nhau cho cùng 1 cuốn.
+// Thêm dòng mới vào đây mỗi khi bạn thêm 1 cuốn mới mà tên ở 2 khối không giống hệt nhau.
+const SACH_TEN_KHOP = {
+  'Nison – Nến Nhật': 'Mẫu hình nến nhật',
+  'Fisher – Common Stocks and Uncommon Profits': 'CP thường lợi nhuận phi thường'
+};
 function tdOnKyChange(){
   const kyEl = document.getElementById('tdKyHoc');
   const namEl = document.getElementById('tdNamHoc');
@@ -1606,9 +1613,11 @@ function tdOnSachChange(){
   const wrap = document.getElementById('tdChuongWrap');
   if (!sachEl || !wrap) return;
   const sachName = (sachEl.value||'').trim();
-  // Lọc đúng theo tên Cuốn đang chọn (ko chỉ theo Loại hình TA/FA) — vì 1 Loại hình có thể
-  // có nhiều Cuốn khác nhau trong "Mục lục sách" (vd FA có cả sách chính lẫn dòng "DỰ PHÒNG").
-  const chapters = mucLucChuongData.filter(r => (r['Cuốn']||'').trim() === sachName);
+  // Tên sách ở khối Kỳ học ("Sách TA"/"Sách FA", vd "Nison – Nến Nhật") được đặt theo tên tác giả,
+  // còn tên Cuốn ở khối mục lục chương dùng đúng tên sách tiếng Việt (vd "Mẫu hình nến nhật").
+  // Đây là 2 cách đặt tên hợp lệ cho cùng 1 cuốn — khớp bằng bảng ánh xạ, KHÔNG bắt sửa lại Sheet.
+  const cuonThat = SACH_TEN_KHOP[sachName] || sachName;
+  const chapters = mucLucChuongData.filter(r => (r['Cuốn']||'').trim() === cuonThat);
   if (chapters.length){
     // Ghép Chương + Tiêu đề thành 1 giá trị duy nhất — vì nhiều dòng (vd Phần I/II/III của sách FA)
     // dùng chung 1 giá trị "Chương" cho nhiều mục con khác nhau ở cột Tiêu đề.
