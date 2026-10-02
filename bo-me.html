@@ -263,6 +263,9 @@
   .tkb-cell:hover{color:var(--moss);}
   .tkb-cell.atwork{background:#ffe066;color:#5c4b00;font-weight:700;cursor:default;}
   .tkb-cell.atwork:hover{color:#5c4b00;}
+  .tkb-cell-updating{color:var(--muted);font-style:italic;cursor:default;}
+  .tkb-cell-updating:hover{color:var(--muted);}
+  .tkb-cell:disabled{color:var(--muted);cursor:default;opacity:.5;}
   .tkb-table tr.today td{box-shadow:inset 0 0 0 2px var(--moss);}
   .tkb-table td.wk.curwk{background:var(--moss);color:#fff;}
   .tkb-day{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:10px;}
@@ -971,14 +974,19 @@ const MF_CSV = {
   radar:        "https://docs.google.com/spreadsheets/d/1Plih0CjiCJyOQNj6f7VfPa7vOn0Xh9cZOuGSu-aMGXg/export?format=csv&gid=1364613675"
 };
 
-// Mục lục sách — đọc trực tiếp từ 2 tab trong Trading journal (nguồn duy nhất, ghi tay trong Sheet).
-// Dùng gviz theo TÊN sheet (không cần gid) vì 2 tab này không có gid cố định sẵn trong code.
+// Đọc trực tiếp các tab trong Trading journal (nguồn duy nhất, ghi tay trong Sheet, app chỉ hiển thị).
+// Dùng gviz theo TÊN sheet (không cần gid) vì các tab này không có gid cố định sẵn trong code.
+// Cấu trúc đã chốt (10/2026): "Thời khóa biểu" = lịch tuần thật (Năm/Học kỳ/Timeline/Tuần/Buổi/Thứ2-CN);
+// "Mục lục sách" = 2 khối cạnh nhau: trái (A-F) = mục lục chương, phải (I-O) = roadmap theo Kỳ + YCCĐ;
+// "Tiến độ" = log đọc sách/ghi chú (trước đây tên "SÁCH").
 const TRJ_FILE_ID = "1Plih0CjiCJyOQNj6f7VfPa7vOn0Xh9cZOuGSu-aMGXg";
 function trjSheetCsvUrl(sheetName){
   return `https://docs.google.com/spreadsheets/d/${TRJ_FILE_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
 }
-const MUCLUC_KY_CSV     = trjSheetCsvUrl('THời khóa biểu');
-const MUCLUC_CHUONG_CSV = trjSheetCsvUrl('Mục lục sách');
+const TKB_SHEET_CSV     = trjSheetCsvUrl('Thời khóa biểu');
+const MUCLUC_SHEET_CSV  = trjSheetCsvUrl('Mục lục sách');
+const TIENDO_CSV        = trjSheetCsvUrl('Tiến độ');
+const MAUHINH_CSV       = trjSheetCsvUrl('Mẫu hình biểu đồ');
 let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {}, INOUT = [], IPOWER = [];
 let ONHAND_BANNER = { tongVon: 0, laiLoTrenGia: 0, laiLoTatToan: 0, tongVonGoc: 0 };
 let selectedFund = null;
@@ -1241,142 +1249,95 @@ function toggleTrdMode(){
   } catch(e){}
 })();
 
-// ---- Thời khoá biểu tuần — lưới Tuần x Buổi x Thứ, giống bảng Excel ----
-const TKB_DAYS   = ['T2','T3','T4','T5','T6','T7','CN'];
-const TKB_JSDAY  = { 'T2':1,'T3':2,'T4':3,'T5':4,'T6':5,'T7':6,'CN':0 };
-const TKB_START  = new Date(2026,8,29); // Thứ 2, 29/9/2026 = tuần 1 HK2
-// lịch làm việc thật KHÔNG cố định theo thứ, đổi theo tháng — At Work bật/tắt
-// tay từng ô, từng tuần (xem tkbDefaultAtWork/tkbGetAtWork/tkbToggleCell bên dưới)
-
-// nội dung TA (Nison)/FA (Fisher) từng tuần — cập nhật dần theo kỳ đang học
-const TKB_WEEK_CONTENT = [
-  { ta:'Chương 1-2',              fa:'Phần I, mục 1-3' },
-  { ta:'Chương 3',                fa:'Phần I, mục 4-6' },
-  { ta:'Chương 4 (P1)',           fa:'Phần I, mục 7-9' },
-  { ta:'Chương 4 (P2)',           fa:'Phần I, mục 10-11' },
-  { ta:'Chương 4 (P3)',           fa:'Phần II, mục 1-3' },
-  { ta:'Chương 5 (P1)',           fa:'Phần II, mục 4-6' },
-  { ta:'Chương 5 (P2)',           fa:'Phần III, mục 1-2' },
-  { ta:'Chương 6',                fa:'Phần III, mục 3-4' },
-  { ta:'Chương 7',                fa:'Phụ lục' },
-  { ta:'Chương 8 (P1)',           fa:'Ôn tập & áp dụng' },
-  { ta:'Chương 8 (P2)',           fa:'Ôn tập & áp dụng' },
-  { ta:'Chương 9 (P1)',           fa:'Ôn tập & áp dụng' },
-  { ta:'Chương 9 (P2) + Backtest',fa:'Ôn tập & áp dụng' }
+// ---- Thời khoá biểu tuần — ĐỌC THẬT từ tab "Thời khóa biểu" (Năm/Học kỳ/Timeline/Tuần/Buổi/Thứ2-CN) ----
+// Không còn hardcode nội dung/At Work trong JS — sheet là nguồn duy nhất, app chỉ hiển thị.
+// Sửa lịch/At Work/nội dung tuần nào thì sửa thẳng trong sheet "Thời khóa biểu".
+const TKB_DAY_COLS = [
+  {col:'Thứ 2', label:'T2', jsday:1},
+  {col:'Thứ 3', label:'T3', jsday:2},
+  {col:'Thứ 4', label:'T4', jsday:3},
+  {col:'Thứ 5', label:'T5', jsday:4},
+  {col:'Thứ 6', label:'T6', jsday:5},
+  {col:'Thứ 7', label:'T7', jsday:6},
+  {col:'CN',    label:'CN', jsday:0}
 ];
+const TKB_BUOI_ORDER = ['Sáng','Chiều','Tối'];
 
-function tkbWeekOfDate(date){
-  const diff = Math.floor((date - TKB_START) / 86400000 / 7);
-  return Math.min(Math.max(diff,0), TKB_WEEK_CONTENT.length - 1);
-}
-function tkbWeekDates(idx){
-  const mon = new Date(TKB_START.getTime() + idx*7*86400000);
-  const sun = new Date(mon.getTime() + 6*86400000);
-  const f = d => `${d.getDate()}/${d.getMonth()+1}`;
-  return `Tuần ${idx+1}\n(${f(mon)}-${f(sun)})`;
-}
+let tkbWeeksData = [];       // [{tuan, nam, hocky, timeline, start, end, rows:{Sáng:{...},Chiều:{...},Tối:{...}}}]
+let tkbLoadState = 'loading'; // 'loading' | 'ok' | 'error' | 'empty'
+let tkbViewWeekKey = null;    // key = tuan (string/number) đang xem
 
-function tkbCell(buoi, day, wc){
-  const ta = wc.ta, fa = wc.fa;
-  const map = {
-    'Sáng': {
-      T2:{text:`Nến nhật - ${ta}\n(1h)`, action:"selectTrnTab('sach')"},
-      T3:{text:`FA - ${fa}\nBacktest (3h)`, action:"selectTrnTab('sach')"},
-      T4:{text:`Nến nhật - ${ta}\n(1h)`, action:"selectTrnTab('sach')"},
-      T5:{text:`Nến nhật - ${ta}\nIntraday-Mẫu hình (3h)`, action:"selectTrnTab('intraday')"},
-      T6:{text:`Nến nhật - ${ta}\n(1h)`, action:"selectTrnTab('sach')"},
-      T7:{text:`FA - ${fa}\nPhản biện AI (3h)`, action:"selectTrnTab('sach')"},
-      CN:{text:'Cập nhật Market Filter\n(1h)', action:"document.getElementById('trn-mf').scrollIntoView({behavior:'smooth'})"}
-    },
-    'Chiều': {
-      T2:{text:'(trống)', action:null},
-      T3:{text:'Case study\nPhản biện AI (3h)', action:"selectTrnTab('sach')"},
-      T4:{text:'(trống)', action:null},
-      T5:{text:`FA - ${fa}\nPhản biện AI (3h)`, action:"selectTrnTab('sach')"},
-      T6:{text:'(trống)', action:null},
-      T7:{text:'(trống)', action:null},
-      CN:{text:'Mẫu hình\nBacktest (3h)', action:"selectTrnTab('mauhinh')"}
-    },
-    'Tối': {
-      T2:{text:'Intraday + Broker live\nMẫu hình (1.5h)', action:"selectTrnTab('intraday')"},
-      T3:{text:'Intraday + Broker live\nMẫu hình (1.5h)', action:"selectTrnTab('intraday')"},
-      T4:{text:'Intraday + Broker live\nMẫu hình (1.5h)', action:"selectTrnTab('intraday')"},
-      T5:{text:'Intraday + Broker live\n(1.5h)', action:"selectTrnTab('intraday')"},
-      T6:{text:'Intraday + Broker live\nMẫu hình (1.5h)', action:"selectTrnTab('intraday')"},
-      T7:{text:'(trống)', action:null},
-      CN:{text:'Review + Broker live\n(1.5h)', action:"selectTrdTab('execution')"}
-    }
-  };
-  return map[buoi][day];
-}
-
-// ---- At Work: bật/tắt tay từng ô, từng tuần — lịch làm đổi theo tháng ----
-function tkbDefaultAtWork(buoi, day){
-  // chỉ dùng làm gợi ý ban đầu cho tuần chưa từng chỉnh tay, KHÔNG cố định
-  return (buoi==='Chiều' && ['T2','T4','T6','T7'].includes(day)) || (buoi==='Tối' && day==='T7');
-}
-function tkbAtWorkStore(){
-  try { return JSON.parse(localStorage.getItem('tkbAtWork')||'{}'); } catch(e){ return {}; }
-}
-function tkbAtWorkKey(week,buoi,day){ return `${week}_${buoi}_${day}`; }
-function tkbGetAtWork(week,buoi,day){
-  const store = tkbAtWorkStore();
-  const k = tkbAtWorkKey(week,buoi,day);
-  if (Object.prototype.hasOwnProperty.call(store,k)) return !!store[k];
-  return tkbDefaultAtWork(buoi,day);
-}
-function tkbToggleCell(week,buoi,day){
-  if (!tkbEditMode) return;
-  const store = tkbAtWorkStore();
-  const k = tkbAtWorkKey(week,buoi,day);
-  const cur = tkbGetAtWork(week,buoi,day);
-  store[k] = !cur;
-  try { localStorage.setItem('tkbAtWork', JSON.stringify(store)); } catch(e){}
-  renderTKB();
-}
-let tkbEditMode = false;
-function tkbToggleEditMode(){
-  tkbEditMode = !tkbEditMode;
-  renderTKB();
-}
-
-function tkbGoToWeek(idx){
-  try { localStorage.setItem('tkbViewWeek', String(idx)); } catch(e){}
-  renderTKB();
-}
-
-// ---- Thông tin Kỳ/Sách/YCCĐ hiện tại — lấy từ tab "Thời khoá biểu" ----
-// GIẢ ĐỊNH: mỗi Kỳ dài 26 tuần, nối tiếp nhau từ TKB_START — sheet chưa có cột ngày
-// bắt đầu/kết thúc thật cho từng Kỳ. Nếu giả định này sai, thêm cột ngày vào sheet
-// và sửa lại tkbCurrentKyLabel() để đọc ngày thật thay vì suy ra theo số tuần.
-const KY_SEQUENCE = ['HK2 2026','HK1 2027','HK2 2027','HK1 2028','HK2 2028','HK1 2029','HK2 2029','HK1 2030'];
-const KY_WEEKS = 26;
-function tkbCurrentKyLabel(date){
-  const diffWeeks = Math.floor((date - TKB_START) / (7*86400000));
-  let idx = Math.floor(diffWeeks / KY_WEEKS);
-  idx = Math.max(0, Math.min(idx, KY_SEQUENCE.length - 1));
-  return KY_SEQUENCE[idx];
-}
-let tkbKyInfo = null, tkbKyInfoState = 'loading'; // 'loading' | 'ok' | 'error' | 'empty'
-async function tkbLoadKyInfo(){
-  const kyLabel = tkbCurrentKyLabel(new Date());
+function tkbParseTimeline(timeline, nam){
+  // "5/10-11/10" + nam=2026 -> {start:Date, end:Date}
   try {
-    const rows = await fetchCSVRaw(MUCLUC_KY_CSV);
-    const headerIdx = rows.findIndex(r => (r[0]||'').trim() === 'Kỳ');
-    const data = headerIdx >= 0 ? rowsToObjects(rows, headerIdx) : [];
-    tkbKyInfo = data.find(r => (r['Kỳ']||'').trim() === kyLabel) || null;
-    tkbKyInfoState = tkbKyInfo ? 'ok' : 'empty';
+    const [a,b] = (timeline||'').split('-').map(s=>s.trim());
+    const [d1,m1] = a.split('/').map(Number);
+    const [d2,m2] = b.split('/').map(Number);
+    const y = +nam || new Date().getFullYear();
+    const start = new Date(y, m1-1, d1);
+    let endYear = y;
+    if (m2 < m1) endYear = y + 1; // tuần vắt năm (31/12-6/1)
+    const end = new Date(endYear, m2-1, d2, 23,59,59);
+    return {start, end};
+  } catch(e){ return {start:null, end:null}; }
+}
+
+async function tkbLoadData(){
+  try {
+    const data = await fetchCSV(TKB_SHEET_CSV);
+    const byWeek = {};
+    const order = [];
+    data.forEach(r => {
+      const tuan = (r['Tuần']||'').trim();
+      const buoi = (r['Buổi']||'').trim();
+      if (!tuan || !buoi) return;
+      if (!byWeek[tuan]){
+        byWeek[tuan] = {
+          tuan, nam: r['Năm']||'', hocky: r['Học kỳ']||'', timeline: r['Timeline']||'',
+          rows: {}
+        };
+        order.push(tuan);
+      }
+      const cells = {};
+      TKB_DAY_COLS.forEach(dc => { cells[dc.col] = (r[dc.col]||'').trim(); });
+      byWeek[tuan].rows[buoi] = cells;
+    });
+    tkbWeeksData = order.map(k => {
+      const w = byWeek[k];
+      const {start,end} = tkbParseTimeline(w.timeline, w.nam);
+      return {...w, start, end};
+    });
+    tkbLoadState = tkbWeeksData.length ? 'ok' : 'empty';
   } catch(e){
-    tkbKyInfoState = 'error';
+    tkbLoadState = 'error';
   }
   renderTKB();
 }
-function tkbKyInfoHtml(){
-  if (tkbKyInfoState === 'loading') return `Đang tải thông tin kỳ học...`;
-  if (tkbKyInfoState === 'error') return `Không tải được thông tin kỳ học từ sheet "Thời khoá biểu".`;
-  if (tkbKyInfoState === 'empty' || !tkbKyInfo) return `Chưa có dòng "${tkbCurrentKyLabel(new Date())}" trong sheet "Thời khoá biểu".`;
-  return `<b>${tkbKyInfo['Kỳ']}</b> · Sách TA: ${tkbKyInfo['Sách TA']||'—'} · Sách FA: ${tkbKyInfo['Sách FA']||'—'}
-    <div class="tkb-ky-yccd">YCCĐ: ${tkbKyInfo['Tiêu chuẩn FA']||'—'}</div>`;
+
+function tkbFindCurrentWeekKey(){
+  const today = new Date();
+  const hit = tkbWeeksData.find(w => w.start && w.end && today >= w.start && today <= w.end);
+  if (hit) return hit.tuan;
+  // không tuần nào khớp ngày hôm nay (quá khứ/tương lai) — chọn tuần gần nhất đã qua, hoặc tuần đầu tiên
+  const past = tkbWeeksData.filter(w => w.start && w.start <= today);
+  if (past.length) return past[past.length-1].tuan;
+  return tkbWeeksData.length ? tkbWeeksData[0].tuan : null;
+}
+
+function tkbCellAction(text){
+  if (!text || text === 'At Work' || /^updating$/i.test(text)) return null;
+  if (/Intraday/i.test(text)) return "selectTrnTab('intraday')";
+  if (/Mẫu hình/i.test(text)) return "selectTrnTab('mauhinh')";
+  if (/Market Filter/i.test(text)) return "document.getElementById('trn-mf').scrollIntoView({behavior:'smooth'})";
+  if (/Broker live|Review/i.test(text)) return "selectTrdTab('execution')";
+  if (/FA |Nến nhật|Backtest|Phản biện AI|Case study/i.test(text)) return "selectTrnTab('sach')";
+  return null;
+}
+
+function tkbGoToWeek(tuanKey){
+  tkbViewWeekKey = tuanKey;
+  try { localStorage.setItem('tkbViewWeekKey', String(tuanKey)); } catch(e){}
+  renderTKB();
 }
 
 function renderTKB(){
@@ -1384,41 +1345,46 @@ function renderTKB(){
   const wksel = document.getElementById('tkb-weeksel');
   if (!table || !wksel) return;
 
-  const curWeek = tkbWeekOfDate(new Date());
-  let viewWeek = curWeek;
-  try { const v = localStorage.getItem('tkbViewWeek'); if (v !== null) viewWeek = Math.min(Math.max(+v,0), TKB_WEEK_CONTENT.length-1); } catch(e){}
+  if (tkbLoadState === 'loading'){ wksel.innerHTML = 'Đang tải thời khoá biểu...'; table.innerHTML = ''; return; }
+  if (tkbLoadState === 'error'){ wksel.innerHTML = `Không tải được tab "Thời khóa biểu".`; table.innerHTML = ''; return; }
+  if (tkbLoadState === 'empty'){ wksel.innerHTML = `Tab "Thời khóa biểu" chưa có dữ liệu.`; table.innerHTML = ''; return; }
 
-  const weekOptions = TKB_WEEK_CONTENT.map((_,i) =>
-    `<option value="${i}" ${i===viewWeek?'selected':''}>Tuần ${i+1}${i===curWeek?' (hiện tại)':''}</option>`
+  const curWeekKey = tkbFindCurrentWeekKey();
+  if (tkbViewWeekKey === null){
+    try { const v = localStorage.getItem('tkbViewWeekKey'); if (v !== null && tkbWeeksData.some(w=>String(w.tuan)===v)) tkbViewWeekKey = v; } catch(e){}
+  }
+  if (tkbViewWeekKey === null || !tkbWeeksData.some(w=>String(w.tuan)===String(tkbViewWeekKey))) tkbViewWeekKey = curWeekKey;
+
+  const weekOptions = tkbWeeksData.map(w =>
+    `<option value="${w.tuan}" ${String(w.tuan)===String(tkbViewWeekKey)?'selected':''}>Tuần ${w.tuan} (${w.timeline})${String(w.tuan)===String(curWeekKey)?' — hiện tại':''}</option>`
   ).join('');
   wksel.innerHTML = `
     <label class="tkb-weeksel-label">Tuần thứ:
-      <select onchange="tkbGoToWeek(+this.value)">${weekOptions}</select>
-    </label>
-    <button class="${tkbEditMode?'on':''}" style="margin-left:8px;" onclick="tkbToggleEditMode()">${tkbEditMode ? '✓ Đang sửa At Work — bấm ô để đổi' : '✎ Sửa At Work'}</button>
-    <div class="tkb-ky-info" id="tkb-ky-info">${tkbKyInfoHtml()}</div>`;
+      <select onchange="tkbGoToWeek(this.value)">${weekOptions}</select>
+    </label>`;
 
-  const wc = TKB_WEEK_CONTENT[viewWeek];
+  const w = tkbWeeksData.find(x => String(x.tuan) === String(tkbViewWeekKey));
   const todayJs = new Date().getDay();
-  const isCurWeek = viewWeek === curWeek;
+  const isCurWeek = String(w.tuan) === String(curWeekKey);
 
-  let html = `<thead><tr><th>Tuần</th><th>Buổi</th>${TKB_DAYS.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
-  ['Sáng','Chiều','Tối'].forEach((buoi,bi) => {
+  let html = `<thead><tr><th>Tuần</th><th>Buổi</th>${TKB_DAY_COLS.map(d=>`<th>${d.label}</th>`).join('')}</tr></thead><tbody>`;
+  TKB_BUOI_ORDER.forEach((buoi,bi) => {
+    const rowCells = w.rows[buoi];
     html += `<tr>`;
-    if (bi===0) html += `<td class="wk${isCurWeek?' curwk':''}" rowspan="3">${tkbWeekDates(viewWeek)}</td>`;
+    if (bi===0) html += `<td class="wk${isCurWeek?' curwk':''}" rowspan="3">Tuần ${w.tuan}\n(${w.timeline})</td>`;
     html += `<td class="buoi">${buoi}</td>`;
-    TKB_DAYS.forEach(d => {
-      const c = tkbCell(buoi, d, wc);
-      const atWork = tkbGetAtWork(viewWeek, buoi, d);
-      const todayCls = (isCurWeek && TKB_JSDAY[d]===todayJs) ? ' style="outline:2px solid var(--moss);outline-offset:-2px;"' : '';
-      if (atWork){
-        const onclick = tkbEditMode ? `onclick="tkbToggleCell(${viewWeek},'${buoi}','${d}')"` : '';
-        html += `<td${todayCls}><button class="tkb-cell atwork" ${onclick}>At Work</button></td>`;
+    TKB_DAY_COLS.forEach(dc => {
+      const text = rowCells ? (rowCells[dc.col]||'') : '';
+      const todayCls = (isCurWeek && dc.jsday===todayJs) ? ' style="outline:2px solid var(--moss);outline-offset:-2px;"' : '';
+      if (text === 'At Work'){
+        html += `<td${todayCls}><button class="tkb-cell atwork">At Work</button></td>`;
+      } else if (!text){
+        html += `<td${todayCls}><button class="tkb-cell" disabled>—</button></td>`;
       } else {
-        const onclick = tkbEditMode
-          ? `onclick="tkbToggleCell(${viewWeek},'${buoi}','${d}')"`
-          : (c.action ? `onclick="${c.action}"` : '');
-        html += `<td${todayCls}><button class="tkb-cell" ${onclick}>${c.text}</button></td>`;
+        const action = tkbCellAction(text);
+        const onclick = action ? `onclick="${action}"` : '';
+        const cls = /^updating$/i.test(text) ? 'tkb-cell tkb-cell-updating' : 'tkb-cell';
+        html += `<td${todayCls}><button class="${cls}" ${onclick}>${text}</button></td>`;
       }
     });
     html += `</tr>`;
@@ -1427,8 +1393,7 @@ function renderTKB(){
   table.innerHTML = html;
 }
 
-document.addEventListener('DOMContentLoaded', renderTKB);
-document.addEventListener('DOMContentLoaded', tkbLoadKyInfo);
+document.addEventListener('DOMContentLoaded', tkbLoadData);
 
 // ---- Market Filter — đọc từ sheet Trading journal riêng, hiện trong Training ----
 function mfBlockRows(rows, startLabel){
@@ -1579,14 +1544,54 @@ const TRN_ITEMS = [
 let trnActiveKey = 'sach';
 
 function trnGetProgress(){
+  let p;
   try {
     const raw = localStorage.getItem('trnProgressMock');
-    if (raw) return JSON.parse(raw);
-  } catch(e){}
-  return { sach:6, mauhinh:5, intraday:4, demo:0 }; // mock mặc định theo mẫu
+    p = raw ? JSON.parse(raw) : { sach:0, mauhinh:5, intraday:4, demo:0 };
+  } catch(e){ p = { sach:0, mauhinh:5, intraday:4, demo:0 }; }
+  // "sach" (Tiến độ) và "mauhinh" (Mẫu hình) là điểm THẬT đọc từ sheet — ghi đè giá trị local nếu đã tải xong.
+  if (tienDoCount !== null) p.sach = tienDoCount;
+  if (mauHinhCount !== null) p.mauhinh = mauHinhCount;
+  return p;
 }
 function trnSaveProgress(p){
   try { localStorage.setItem('trnProgressMock', JSON.stringify(p)); } catch(e){}
+}
+
+// ---- Tiến độ (trước đây "SÁCH") — điểm THẬT = số dòng đã log trong tab "Tiến độ", tối đa 10/10 ----
+// Công thức tạm: 1 điểm / 1 dòng log hợp lệ, tối đa 10. Sheet hiện chưa có dữ liệu nên sẽ ra 0/10 —
+// đúng thực tế (chưa bắt đầu ghi), không phải lỗi. Đổi công thức (vd theo cột "Đánh giá") khi có dữ liệu thật.
+let tienDoCount = null, tienDoState = 'loading'; // null = chưa tải
+async function loadTienDo(){
+  try {
+    const rows = await fetchCSVRaw(TIENDO_CSV);
+    const headerIdx = rows.findIndex(r => (r[0]||'').trim() === 'Ngày');
+    const data = headerIdx >= 0 ? rowsToObjects(rows, headerIdx) : [];
+    const validRows = data.filter(r => Object.values(r).some(v => (v||'').trim()));
+    tienDoCount = Math.min(10, validRows.length);
+    tienDoState = 'ok';
+  } catch(e){
+    tienDoCount = 0;
+    tienDoState = 'error';
+  }
+  renderTrnBars();
+}
+
+// ---- Mẫu hình — cùng công thức: 1 điểm / 1 dòng log trong tab "Mẫu hình biểu đồ", tối đa 10/10 ----
+let mauHinhCount = null, mauHinhState = 'loading';
+async function loadMauHinh(){
+  try {
+    const rows = await fetchCSVRaw(MAUHINH_CSV);
+    const headerIdx = rows.findIndex(r => (r[0]||'').trim() === 'Ngày');
+    const data = headerIdx >= 0 ? rowsToObjects(rows, headerIdx) : [];
+    const validRows = data.filter(r => Object.values(r).some(v => (v||'').trim()));
+    mauHinhCount = Math.min(10, validRows.length);
+    mauHinhState = 'ok';
+  } catch(e){
+    mauHinhCount = 0;
+    mauHinhState = 'error';
+  }
+  renderTrnBars();
 }
 
 function renderTrnBars(){
@@ -1645,6 +1650,21 @@ function renderTrnDetail(){
     return;
   }
   const v = p[it.key] || 0;
+  const realKeyMeta = {
+    sach:    { sheetName: 'Tiến độ',             state: tienDoState },
+    mauhinh: { sheetName: 'Mẫu hình biểu đồ',    state: mauHinhState }
+  };
+  if (realKeyMeta[it.key]){
+    const meta = realKeyMeta[it.key];
+    const errNote = meta.state === 'error' ? `<div class="trn-note" style="color:var(--rose,#c0392b);">Không tải được tab "${meta.sheetName}" — đang hiện 0/10 tạm thời.</div>` : '';
+    el.innerHTML = `
+      <h4>${it.label}</h4>
+      <div class="trn-counter-row"><span class="num">${v}/10</span></div>
+      <div class="trn-note">Điểm thật — đếm số dòng đã ghi trong tab "${meta.sheetName}" (tối đa 10). Ghi thêm dòng mới trực tiếp trong sheet, app tự cập nhật khi tải lại trang.</div>
+      ${errNote}
+    `;
+    return;
+  }
   el.innerHTML = `
     <h4>${it.label}</h4>
     <div class="trn-counter-row">
@@ -1652,7 +1672,7 @@ function renderTrnDetail(){
       <span class="num">${v}/10</span>
       <button onclick="trnAdjust(1)" ${v>=10?'disabled':''}>+</button>
     </div>
-    <div class="trn-note">Mockup — tăng/giảm tạm lưu trên thiết bị này. Khi có sheet Training thật sẽ nối vào đây.</div>
+    <div class="trn-note">Mockup — tăng/giảm tạm lưu trên thiết bị này. Chưa có dữ liệu thật cho mục này.</div>
   `;
 }
 
@@ -1665,30 +1685,39 @@ function trnAdjust(delta){
 
 document.addEventListener('DOMContentLoaded', renderTrnBars);
 document.addEventListener('DOMContentLoaded', loadMF);
+document.addEventListener('DOMContentLoaded', loadTienDo);
+document.addEventListener('DOMContentLoaded', loadMauHinh);
 
-// ---- Mục lục sách: 1) lịch học từng kỳ + YCCĐ (tab "Thời khoá biểu")  ----
-// ----              2) mục lục chi tiết từng chương (tab "Mục lục sách") ----
+// ---- Mục lục sách: 1 sheet, 2 khối cạnh nhau ----
+// Khối trái (cột A-F, header ở dòng 2): Loại hình/Cuốn/Chương/Tiêu đề/Độ khó/Tuần
+// Khối phải (cột I-O, header ở dòng 1): Kỳ/Sách TA/Mẫu hình/Intraday/Demo/Sách FA/Tiêu chuẩn FA
+function subTableFromCols(rows, headerRowIdx, colStart, colCount){
+  const header = (rows[headerRowIdx]||[]).slice(colStart, colStart+colCount).map(h=>(h||'').trim());
+  const data = [];
+  for (let i = headerRowIdx+1; i < rows.length; i++){
+    const slice = (rows[i]||[]).slice(colStart, colStart+colCount);
+    if (slice.every(c => !c || !c.trim())) break; // dừng ở dòng trống đầu tiên trong vùng cột này
+    const obj = {};
+    header.forEach((h,idx) => obj[h] = (slice[idx]||'').trim());
+    data.push(obj);
+  }
+  return data;
+}
+
 let mucLucLoaded = false;
 async function loadMucLucSach(){
   if (mucLucLoaded) return;
   mucLucLoaded = true;
   try {
-    const kyRows = await fetchCSVRaw(MUCLUC_KY_CSV);
-    const kyHeaderIdx = kyRows.findIndex(r => (r[0]||'').trim() === 'Kỳ');
-    const kyData = kyHeaderIdx >= 0 ? rowsToObjects(kyRows, kyHeaderIdx) : [];
+    const rows = await fetchCSVRaw(MUCLUC_SHEET_CSV);
+    const kyData     = subTableFromCols(rows, 0, 8, 7); // I:O
+    const chuongData = subTableFromCols(rows, 1, 0, 6); // A:F
     renderMucLucKy(kyData);
-  } catch(e){
-    document.getElementById('trn-mucluc-ky').innerHTML =
-      `<div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div><div class="why">Không tải được tab "Thời khoá biểu": ${e.message}</div>`;
-  }
-  try {
-    const chuongRows = await fetchCSVRaw(MUCLUC_CHUONG_CSV);
-    const chuongHeaderIdx = chuongRows.findIndex(r => (r[0]||'').trim() === 'Loại hình');
-    const chuongData = chuongHeaderIdx >= 0 ? rowsToObjects(chuongRows, chuongHeaderIdx) : [];
     renderMucLucChuong(chuongData);
   } catch(e){
-    document.getElementById('trn-mucluc-chuong').innerHTML =
-      `<div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div><div class="why">Không tải được tab "Mục lục sách": ${e.message}</div>`;
+    const msg = `<div class="why">Không tải được tab "Mục lục sách": ${e.message}</div>`;
+    document.getElementById('trn-mucluc-ky').innerHTML = `<div class="trn-mf-head"><h4>Lịch học từng kỳ — Yêu cầu cần đạt</h4></div>${msg}`;
+    document.getElementById('trn-mucluc-chuong').innerHTML = `<div class="trn-mf-head"><h4>Mục lục sách — chi tiết từng chương</h4></div>${msg}`;
   }
 }
 
