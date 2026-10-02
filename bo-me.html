@@ -1577,6 +1577,57 @@ async function loadTienDo(){
   renderTrnBars();
 }
 
+// ---- Ghi 1 dòng tiến độ ngay trong app — Apps Script RIÊNG, gắn thẳng vào file Trading journal ----
+// (tách biệt với APPS_SCRIPT_URL/PRICE_UPDATE_URL ở trên — những cái đó ghi vào Trading_record, file khác)
+const TRJ_WRITE_URL  = 'https://script.google.com/macros/s/AKfycbyMpQ5dYtOrJaIJNm7QT0sLFzmBoiaLDxLIk5hn3_Okb1bTfu7Yzi3t_MQLiH-umRkxOg/exec';
+const TRJ_SECRET_KEY = 'tung-tkb-2026'; // phải khớp đúng SECRET_KEY trong Apps Script — sửa lại nếu bạn đổi khác
+
+function tienDoSaveEntry(){
+  const ngay = document.getElementById('tdNgay').value || '';
+  const namHoc = document.getElementById('tdNamHoc').value || '';
+  const kyHoc = document.getElementById('tdKyHoc').value || '';
+  const sach = document.getElementById('tdSach').value || '';
+  const chuong = document.getElementById('tdChuong').value || '';
+  const ghiChu = document.getElementById('tdGhiChu').value || '';
+  const phanBien = document.getElementById('tdPhanBien').value || '';
+  const ketLuan = document.getElementById('tdKetLuan').value || '';
+  const danhGia = document.getElementById('tdDanhGia').value || '';
+  const noteEl = document.getElementById('tdSaveNote');
+  const btn = document.getElementById('tdSaveBtn');
+
+  if (!ngay || !sach || !chuong){
+    noteEl.style.color = 'var(--danger)';
+    noteEl.textContent = 'Thiếu Ngày / Sách đang đọc / Chương-Phần.';
+    return;
+  }
+
+  btn.disabled = true;
+  noteEl.style.color = 'var(--muted)';
+  noteEl.textContent = 'Đang lưu...';
+
+  jsonpRequest(TRJ_WRITE_URL, {
+    key: TRJ_SECRET_KEY,
+    action: 'addTienDo',
+    ngay: ngay, namHoc: namHoc, kyHoc: kyHoc, sach: sach, chuong: chuong,
+    ghiChu: ghiChu, phanBien: phanBien, ketLuan: ketLuan, danhGia: danhGia
+  }, function(err, data){
+    btn.disabled = false;
+    if (err || !data || !data.success){
+      noteEl.style.color = 'var(--danger)';
+      noteEl.textContent = 'Lỗi: ' + (err ? err.message : ((data && data.error) || 'không rõ — kiểm tra lại key/deploy.'));
+      return;
+    }
+    noteEl.style.color = 'var(--moss)';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + '.';
+    document.getElementById('tdChuong').value = '';
+    document.getElementById('tdGhiChu').value = '';
+    document.getElementById('tdPhanBien').value = '';
+    document.getElementById('tdKetLuan').value = '';
+    document.getElementById('tdDanhGia').value = '';
+    loadTienDo();
+  });
+}
+
 // ---- Mẫu hình — cùng công thức: 1 điểm / 1 dòng log trong tab "Mẫu hình biểu đồ", tối đa 10/10 ----
 let mauHinhCount = null, mauHinhState = 'loading';
 async function loadMauHinh(){
@@ -1650,17 +1701,50 @@ function renderTrnDetail(){
     return;
   }
   const v = p[it.key] || 0;
-  const realKeyMeta = {
-    sach:    { sheetName: 'Tiến độ',             state: tienDoState },
-    mauhinh: { sheetName: 'Mẫu hình biểu đồ',    state: mauHinhState }
-  };
-  if (realKeyMeta[it.key]){
-    const meta = realKeyMeta[it.key];
-    const errNote = meta.state === 'error' ? `<div class="trn-note" style="color:var(--rose,#c0392b);">Không tải được tab "${meta.sheetName}" — đang hiện 0/10 tạm thời.</div>` : '';
+
+  if (it.key === 'sach'){
+    const errNote = tienDoState === 'error' ? `<div class="trn-note" style="color:var(--rose,#c0392b);">Không tải được tab "Tiến độ" — đang hiện 0/10 tạm thời.</div>` : '';
+    const today = new Date().toISOString().slice(0,10);
     el.innerHTML = `
       <h4>${it.label}</h4>
       <div class="trn-counter-row"><span class="num">${v}/10</span></div>
-      <div class="trn-note">Điểm thật — đếm số dòng đã ghi trong tab "${meta.sheetName}" (tối đa 10). Ghi thêm dòng mới trực tiếp trong sheet, app tự cập nhật khi tải lại trang.</div>
+      <div class="trn-note">Điểm thật — đếm số dòng đã ghi trong tab "Tiến độ" (tối đa 10).</div>
+      ${errNote}
+
+      <div class="exec-form-card" style="margin-top:14px;">
+        <h3>+ Ghi tiến độ đọc sách</h3>
+        <div class="exec-form-row">
+          <div class="exec-form-field"><label>Ngày</label><input type="date" id="tdNgay" value="${today}"></div>
+          <div class="exec-form-field"><label>Năm học</label><input type="text" id="tdNamHoc" placeholder="2026"></div>
+          <div class="exec-form-field"><label>Kỳ học</label><input type="text" id="tdKyHoc" placeholder="HK2 2026"></div>
+        </div>
+        <div class="exec-form-row">
+          <div class="exec-form-field" style="flex:2;"><label>Sách đang đọc</label><input type="text" id="tdSach" placeholder="Nison – Nến Nhật"></div>
+          <div class="exec-form-field"><label>Chương/Phần</label><input type="text" id="tdChuong" placeholder="Chương 1"></div>
+        </div>
+        <div class="exec-form-row">
+          <div class="exec-form-field" style="flex:1;"><label>Tự ghi chú</label><textarea id="tdGhiChu" rows="2" placeholder="Ý chính rút ra..."></textarea></div>
+        </div>
+        <div class="exec-form-row">
+          <div class="exec-form-field" style="flex:1;"><label>Phản biện AI</label><textarea id="tdPhanBien" rows="2" placeholder="Hỏi Claude phản biện, dán lại tóm tắt..."></textarea></div>
+        </div>
+        <div class="exec-form-row">
+          <div class="exec-form-field" style="flex:2;"><label>Kết luận</label><input type="text" id="tdKetLuan" placeholder="Áp dụng được gì..."></div>
+          <div class="exec-form-field"><label>Đánh giá (1-10)</label><input type="number" id="tdDanhGia" min="1" max="10" step="1" placeholder="8"></div>
+        </div>
+        <button class="exec-btn-save" id="tdSaveBtn" onclick="tienDoSaveEntry()">Lưu dòng tiến độ</button>
+        <div class="exec-save-note" id="tdSaveNote"></div>
+      </div>
+    `;
+    return;
+  }
+
+  if (it.key === 'mauhinh'){
+    const errNote = mauHinhState === 'error' ? `<div class="trn-note" style="color:var(--rose,#c0392b);">Không tải được tab "Mẫu hình biểu đồ" — đang hiện 0/10 tạm thời.</div>` : '';
+    el.innerHTML = `
+      <h4>${it.label}</h4>
+      <div class="trn-counter-row"><span class="num">${v}/10</span></div>
+      <div class="trn-note">Điểm thật — đếm số dòng đã ghi trong tab "Mẫu hình biểu đồ" (tối đa 10). Ghi thêm dòng mới trực tiếp trong sheet lúc này — form ngay trong app sẽ làm sau, theo đúng thứ tự bạn chọn (Tiến độ trước).</div>
       ${errNote}
     `;
     return;
