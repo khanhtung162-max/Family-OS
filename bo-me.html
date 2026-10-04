@@ -750,6 +750,7 @@
               <div class="subj-tab" data-trnkey="mauhinh" onclick="selectTrnTab('mauhinh')">Mẫu hình</div>
               <div class="subj-tab" data-trnkey="intraday" onclick="selectTrnTab('intraday')">Intraday</div>
               <div class="subj-tab" data-trnkey="demo" onclick="selectTrnTab('demo')">Demo</div>
+              <div class="subj-tab" data-trnkey="demorec" onclick="selectTrnTab('demorec')">Ghi Demo</div>
               <div class="subj-tab" data-trnkey="muclucsach" onclick="selectTrnTab('muclucsach')">Mục lục sách</div>
             </div>
 
@@ -2080,9 +2081,153 @@ function selectTrnTab(key){
   renderTrnDetail();
 }
 
+// ---- Ghi lệnh Demo (tab Training → "Ghi Demo") — ghi vào tab "Demo trading" của Trading journal ----
+// Cùng mẫu bảng + cùng thẻ bối cảnh với Execution (tiền thật). Demo KHÔNG bị giới hạn bởi đèn thị trường:
+// bối cảnh chỉ được chụp lại để sau này đo hệ có edge ở mọi pha thị trường. Không phụ thuộc "khoá Demo" ở tiến độ.
+// Apps Script: Trading journal (TRJ_WRITE_URL), action addDemoTrade + getTradeContext.
+let dmLoai = 'Mua';
+let dmChk = { w: null, m: null, e: null };
+let dmEmo = null;
+
+function dmToday(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function renderDemoRec(el){
+  el.innerHTML = `
+    <h4>Ghi lệnh Demo</h4>
+    <div class="trn-note">Ghi vào tab "Demo trading" (Trading journal), cùng mẫu với In-out. Demo không bị chặn bởi đèn thị trường — bối cảnh chỉ để đo sau này.</div>
+    <div class="exec-form-card" style="margin-top:14px;">
+      <h3>+ Lệnh demo</h3>
+      <div class="exec-toggle-row">
+        <button class="exec-toggle-btn on" id="dmToggleMua" onclick="dmSetLoai('Mua')">Mua</button>
+        <button class="exec-toggle-btn" id="dmToggleBan" onclick="dmSetLoai('Bán')">Bán</button>
+      </div>
+      <div class="exec-form-row">
+        <div class="exec-form-field"><label>Ngày thực hiện</label><input type="date" id="dmNgay" value="${dmToday()}"></div>
+        <div class="exec-form-field"><label>Mã CP</label><input type="text" id="dmMa" placeholder="VD: SSI" style="text-transform:uppercase;" oninput="bctxSchedule('dm')"></div>
+      </div>
+
+      <div class="bctx-card" id="dmBctx" style="display:none;"></div>
+
+      <div id="dmChkBlock">
+        <div class="exec-chk-row">
+          <div class="exec-chk-label">W trend thuận?</div>
+          <div class="exec-chk-btns">
+            <button class="exec-chk-btn yes" data-dq="w" data-dv="Có" onclick="dmSetChk('w','Có')">Có</button>
+            <button class="exec-chk-btn no" data-dq="w" data-dv="Không" onclick="dmSetChk('w','Không')">Không</button>
+          </div>
+        </div>
+        <div class="exec-chk-row">
+          <div class="exec-chk-label">D1 MACD crossover + volume xác nhận?</div>
+          <div class="exec-chk-btns">
+            <button class="exec-chk-btn yes" data-dq="m" data-dv="Có" onclick="dmSetChk('m','Có')">Có</button>
+            <button class="exec-chk-btn no" data-dq="m" data-dv="Không" onclick="dmSetChk('m','Không')">Không</button>
+          </div>
+        </div>
+        <div class="exec-chk-row">
+          <div class="exec-chk-label">Entry đúng vùng hỗ trợ?</div>
+          <div class="exec-chk-btns">
+            <button class="exec-chk-btn yes" data-dq="e" data-dv="Có" onclick="dmSetChk('e','Có')">Có</button>
+            <button class="exec-chk-btn no" data-dq="e" data-dv="Không" onclick="dmSetChk('e','Không')">Không</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="exec-form-row">
+        <div class="exec-form-field"><label id="dmGiaLabel">Giá vào (nghìn đ)</label><input type="number" id="dmGia" step="0.01" placeholder="28.50"></div>
+        <div class="exec-form-field"><label>Khối lượng</label><input type="number" id="dmSL" step="1" placeholder="1000"></div>
+      </div>
+
+      <div class="exec-emoji-row">
+        ${['Tự tin','Bình tĩnh','Lo lắng','FOMO','Hối tiếc'].map(v => `<button class="exec-emoji-btn" data-dv="${v}" onclick="dmSetEmo('${v}')">${v}</button>`).join('')}
+      </div>
+      <div class="exec-form-row">
+        <div class="exec-form-field" style="flex:2;"><label>Note (tuỳ chọn)</label><input type="text" id="dmNote" placeholder="Ghi chú nhanh..."></div>
+      </div>
+
+      <button class="exec-btn-save" id="dmSaveBtn" onclick="dmSaveOrder()">Lưu lệnh demo</button>
+      <div class="exec-save-note" id="dmSaveNote"></div>
+    </div>`;
+  // vẽ lại thì áp lại trạng thái đang chọn
+  dmSetLoai(dmLoai);
+  ['w','m','e'].forEach(q => { if (dmChk[q]) dmSetChk(q, dmChk[q]); });
+  if (dmEmo) dmSetEmo(dmEmo);
+}
+
+function dmSetLoai(v){
+  dmLoai = v;
+  const mua = document.getElementById('dmToggleMua'); if (!mua) return;
+  mua.classList.toggle('on', v === 'Mua');
+  document.getElementById('dmToggleBan').classList.toggle('on', v === 'Bán');
+  document.getElementById('dmChkBlock').style.display = (v === 'Mua') ? '' : 'none';
+  document.getElementById('dmGiaLabel').textContent = (v === 'Bán') ? 'Giá bán (nghìn đ)' : 'Giá vào (nghìn đ)';
+  bctxRefresh('dm');
+}
+
+function dmSetChk(q, v){
+  dmChk[q] = v;
+  document.querySelectorAll('#dmChkBlock .exec-chk-btn[data-dq="' + q + '"]').forEach(b => b.classList.toggle('on', b.dataset.dv === v));
+}
+
+function dmSetEmo(v){
+  dmEmo = v;
+  document.querySelectorAll('#trn-detail .exec-emoji-btn').forEach(b => b.classList.toggle('on', b.dataset.dv === v));
+}
+
+function dmSaveOrder(){
+  const ma = (document.getElementById('dmMa').value || '').trim().toUpperCase();
+  const gia = parseFloat(document.getElementById('dmGia').value) || 0;
+  const sl = parseFloat(document.getElementById('dmSL').value) || 0;
+  const noteEl = document.getElementById('dmSaveNote');
+  const btn = document.getElementById('dmSaveBtn');
+  const err = m => { noteEl.style.color = 'var(--danger)'; noteEl.textContent = m; };
+  if (!ma) return err('Thiếu Mã CP.');
+  if (!gia || !sl) return err('Thiếu Giá / Khối lượng.');
+  if (dmLoai === 'Mua' && (dmChk.w === null || dmChk.m === null || dmChk.e === null)) return err('Trả lời đủ 3 câu checklist trước khi lưu.');
+
+  btn.disabled = true;
+  noteEl.style.color = 'var(--muted)';
+  noteEl.textContent = 'Đang lưu...';
+  const ex = bctxExtra('dm');
+  jsonpRequest(TRJ_WRITE_URL, {
+    key: TRJ_SECRET_KEY,
+    action: 'addDemoTrade',
+    loaiTaiSan: 'CP',
+    ma: ma,
+    loaiGiaoDich: dmLoai,
+    ngay: document.getElementById('dmNgay').value || '',
+    soLuong: sl,
+    gia: gia * 1000,
+    phi: FEE_BROKER,
+    thue: (dmLoai === 'Bán') ? TAX_BAN_CP : 0,
+    clWtrend: dmLoai === 'Mua' ? dmChk.w : '',
+    clMacdVol: dmLoai === 'Mua' ? dmChk.m : '',
+    clEntry: dmLoai === 'Mua' ? dmChk.e : '',
+    camXuc: dmEmo || '',
+    note: document.getElementById('dmNote').value || '',
+    nguonTien: 'Demo',
+    nguonMa: ex.nguonMa,
+    lyDoThoat: ex.lyDoThoat
+  }, function(e, data){
+    btn.disabled = false;
+    if (e || !data || !data.success){
+      return err('Lỗi: ' + (e ? e.message : (data && data.error) || 'không rõ — kiểm tra lại key/deploy Trading journal.'));
+    }
+    noteEl.style.color = 'var(--moss)';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + ' vào Demo trading.' + bctxSaveWarn(data);
+    ['dmMa','dmGia','dmSL','dmNote'].forEach(id => { document.getElementById(id).value = ''; });
+    dmChk = { w: null, m: null, e: null }; dmEmo = null;
+    document.querySelectorAll('#trn-detail .exec-chk-btn, #trn-detail .exec-emoji-btn').forEach(b => b.classList.remove('on'));
+    bctxRefresh('dm');
+  });
+}
+
 function renderTrnDetail(){
   const el = document.getElementById('trn-detail');
   if (!el) return;
+  if (trnActiveKey === 'demorec'){ renderDemoRec(el); return; }
   const p = trnGetProgress();
   const it = TRN_ITEMS.find(x=>x.key===trnActiveKey);
   const gateOk = TRN_ITEMS.filter(x=>x.key!=='demo').every(x => (p[x.key]||0) >= 5);
@@ -2869,9 +3014,14 @@ function jsonpRequest(url, params, callback){
 // CHỈ để tham khảo lúc quyết định, KHÔNG chặn lưu. Không tải được -> thẻ báo lỗi, lưu lệnh vẫn chạy như cũ.
 // Cần Apps Script Trading record đã deploy bản có getContext (nếu chưa, thẻ báo "chưa có bối cảnh").
 // Bối cảnh thật được Apps Script tự CHỤP vào sheet khi addTrade; app chỉ gửi thêm nguonMa (mua ngoài Pool) và lyDoThoat (bán).
+// nh/exec = tiền thật (Trading record, action getContext); dm = Demo (Trading journal, action getTradeContext)
 const BCTX = {
-  nh:   { card: 'nhBctx',   ma: 'nhMa',   side: () => nhLoai,   isCP: () => nhAsset === 'CP' },
-  exec: { card: 'execBctx', ma: 'execMa', side: () => execLoai, isCP: () => true }
+  nh:   { card: 'nhBctx',   ma: 'nhMa',   side: () => nhLoai,   isCP: () => nhAsset === 'CP',
+          url: () => TRADING_ADDTRADE_URL, key: () => TRADING_SECRET_KEY, action: 'getContext' },
+  exec: { card: 'execBctx', ma: 'execMa', side: () => execLoai, isCP: () => true,
+          url: () => TRADING_ADDTRADE_URL, key: () => TRADING_SECRET_KEY, action: 'getContext' },
+  dm:   { card: 'dmBctx',   ma: 'dmMa',   side: () => dmLoai,   isCP: () => true,
+          url: () => TRJ_WRITE_URL, key: () => TRJ_SECRET_KEY, action: 'getTradeContext' }
 };
 const BCTX_REASONS_DEFAULT = ['SL cứng', 'TP', 'Luận điểm sai', 'Đổi sang mã/ngành khác', 'Khác'];
 let bctxSeq = 0;
@@ -2888,13 +3038,22 @@ function bctxWanted(p){
   return (ma && cfg.isCP() && (side === 'Mua' || side === 'Bán')) ? { ma, side } : null;
 }
 
+// khi chưa có mã: Mua/Bán CP -> hiện dòng gợi ý (để biết thẻ đang hoạt động); loại khác -> ẩn
+function bctxIdle(p, card){
+  const cfg = BCTX[p], side = cfg.side();
+  if (cfg.isCP() && (side === 'Mua' || side === 'Bán')){
+    card.style.display = '';
+    card.innerHTML = '<div class="bctx-note">Bối cảnh lệnh: nhập Mã để xem MA50, MA200, ngành, Phase TT và trạng thái Pool.</div>';
+  } else { card.style.display = 'none'; card.innerHTML = ''; }
+}
+
 // gõ mã: xoá thẻ cũ ngay (tránh gửi nhầm nguồn/lý do của mã trước), đợi 0.5s rồi tải
 function bctxSchedule(p){
   const card = document.getElementById(BCTX[p].card); if (!card) return;
   clearTimeout(bctxTimer[p]);
   bctxSeqOf[p] = ++bctxSeq;
   const w = bctxWanted(p);
-  if (!w){ card.style.display = 'none'; card.innerHTML = ''; return; }
+  if (!w){ bctxIdle(p, card); return; }
   card.style.display = ''; card.innerHTML = '<div class="bctx-note">…</div>';
   bctxTimer[p] = setTimeout(() => bctxRefresh(p), 500);
 }
@@ -2904,13 +3063,13 @@ function bctxRefresh(p){
   clearTimeout(bctxTimer[p]);
   const w = bctxWanted(p);
   const mySeq = bctxSeqOf[p] = ++bctxSeq;
-  if (!w){ card.style.display = 'none'; card.innerHTML = ''; return; }
+  if (!w){ bctxIdle(p, card); return; }
   card.style.display = '';
   card.innerHTML = '<div class="bctx-note">Đang tải bối cảnh ' + bctxEsc(w.ma) + '…</div>';
-  jsonpRequest(TRADING_ADDTRADE_URL, { key: TRADING_SECRET_KEY, action: 'getContext', ma: w.ma, side: w.side }, function(err, data){
+  jsonpRequest(cfg.url(), { key: cfg.key(), action: cfg.action, ma: w.ma, side: w.side }, function(err, data){
     if (bctxSeqOf[p] !== mySeq) return;               // đã đổi mã/loại trong lúc chờ
     if (err || !data || !data.success || data.ma50 === undefined){
-      const why = err ? err.message : (data && data.error) || 'Apps Script chưa có getContext';
+      const why = err ? err.message : (data && data.error) || 'Apps Script chưa có action bối cảnh';
       card.innerHTML = '<div class="bctx-note">Chưa có bối cảnh (' + bctxEsc(why) + '). Vẫn lưu lệnh bình thường.</div>';
       return;
     }
@@ -2946,6 +3105,8 @@ function bctxHtml(p, d, side){
 }
 
 // nguồn mã / lý do thoát để gửi kèm addTrade (trống nếu thẻ không hiện)
+document.addEventListener('DOMContentLoaded', () => { bctxRefresh('nh'); bctxRefresh('exec'); });  // form Demo tự làm mới khi được vẽ
+
 function bctxExtra(p){
   const g = id => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
   return { nguonMa: g(p + 'BctxSrc'), lyDoThoat: g(p + 'BctxReason') };
