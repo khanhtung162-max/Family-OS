@@ -435,6 +435,31 @@
   .mc-full td:first-child,.mc-full th:first-child{position:sticky;left:0;text-align:left;background:var(--paper);font-family:inherit;z-index:1;min-width:190px;white-space:normal;}
   .mc-full th:first-child{z-index:3;}
   .mc-foot{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5;max-width:760px;}
+  .mc-pills{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .mc-pill{font-size:13px;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--paper-raised);color:var(--muted);cursor:pointer;}
+  .mc-pill.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .mc-box{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px;}
+  .mc-box h3{margin:0 0 8px;font-family:'Source Serif 4',serif;font-weight:600;font-size:14.5px;}
+  .mc-box .mc-note{font-size:11.5px;color:var(--muted);line-height:1.45;margin-bottom:8px;}
+  .mc-box ul{margin:0;padding-left:18px;font-size:13px;line-height:1.55;}
+  .mc-box li{margin-bottom:3px;}
+  .mc-box .mc-empty{font-size:12.5px;color:var(--muted);}
+  .mc-quote{border-left:3px solid var(--gold);padding:4px 10px;margin:6px 0;font-size:13px;line-height:1.5;background:var(--gold-soft);border-radius:0 8px 8px 0;}
+  .mc-quote small{display:block;color:var(--muted);font-size:11px;}
+  .mc-cmp-ctl{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center;}
+  .mc-chk{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--paper-raised);color:var(--muted);cursor:pointer;user-select:none;}
+  .mc-chk.on{background:var(--moss);color:#fff;border-color:var(--moss);}
+  .mc-search{font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);min-width:200px;}
+  .mc-cmp{overflow:auto;background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;max-height:75vh;}
+  .mc-cmp table{border-collapse:collapse;font-size:12.5px;min-width:100%;}
+  .mc-cmp th,.mc-cmp td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;min-width:150px;max-width:260px;line-height:1.4;}
+  .mc-cmp th{background:var(--paper);position:sticky;top:0;z-index:2;white-space:nowrap;}
+  .mc-cmp td:first-child,.mc-cmp th:first-child{position:sticky;left:0;background:var(--paper);min-width:170px;font-weight:600;z-index:1;}
+  .mc-cmp th:first-child{z-index:3;}
+  .mc-cmp td.cur,.mc-cmp th.cur{background:var(--gold-soft);}
+  .mc-cmp th.cur{z-index:2;}
+  .mc-cmp tr.gh td{background:#ece5d6;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);position:static;}
+  .mc-cmp td.u{color:var(--muted);}
 </style>
 </head>
 <body>
@@ -1268,14 +1293,19 @@ function parseTradingDate(str){
 }
 
 // ============================================================
-// MACRO CONTEXT — tab "Macro" trong Trading. Đọc tab "Context tháng" (Trading journal) qua gviz, chỉ hiển thị.
-// Hàng = chỉ số, cột D.. = tháng (D = 2024-01, mỗi cột +1 tháng). Ghi tay trong Sheet.
+// MACRO CONTEXT — tab "Macro" trong Trading. Chỉ hiển thị, nguồn là Sheet Trading journal (ghi tay trong Sheet):
+//  · tab "Context tháng": hàng = chỉ số, cột D.. = tháng (D = 2024-01, mỗi cột +1 tháng)
+//  · tab "Context": hàng = chỉ số, cột D.. = các mốc lịch sử (1920 … 2026 on-going) — dùng cho phần So sánh
 // Đèn chỉ cho 4 ngưỡng (TPCP 10Y cuối tháng 5,25 / VIX cuối tháng 30 / đường cong < 0 / PMI 50); các hàng khác chỉ số + xu hướng.
+// "Quan sát" là mô tả số liệu tự động, KHÔNG phải khuyến nghị; nhận định là chữ của bạn ghi ở hàng "Nhận định của tôi".
 // ============================================================
 const MACRO_CSV = trjSheetCsvUrl('Context tháng');
+const MACRO_CTX_CSV = trjSheetCsvUrl('Context');
 (function(){
   const FIRST_COL = 3;
   let startY = 2024, startM = 1, loaded = false, loading = false;
+  let view = 'now', hist = null, selEv = null, histQuery = '';
+  const SEL_KEY = 'macroCmpSel_v1';
   const RULES = [
     { re:/TPCP.*10Y.*cuối tháng/i, over:v=>v>5.25, txtR:'Vượt 5,25%', txtG:'Dưới 5,25%' },
     { re:/VIX cuối tháng/i,        over:v=>v>30,   txtR:'Trên 30',    txtG:'Dưới 30' },
@@ -1283,11 +1313,12 @@ const MACRO_CSV = trjSheetCsvUrl('Context tháng');
     { re:/PMI/i,                   over:v=>v<50,   txtR:'Dưới 50',    txtG:'Trên 50' }
   ];
   const GROUPS = [
-    { key:/^World/i,              title:'World — thế giới đang ở đâu' },
-    { key:/^VN nội tại/i,         title:'VN nội tại — trong nhà đang ra sao' },
-    { key:/^Kết quả/i,            title:'Kết quả thị trường' }
+    { key:/^World/i,      title:'World — thế giới đang ở đâu' },
+    { key:/^VN nội tại/i, title:'VN nội tại — trong nhà đang ra sao' },
+    { key:/^Kết quả/i,    title:'Kết quả thị trường' }
   ];
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const DEFAULT_EV = /^(1929|1973|1987|2000|2008|2020)/;
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   function num(s){
     if (s == null) return null; s = String(s).trim(); if (!s) return null;
     let t = s.replace('%','').replace(/\s/g,'').replace('−','-');
@@ -1299,6 +1330,7 @@ const MACRO_CSV = trjSheetCsvUrl('Context tháng');
   function mLabel(i){ const m=(startM-1+i)%12+1, y=startY+Math.floor((startM-1+i)/12); return 'T'+m+'/'+String(y).slice(2); }
   const unitOf = n => { const m = n.match(/\(([^)]*)\)/); return m ? m[1] : ''; };
 
+  /* ---------- tab "Context tháng" ---------- */
   function toRows(grid){
     const hi = grid.findIndex(r => String(r[0]||'').trim() === 'Khối');
     if (hi >= 0){ const m = String(grid[hi][FIRST_COL]||'').match(/^(\d{4})-(\d{2})/); if (m){ startY=+m[1]; startM=+m[2]; } }
@@ -1345,11 +1377,11 @@ const MACRO_CSV = trjSheetCsvUrl('Context tháng');
     if (i<0) return '<div class="mc-row"><div class="mc-top"><div class="mc-nm">'+esc(row.name)+'<small>'+esc(row.freq)+'</small></div><div class="mc-val t" style="color:var(--muted)">chưa có số</div></div></div>';
     const isNum=row.nums[i]!=null, u=unitOf(row.name);
     const age = i<overall ? '<span class="mc-tag old">'+mLabel(i)+' · chậm '+(overall-i)+' tháng</span>' : '<span class="mc-tag">'+mLabel(i)+'</span>';
-    const hist=[]; for (let k=Math.max(0,i-11);k<=i;k++) if (row.vals[k]) hist.push('<tr><td>'+mLabel(k)+'</td><td>'+esc(row.vals[k])+'</td></tr>');
+    const h=[]; for (let k=Math.max(0,i-11);k<=i;k++) if (row.vals[k]) h.push('<tr><td>'+mLabel(k)+'</td><td>'+esc(row.vals[k])+'</td></tr>');
     return '<div class="mc-row"><div class="mc-top"><div class="mc-nm">'+esc(row.name)+'<small>'+esc(row.freq)+(u?' · '+esc(u):'')+'</small></div>'+
       '<div class="mc-val'+(isNum?'':' t')+'">'+esc(row.vals[i])+'</div></div>'+
       '<div class="mc-mid"><div>'+age+light(row)+defTag(row)+'<div class="mc-dl">'+esc(delta(row))+'</div></div>'+(isNum?spark(row,i):'')+'</div>'+
-      '<div class="mc-det"><table>'+hist.reverse().join('')+'</table></div></div>';
+      '<div class="mc-det"><table>'+h.reverse().join('')+'</table></div></div>';
   }
   function fullTable(rows){
     let first=1e9, last=-1; rows.forEach(r=>r.vals.forEach((v,i)=>{ if (v){ if (i<first) first=i; if (i>last) last=i; } }));
@@ -1358,32 +1390,139 @@ const MACRO_CSV = trjSheetCsvUrl('Context tháng');
     rows.forEach(r=>{ h+='<tr><td>'+esc(r.name)+'</td>'; for (let i=first;i<=last;i++) h+='<td>'+esc(r.vals[i]||'')+'</td>'; h+='</tr>'; });
     return h+'</table>';
   }
-  function render(el, grid){
-    const rows = toRows(grid);
+
+  /* ---------- Đánh giá & cảnh báo ---------- */
+  function streakOf(row){
+    if (/lũy kế|giải thể/i.test(row.name)) return null;           // số lũy kế luôn tăng, không có ý nghĩa
+    const pts=[]; for (let i=0;i<=row.last;i++) if (row.nums[i]!=null) pts.push({i:i,v:row.nums[i]});
+    if (pts.length<4) return null;
+    let dir=0, len=0;
+    for (let k=pts.length-1;k>0;k--){
+      const s=Math.sign(pts[k].v-pts[k-1].v); if (s===0) break;
+      if (dir===0) dir=s; if (s!==dir) break; len++;
+    }
+    if (len<3) return null;
+    const a=pts[pts.length-1-len], b=pts[pts.length-1];
+    return { dir:dir, len:len, a:a, b:b };
+  }
+  function lastNonEmpty(row){ return row && row.last>=0 ? { i:row.last, v:row.vals[row.last] } : null; }
+  function assessHTML(rows, overall){
+    const li=[];
+    // 1. Vị trí so với ngưỡng
+    RULES.forEach(rule=>{
+      rows.filter(x=>rule.re.test(x.name) && x.last>=0 && x.nums[x.last]!=null).forEach(r=>{
+        const red=rule.over(r.nums[r.last]);
+        li.push('<li><b>'+esc(r.name)+'</b>: '+esc(r.vals[r.last])+' ('+mLabel(r.last)+') — '+(red?'<span style="color:var(--danger);font-weight:600">'+rule.txtR+'</span>':rule.txtG)+'</li>');
+      });
+    });
+    if (!rows.some(x=>/TPCP.*10Y.*cuối tháng/i.test(x.name))) li.push('<li>Chưa có hàng <b>“TPCP Mỹ 10Y cuối tháng”</b> nên chưa so được ngưỡng 5,25%. Hàng bình quân tháng hiện có có thể che việc vượt ngưỡng.</li>');
+    // 2. Xu hướng một chiều từ 3 kỳ liên tiếp
+    const st=[]; rows.filter(r=>!/^Nhận định/i.test(r.khoi)).forEach(r=>{ const s=streakOf(r); if (s) st.push({r:r,s:s}); });
+    st.sort((a,b)=>b.s.len-a.s.len).slice(0,10).forEach(o=>{
+      li.push('<li><b>'+esc(o.r.name)+'</b>: '+(o.s.dir>0?'▲ tăng':'▼ giảm')+' '+o.s.len+' kỳ có số liên tiếp ('+esc(o.r.vals[o.s.a.i])+' → '+esc(o.r.vals[o.s.b.i])+', '+mLabel(o.s.a.i)+' → '+mLabel(o.s.b.i)+')</li>');
+    });
+    // 3. Chậm số liệu
+    const late=rows.filter(r=>/tháng/i.test(r.freq) && r.last>=0 && r.last<overall && !/^Nhận định/i.test(r.khoi));
+    if (late.length) li.push('<li>Số liệu chậm so với bảng ('+mLabel(overall)+'): '+late.map(r=>esc(r.name)+' ('+mLabel(r.last)+')').join('; ')+'</li>');
+    const box1 = '<div class="mc-box"><h3>Quan sát từ số trong bảng</h3><div class="mc-note">Mô tả tự động từ các số bạn nhập — vị trí so với ngưỡng và chuỗi một chiều từ 3 kỳ liên tiếp. Không phải khuyến nghị, không cộng điểm.</div>'+(li.length?'<ul>'+li.join('')+'</ul>':'<div class="mc-empty">Chưa đủ số liệu.</div>')+'</div>';
+
+    // 4. Cảnh báo công khai (tab tháng + tab Context cột 2026)
+    const q=[];
+    const wr=rows.find(r=>/Cảnh báo công khai/i.test(r.name));
+    if (wr){ for (let i=wr.vals.length-1;i>=0 && q.length<6;i--) if (wr.vals[i]) q.push('<div class="mc-quote">'+esc(wr.vals[i])+'<small>'+mLabel(i)+' · hàng “Cảnh báo công khai mới”</small></div>'); }
+    let ctxWarn='';
+    if (hist){
+      const cw=hist.rows.find(r=>/Cảnh báo công khai/i.test(r.name)), kg=hist.rows.find(r=>/Khoảng cách/i.test(r.name));
+      if (cw && hist.cur>=0 && cw.cells[hist.cur]) ctxWarn+='<div class="mc-quote">'+esc(cw.cells[hist.cur])+'<small>Tab Context · '+esc(hist.heads[hist.cur])+' · '+esc(cw.name)+'</small></div>';
+      if (kg && hist.cur>=0 && kg.cells[hist.cur]) ctxWarn+='<div class="mc-quote">'+esc(kg.cells[hist.cur])+'<small>Tab Context · '+esc(hist.heads[hist.cur])+' · '+esc(kg.name)+'</small></div>';
+    }
+    const box2 = '<div class="mc-box"><h3>Cảnh báo công khai</h3><div class="mc-note">Lấy nguyên văn từ sheet: hàng “Cảnh báo công khai mới” (tab Context tháng) và cột 2026 của tab Context. Cảnh báo công khai từng đến sớm hàng năm trước các sự kiện cũ nên chỉ là bối cảnh, không cho biết thời điểm.</div>'+
+      ((q.length||ctxWarn)?(q.join('')+ctxWarn):'<div class="mc-empty">Chưa có cảnh báo nào được ghi.</div>')+'</div>';
+
+    // 5. Nhận định của bạn
+    const nr=rows.find(r=>/Nhận định của tôi/i.test(r.name)), nv=lastNonEmpty(nr);
+    const box3 = '<div class="mc-box"><h3>Nhận định của tôi</h3>'+(nv?'<div class="mc-quote">'+esc(nv.v)+'<small>'+mLabel(nv.i)+'</small></div>':'<div class="mc-empty">Chưa có nhận định. Ghi vào hàng “Nhận định của tôi” trong tab Context tháng (ô của tháng đang xét).</div>')+'</div>';
+    return box1+box2+box3;
+  }
+
+  /* ---------- tab "Context": so sánh với các mốc lịch sử ---------- */
+  function parseHist(grid){
+    const hi = grid.findIndex(r => String(r[2]||'').trim()==='Chỉ số');
+    if (hi<0) return null;
+    const head = grid[hi];
+    const heads=[]; for (let i=3;i<head.length;i++) heads.push(String(head[i]||'').trim());
+    let cur=-1; heads.forEach((h,i)=>{ if (/2026/.test(h)) cur=i; });
+    const rows=[]; let khoi='';
+    grid.slice(hi+1).forEach(r=>{
+      const name=String(r[2]||'').trim(); if (!name) return;
+      if (String(r[0]||'').trim()) khoi=String(r[0]).trim();
+      const cells=[]; for (let i=3;i<head.length;i++) cells.push(String(r[i]==null?'':r[i]).trim());
+      rows.push({ khoi:khoi, name:name, cells:cells });
+    });
+    return { heads:heads, cur:cur, rows:rows };
+  }
+  function loadSel(){
+    if (selEv) return selEv;
+    try { const v=JSON.parse(localStorage.getItem(SEL_KEY)||'null'); if (Array.isArray(v)) return (selEv=new Set(v)); } catch(e){}
+    selEv=new Set(); hist.heads.forEach((h,i)=>{ if (i!==hist.cur && DEFAULT_EV.test(h)) selEv.add(h); });
+    return selEv;
+  }
+  function saveSel(){ try{ localStorage.setItem(SEL_KEY, JSON.stringify([...selEv])); }catch(e){} }
+  function histHTML(){
+    if (!hist) return '<div class="mc-box"><div class="mc-empty">Không tải được tab “Context” (mốc lịch sử) — kiểm tra tên tab và quyền chia sẻ.</div></div>';
+    const sel=loadSel();
+    let h='<div class="mc-box"><h3>So sánh 2026 với các mốc lịch sử</h3><div class="mc-note">Cột vàng là 2026 (on-going). Chọn mốc để đặt cạnh nhau. Bảng lấy nguyên từ tab “Context”, ô trống hoặc “chưa xác minh” nghĩa là chưa điền, không phải bằng 0. Mỗi mốc là một hoàn cảnh khác nhau, đặt cạnh nhau để cân nhắc, không phải bản sao của nhau.</div><div class="mc-cmp-ctl">';
+    hist.heads.forEach((x,i)=>{ if (i===hist.cur||!x) return; h+='<span class="mc-chk'+(sel.has(x)?' on':'')+'" data-ev="'+esc(x)+'">'+esc(x)+'</span>'; });
+    h+='<input class="mc-search" data-q placeholder="Lọc chỉ số…" value="'+esc(histQuery)+'"></div><div class="mc-cmp" id="mc-cmp-tbl">'+histTable()+'</div></div>';
+    return h;
+  }
+  function histTable(){
+    const sel=loadSel(), cols=[]; hist.heads.forEach((x,i)=>{ if (sel.has(x)&&i!==hist.cur) cols.push(i); });
+    const q=histQuery.trim().toLowerCase();
+    let h='<table><tr><th>Chỉ số</th>'+(hist.cur>=0?'<th class="cur">'+esc(hist.heads[hist.cur])+'</th>':'')+cols.map(i=>'<th>'+esc(hist.heads[i])+'</th>').join('')+'</tr>';
+    let lastK=null;
+    hist.rows.forEach(r=>{
+      if (q && r.name.toLowerCase().indexOf(q)<0) return;
+      if (r.khoi!==lastK){ lastK=r.khoi; h+='<tr class="gh"><td colspan="'+(2+cols.length)+'">'+esc(r.khoi||'—')+'</td></tr>'; }
+      const cell=(v,c)=>'<td class="'+(c||'')+((!v||/^(-|chưa xác minh|tra thêm|chưa có)/i.test(v))?' u':'')+'">'+esc(v||'')+'</td>';
+      h+='<tr><td>'+esc(r.name)+'</td>'+(hist.cur>=0?cell(r.cells[hist.cur],'cur'):'')+cols.map(i=>cell(r.cells[i])).join('')+'</tr>';
+    });
+    return h+'</table>';
+  }
+
+  /* ---------- render ---------- */
+  function render(el, rows){
     const overall = Math.max(-1, ...rows.filter(r=>!/^Nhận định/i.test(r.khoi)).map(r=>r.last));
-    let h = '<span class="mc-chip">SỐ THẬT '+(overall>=0 ? mLabel(overall).replace(/^T(\d+)\/(\d+)$/,'$1/20$2') : '—')+'</span><div class="mc-groups">';
+    let h = '<span class="mc-chip">SỐ THẬT '+(overall>=0 ? mLabel(overall).replace(/^T(\d+)\/(\d+)$/,'$1/20$2') : '—')+'</span>'+
+      '<div class="mc-pills"><span class="mc-pill'+(view==='now'?' on':'')+'" data-view="now">Hiện tại</span><span class="mc-pill'+(view==='cmp'?' on':'')+'" data-view="cmp">So sánh mốc lịch sử</span></div>';
+    if (view==='cmp'){ h += histHTML(); el.innerHTML = h; return; }
+    h += assessHTML(rows, overall) + '<div class="mc-groups">';
     GROUPS.forEach(g=>{ const rs=rows.filter(r=>g.key.test(r.khoi)); if (rs.length) h+='<div class="mc-grp"><h3>'+g.title+'</h3>'+rs.map(r=>rowHTML(r,overall)).join('')+'</div>'; });
-    const nd = rows.filter(r=>/^Nhận định/i.test(r.khoi) && r.last>=0);
-    if (nd.length) h+='<div class="mc-grp"><h3>Nhận định</h3>'+nd.map(r=>rowHTML(r,overall)).join('')+'</div>';
     h += '</div><button class="mc-btn p" data-mc="full">Mở bảng đầy đủ theo tháng</button><button class="mc-btn" data-mc="reload">Tải lại</button>'+
          '<div class="mc-full">'+fullTable(rows)+'</div>'+
          '<div class="mc-foot">Mỗi hàng ghi cách đo ngay trong tên (bình quân tháng / cuối tháng / lũy kế). Ngưỡng: TPCP 10Y cuối tháng 5,25% · VIX 30 · đường cong &lt; 0 · PMI 50. “Chậm N tháng” = tháng của số mới nhất so với tháng mới nhất của cả bảng. Bấm vào một hàng để xem 12 tháng gần nhất.</div>';
     el.innerHTML = h;
   }
+  let ROWS = [];
   async function load(force){
     const el = document.getElementById('macro-root'); if (!el || loading) return;
     if (loaded && !force) return;
     loading = true; el.innerHTML = '<div class="why">Đang tải Macro Context…</div>';
     try {
-      const grid = await fetchCSVRaw(MACRO_CSV);
-      if (!grid.length) throw new Error('rỗng');
-      render(el, grid); loaded = true;
+      const [a, b] = await Promise.allSettled([ fetchCSVRaw(MACRO_CSV), fetchCSVRaw(MACRO_CTX_CSV) ]);
+      if (a.status !== 'fulfilled' || !a.value.length) throw new Error('tab tháng');
+      ROWS = toRows(a.value);
+      hist = (b.status === 'fulfilled') ? parseHist(b.value) : null;
+      render(el, ROWS); loaded = true;
     } catch(e){
       el.innerHTML = '<div class="why">Không tải được tab "Context tháng" — kiểm tra lại quyền chia sẻ sheet Trading journal và tên tab.</div>';
     } finally { loading = false; }
   }
   document.addEventListener('click', e=>{
     const root = document.getElementById('macro-root'); if (!root || !root.contains(e.target)) return;
+    const pv = e.target.closest('[data-view]'); if (pv){ view = pv.dataset.view; render(root, ROWS); return; }
+    const ev = e.target.closest('[data-ev]');
+    if (ev){ const s=loadSel(), k=ev.dataset.ev; if (s.has(k)) s.delete(k); else s.add(k); saveSel(); ev.classList.toggle('on'); document.getElementById('mc-cmp-tbl').innerHTML = histTable(); return; }
     const b = e.target.closest('[data-mc]');
     if (b){
       if (b.dataset.mc === 'full'){ const f=root.querySelector('.mc-full'); f.classList.toggle('show'); b.textContent = f.classList.contains('show') ? 'Ẩn bảng đầy đủ' : 'Mở bảng đầy đủ theo tháng'; }
@@ -1391,6 +1530,9 @@ const MACRO_CSV = trjSheetCsvUrl('Context tháng');
       return;
     }
     const r = e.target.closest('.mc-row'); if (r) r.classList.toggle('open');
+  });
+  document.addEventListener('input', e=>{
+    if (e.target && e.target.matches && e.target.matches('#macro-root [data-q]')){ histQuery = e.target.value; const t=document.getElementById('mc-cmp-tbl'); if (t) t.innerHTML = histTable(); }
   });
   window.macroEnsureLoaded = () => load(false);
 })();
