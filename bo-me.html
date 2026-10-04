@@ -750,7 +750,6 @@
               <div class="subj-tab" data-trnkey="mauhinh" onclick="selectTrnTab('mauhinh')">Mẫu hình</div>
               <div class="subj-tab" data-trnkey="intraday" onclick="selectTrnTab('intraday')">Intraday</div>
               <div class="subj-tab" data-trnkey="demo" onclick="selectTrnTab('demo')">Demo</div>
-              <div class="subj-tab" data-trnkey="demorec" onclick="selectTrnTab('demorec')">Ghi Demo</div>
               <div class="subj-tab" data-trnkey="muclucsach" onclick="selectTrnTab('muclucsach')">Mục lục sách</div>
             </div>
 
@@ -2081,9 +2080,9 @@ function selectTrnTab(key){
   renderTrnDetail();
 }
 
-// ---- Ghi lệnh Demo (tab Training → "Ghi Demo") — ghi vào tab "Demo trading" của Trading journal ----
+// ---- Ghi lệnh Demo (tab Training → "Demo") — ghi vào tab "Demo trading" của Trading journal ----
 // Cùng mẫu bảng + cùng thẻ bối cảnh với Execution (tiền thật). Demo KHÔNG bị giới hạn bởi đèn thị trường:
-// bối cảnh chỉ được chụp lại để sau này đo hệ có edge ở mọi pha thị trường. Không phụ thuộc "khoá Demo" ở tiến độ.
+// bối cảnh chỉ được chụp lại để sau này đo hệ có edge ở mọi pha thị trường. Khoá Demo ở tiến độ chỉ hiện nhắc, không chặn ghi.
 // Apps Script: Trading journal (TRJ_WRITE_URL), action addDemoTrade + getTradeContext.
 let dmLoai = 'Mua';
 let dmChk = { w: null, m: null, e: null };
@@ -2094,9 +2093,10 @@ function dmToday(){
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-function renderDemoRec(el){
+function renderDemoRec(el, locked){
   el.innerHTML = `
-    <h4>Ghi lệnh Demo</h4>
+    <h4>Demo</h4>
+    ${locked ? '<div class="trn-locked-msg">🔒 Demo đang khoá theo tiến độ (cần Tiến độ/Mẫu hình/Intraday đều ≥ 5/10). Chỉ là nhắc — vẫn ghi được lệnh demo.</div>' : ''}
     <div class="trn-note">Ghi vào tab "Demo trading" (Trading journal), cùng mẫu với In-out. Demo không bị chặn bởi đèn thị trường — bối cảnh chỉ để đo sau này.</div>
     <div class="exec-form-card" style="margin-top:14px;">
       <h3>+ Lệnh demo</h3>
@@ -2227,14 +2227,10 @@ function dmSaveOrder(){
 function renderTrnDetail(){
   const el = document.getElementById('trn-detail');
   if (!el) return;
-  if (trnActiveKey === 'demorec'){ renderDemoRec(el); return; }
   const p = trnGetProgress();
   const it = TRN_ITEMS.find(x=>x.key===trnActiveKey);
   const gateOk = TRN_ITEMS.filter(x=>x.key!=='demo').every(x => (p[x.key]||0) >= 5);
-  if (it.key === 'demo' && !gateOk){
-    el.innerHTML = `<div class="trn-locked-msg">🔒 Demo đang khoá — cần Tiến độ/Mẫu hình/Intraday đều ≥ 5/10 để mở.</div>`;
-    return;
-  }
+  if (it.key === 'demo'){ renderDemoRec(el, !gateOk); return; }   // tab Demo = form ghi lệnh demo (khoá chỉ là nhắc, không chặn ghi)
   const v = p[it.key] || 0;
 
   if (it.key === 'sach'){
