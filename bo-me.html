@@ -371,6 +371,14 @@
   /* ---- Form "Vào lệnh" (Execution — Mua CP) + "Giao dịch" (Quỹ mở — Mua/Bán CCQ) ---- */
   .exec-form-card{background:var(--paper-raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:20px;}
   .exec-form-card h3{font-family:'Source Serif 4',serif;font-size:16px;margin:0 0 14px;}
+  /* Thẻ bối cảnh lệnh (Mua/Bán CP) — chỉ để tham khảo lúc quyết định, không chặn lưu */
+  .bctx-card{background:var(--moss-soft);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13px;line-height:1.5;}
+  .bctx-chips{display:flex;flex-wrap:wrap;gap:4px 14px;font-weight:600;}
+  .bctx-chips small{color:var(--muted);font-weight:500;margin-right:4px;}
+  .bctx-line{margin-top:6px;font-size:12.5px;}
+  .bctx-note{color:var(--muted);font-size:12.5px;}
+  .bctx-warn{color:var(--danger);font-weight:600;}
+  .bctx-card input,.bctx-card select{width:100%;margin-top:6px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper-raised);color:var(--ink);font-size:14px;font-family:inherit;box-sizing:border-box;}
   .exec-chk-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap;}
   .exec-chk-label{font-size:13.5px;line-height:1.4;flex:1;min-width:180px;}
   .exec-chk-btns{display:flex;gap:6px;flex-shrink:0;}
@@ -667,8 +675,10 @@
 
             <div class="trd-nhanh-field">
               <label>Mã</label>
-              <input type="text" id="nhMa" class="trd-nhanh-input trd-nhanh-input-big" placeholder="VD: DPM" autocapitalize="characters">
+              <input type="text" id="nhMa" class="trd-nhanh-input trd-nhanh-input-big" placeholder="VD: DPM" autocapitalize="characters" oninput="bctxSchedule('nh')">
             </div>
+
+            <div class="bctx-card" id="nhBctx" style="display:none;"></div>
 
             <div id="nhChkBlock" style="display:none;margin:10px 0;">
               <div class="why" style="margin-bottom:6px;">Checklist trước khi Mua</div>
@@ -783,8 +793,10 @@
 
               <div class="exec-form-row">
                 <div class="exec-form-field"><label>Ngày thực hiện</label><input type="date" id="execNgay"></div>
-                <div class="exec-form-field"><label>Mã CP</label><input type="text" id="execMa" placeholder="VD: SSI" style="text-transform:uppercase;"></div>
+                <div class="exec-form-field"><label>Mã CP</label><input type="text" id="execMa" placeholder="VD: SSI" style="text-transform:uppercase;" oninput="bctxSchedule('exec')"></div>
               </div>
+
+              <div class="bctx-card" id="execBctx" style="display:none;"></div>
 
               <div id="execChkBlock">
                 <div class="exec-chk-row">
@@ -2306,6 +2318,7 @@ function nhanhSetLoai(v){
   document.getElementById('nhPhiBanRow').style.display = (nhAsset === 'CCQ' && v === 'Bán') ? '' : 'none';
   document.getElementById('nhLoaiHinhRow').style.display = (nhAsset === 'CCQ' && v !== 'Yield tiền') ? '' : 'none';
   nhanhUpdatePreview();
+  bctxRefresh('nh');
 }
 
 function nhanhSetChk(k){
@@ -2394,7 +2407,9 @@ function nhanhSaveOrder(){
     clEntry: nhLoai === 'Mua' ? nhChk.e : '',
     camXuc: '',
     note: '',
-    nguonTien: 'Ipower'
+    nguonTien: 'Ipower',
+    nguonMa: bctxExtra('nh').nguonMa,
+    lyDoThoat: bctxExtra('nh').lyDoThoat
   } : {
     key: TRADING_SECRET_KEY,
     action: 'addTrade',
@@ -2423,7 +2438,7 @@ function nhanhSaveOrder(){
       return;
     }
     noteEl.style.color = 'var(--moss)';
-    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '.';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '.' + bctxSaveWarn(data);
     document.getElementById('nhMa').value = '';
     document.getElementById('nhGia').value = '';
     document.getElementById('nhSL').value = '';
@@ -2431,6 +2446,7 @@ function nhanhSaveOrder(){
     nhChk = { w: null, m: null, e: null };
     document.querySelectorAll('.nh-chk-btn').forEach(b=>b.classList.remove('on'));
     nhanhUpdatePreview();
+    bctxRefresh('nh');
     if (typeof loadTrading === 'function') loadTrading().then(()=>{ nhanhRenderIpower(); nhanhRenderRecent(); }).catch(()=>{});
   });
 }
@@ -2849,6 +2865,102 @@ function jsonpRequest(url, params, callback){
   document.body.appendChild(script);
 }
 
+// ---- Thẻ bối cảnh lệnh (Mua/Bán CP) — gọi action=getContext của Apps Script Trading record ----
+// CHỈ để tham khảo lúc quyết định, KHÔNG chặn lưu. Không tải được -> thẻ báo lỗi, lưu lệnh vẫn chạy như cũ.
+// Cần Apps Script Trading record đã deploy bản có getContext (nếu chưa, thẻ báo "chưa có bối cảnh").
+// Bối cảnh thật được Apps Script tự CHỤP vào sheet khi addTrade; app chỉ gửi thêm nguonMa (mua ngoài Pool) và lyDoThoat (bán).
+const BCTX = {
+  nh:   { card: 'nhBctx',   ma: 'nhMa',   side: () => nhLoai,   isCP: () => nhAsset === 'CP' },
+  exec: { card: 'execBctx', ma: 'execMa', side: () => execLoai, isCP: () => true }
+};
+const BCTX_REASONS_DEFAULT = ['SL cứng', 'TP', 'Luận điểm sai', 'Đổi sang mã/ngành khác', 'Khác'];
+let bctxSeq = 0;
+const bctxTimer = {};
+const bctxSeqOf = {};
+
+function bctxEsc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function bctxWanted(p){
+  const cfg = BCTX[p];
+  const maEl = document.getElementById(cfg.ma);
+  const ma = maEl ? (maEl.value || '').trim().toUpperCase() : '';
+  const side = cfg.side();
+  return (ma && cfg.isCP() && (side === 'Mua' || side === 'Bán')) ? { ma, side } : null;
+}
+
+// gõ mã: xoá thẻ cũ ngay (tránh gửi nhầm nguồn/lý do của mã trước), đợi 0.5s rồi tải
+function bctxSchedule(p){
+  const card = document.getElementById(BCTX[p].card); if (!card) return;
+  clearTimeout(bctxTimer[p]);
+  bctxSeqOf[p] = ++bctxSeq;
+  const w = bctxWanted(p);
+  if (!w){ card.style.display = 'none'; card.innerHTML = ''; return; }
+  card.style.display = ''; card.innerHTML = '<div class="bctx-note">…</div>';
+  bctxTimer[p] = setTimeout(() => bctxRefresh(p), 500);
+}
+
+function bctxRefresh(p){
+  const cfg = BCTX[p], card = document.getElementById(cfg.card); if (!card) return;
+  clearTimeout(bctxTimer[p]);
+  const w = bctxWanted(p);
+  const mySeq = bctxSeqOf[p] = ++bctxSeq;
+  if (!w){ card.style.display = 'none'; card.innerHTML = ''; return; }
+  card.style.display = '';
+  card.innerHTML = '<div class="bctx-note">Đang tải bối cảnh ' + bctxEsc(w.ma) + '…</div>';
+  jsonpRequest(TRADING_ADDTRADE_URL, { key: TRADING_SECRET_KEY, action: 'getContext', ma: w.ma, side: w.side }, function(err, data){
+    if (bctxSeqOf[p] !== mySeq) return;               // đã đổi mã/loại trong lúc chờ
+    if (err || !data || !data.success || data.ma50 === undefined){
+      const why = err ? err.message : (data && data.error) || 'Apps Script chưa có getContext';
+      card.innerHTML = '<div class="bctx-note">Chưa có bối cảnh (' + bctxEsc(why) + '). Vẫn lưu lệnh bình thường.</div>';
+      return;
+    }
+    card.innerHTML = bctxHtml(p, data, w.side);
+  });
+}
+
+function bctxHtml(p, d, side){
+  let h = '<div class="bctx-chips">'
+    + '<span><small>MA50</small>' + bctxEsc(String(d.ma50).replace(/^MA50:\s*/, '')) + '</span>'
+    + '<span><small>MA200</small>' + bctxEsc(String(d.ma200).replace(/^MA200:\s*/, '')) + '</span>'
+    + '<span><small>Ngành</small>' + bctxEsc(d.rs) + '</span>'
+    + '<span><small>Phase TT</small>' + bctxEsc(d.phase) + '</span></div>';
+  h += '<div class="bctx-line">Pool: ' + (d.inPool ? '<b>' + bctxEsc(d.pool) + '</b>' : '<span class="bctx-warn">' + bctxEsc(d.pool) + '</span>') + '</div>';
+  if (side === 'Mua'){
+    if (d.needSource){
+      h += '<input type="text" id="' + p + 'BctxSrc" placeholder="Mã ngoài Pool — vào lệnh theo nguồn nào? (watchlist / tin / quét tay…)">';
+    }
+  } else {
+    if (d.noOpenPosition){
+      h += '<div class="bctx-line bctx-warn">Chưa thấy vị thế đang mở của mã này — kiểm tra lại Mã.</div>';
+    } else if (d.entryDate){
+      h += '<div class="bctx-line">Vị thế từ <b>' + bctxEsc(d.entryDate) + '</b>'
+        + (d.days != null ? ' (' + d.days + ' ngày)' : '')
+        + ' · lúc vào: ' + bctxEsc(d.entryMa50 || '(không có snapshot)') + ' | ' + bctxEsc(d.entryRs || '?') + '</div>';
+    }
+    const rs = (d.reasons && d.reasons.length) ? d.reasons : BCTX_REASONS_DEFAULT;
+    h += '<select id="' + p + 'BctxReason"><option value="">Lý do thoát… (chọn)</option>'
+      + rs.map(r => '<option value="' + bctxEsc(r) + '">' + bctxEsc(r) + '</option>').join('') + '</select>';
+  }
+  h += '<div class="bctx-line bctx-note">Chỉ để tham khảo, không chặn lưu. Bối cảnh được chụp tự động vào sheet khi lưu.</div>';
+  return h;
+}
+
+// nguồn mã / lý do thoát để gửi kèm addTrade (trống nếu thẻ không hiện)
+function bctxExtra(p){
+  const g = id => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
+  return { nguonMa: g(p + 'BctxSrc'), lyDoThoat: g(p + 'BctxReason') };
+}
+
+// nhắc nhẹ sau khi lưu (không chặn)
+function bctxSaveWarn(data){
+  const c = data && data.ctx; if (!c) return '';
+  if (c.error) return ' (Chưa chụp được bối cảnh: ' + c.error + ')';
+  let s = '';
+  if (c.warnSource) s += ' ⚠ Mã ngoài Pool, chưa ghi nguồn.';
+  if (c.warnReason) s += ' ⚠ Chưa ghi lý do thoát.';
+  return s;
+}
+
 // ---- Execution (CP) — checklist 3 câu (chỉ áp dụng khi Mua) + vào lệnh Mua/Bán ----
 let execChk = { w: null, m: null, e: null };
 let execEmo = null;
@@ -2876,6 +2988,7 @@ function execSetLoai(v){
     ? 'Tiền nhận (đã trừ phí 0.15% + thuế 0.10%)'
     : 'Vốn (đã gồm phí 0.15%)';
   execUpdatePreview();
+  bctxRefresh('exec');
 }
 
 function execSetChk(q, v){
@@ -2988,7 +3101,9 @@ function execSaveOrder(){
     clEntry: execLoai === 'Mua' ? execChk.e : '',
     camXuc: execEmo || '',
     note: note,
-    nguonTien: 'Ipower'
+    nguonTien: 'Ipower',
+    nguonMa: bctxExtra('exec').nguonMa,
+    lyDoThoat: bctxExtra('exec').lyDoThoat
   }, function(err, data){
     btn.disabled = false;
     if (err || !data || !data.success){
@@ -2997,7 +3112,7 @@ function execSaveOrder(){
       return;
     }
     noteEl.style.color = 'var(--moss)';
-    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '. Đang tải lại...';
+    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '.' + bctxSaveWarn(data) + ' Đang tải lại...';
     document.getElementById('execMa').value = '';
     document.getElementById('execGia').value = '';
     document.getElementById('execSL').value = '';
@@ -3006,6 +3121,7 @@ function execSaveOrder(){
     document.getElementById('execNgay').value = new Date().toISOString().slice(0,10);
     execChk = { w: null, m: null, e: null };
     execEmo = null;
+    bctxRefresh('exec');
     document.querySelectorAll('.exec-chk-btn').forEach(b=>b.classList.remove('on'));
     document.querySelectorAll('.exec-emoji-btn').forEach(b=>b.classList.remove('on'));
     execUpdateScore();
