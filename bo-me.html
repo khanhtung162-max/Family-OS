@@ -3841,11 +3841,11 @@ function snxTargets(M) {
 function snxSlider(M) {
   const SPAN = M.PEAK - M.BOT, pos = v => (v - M.BOT) / SPAN * 100;
   const pN = pos(M.NOW).toFixed(2);
-  const zb = 'position:absolute;top:52px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:0.08em;white-space:nowrap;box-sizing:border-box;';
+  const zb = 'position:absolute;top:98px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:0.08em;white-space:nowrap;box-sizing:border-box;';
   const C = SNX_C;
   const sw = c => 'display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;background:' + c;
   const zoneNow = M.NOW <= M.B5 ? 'vùng xả tụ + DCA (app quỹ)' : (M.NOW < M.C1 ? 'vùng DCA (Fmarket)' : 'vùng chốt lãi');
-  let h = '<div style="position:relative;height:190px;margin:0 48px">';
+  let h = '<div style="position:relative;height:236px;margin:0 48px">';
   h += '<div style="' + zb + 'left:0;border-radius:10px 0 0 10px;background:' + C.CT + ';color:#FFFFFF;width:' + pos(M.B5).toFixed(2) + '%">XẢ TỤ + DCA · app quỹ</div>';
   h += '<div style="' + zb + 'left:' + pos(M.B5).toFixed(2) + '%;width:' + (pos(M.C1) - pos(M.B5)).toFixed(2) + '%;background:#DAD8D1;color:#4E5863">VÙNG DCA · Fmarket</div>';
   h += '<div style="' + zb + 'border-radius:0 10px 10px 0;background:' + C.CL + ';color:#1B1F23;left:' + pos(M.C1).toFixed(2) + '%;width:' + (100 - pos(M.C1)).toFixed(2) + '%">VÙNG CHỐT LÃI</div>';
@@ -3855,18 +3855,20 @@ function snxSlider(M) {
     { v: M.C1, l1: 'C1 +20%', c: C.CB }, { v: M.PEAK, l1: 'Đỉnh · ' + snxLab(M.peakDate), c: C.CA }];
   tk.forEach(t => {
     const p = pos(t.v).toFixed(2);
-    h += '<div style="position:absolute;top:0;left:' + p + '%;transform:translateX(-50%);text-align:center;font-size:12px;line-height:1.35;' + SNX_MONO + 'color:' + t.c + ';white-space:nowrap"><div style="font-weight:600">' + t.l1 + '</div><div>' + snxFmt(t.v) + '</div></div>';
-    h += '<div style="position:absolute;top:40px;left:' + p + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid ' + t.c + '"></div>';
+    const top = t.c === C.CA ? 0 : 46;   // dòng trên: mốc theo đỉnh; dòng dưới: mốc theo đáy
+    if (t.c === C.CA) h += '<div style="position:absolute;top:36px;left:' + p + '%;width:0;height:62px;border-left:1px dashed ' + t.c + '"></div>';
+    h += '<div style="position:absolute;top:' + top + 'px;left:' + p + '%;transform:translateX(-50%);text-align:center;font-size:12px;line-height:1.35;' + SNX_MONO + 'color:' + t.c + ';white-space:nowrap"><div style="font-weight:600">' + t.l1 + '</div><div>' + snxFmt(t.v) + '</div></div>';
+    h += '<div style="position:absolute;top:88px;left:' + p + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid ' + t.c + '"></div>';
   });
   const arrow = (text, left, width, col, headLeft) =>
-    '<div style="position:absolute;top:106px;left:' + left + ';width:' + width + ';height:3px;background:' + col + '"></div>'
-    + '<div style="position:absolute;top:100px;left:' + headLeft + ';margin-left:-12px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:12px solid ' + col + '"></div>'
-    + '<div style="position:absolute;top:116px;left:' + left + ';width:' + width + ';text-align:center;font-size:13px;font-weight:600;white-space:nowrap;color:' + col + '">' + text + '</div>';
+    '<div style="position:absolute;top:152px;left:' + left + ';width:' + width + ';height:3px;background:' + col + '"></div>'
+    + '<div style="position:absolute;top:146px;left:' + headLeft + ';margin-left:-12px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:12px solid ' + col + '"></div>'
+    + '<div style="position:absolute;top:162px;left:' + left + ';width:' + width + ';text-align:center;font-size:13px;font-weight:600;white-space:nowrap;color:' + col + '">' + text + '</div>';
   h += arrow(snxPc(M.fromBot) + ' từ đáy', '0', pN + '%', C.CB, pN + '%');
   h += arrow(snxPc(M.fromPeak) + ' so với đỉnh', pN + '%', (100 - pos(M.NOW)).toFixed(2) + '%', C.CA, '100%');
-  h += '<div style="position:absolute;top:96px;left:' + pN + '%;width:2px;height:58px;margin-left:-1px;background:#1B1F23"></div>';
-  h += '<div style="position:absolute;top:86px;left:' + pN + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:10px solid #1B1F23"></div>';
-  h += '<div style="position:absolute;top:154px;left:' + pN + '%;transform:translateX(-50%);background:#1B1F23;color:#FFFFFF;padding:4px 10px;border-radius:6px;' + SNX_MONO + 'font-size:13px;font-weight:500;white-space:nowrap">NAV core ' + snxFmt(M.NOW) + '</div>';
+  h += '<div style="position:absolute;top:142px;left:' + pN + '%;width:2px;height:58px;margin-left:-1px;background:#1B1F23"></div>';
+  h += '<div style="position:absolute;top:132px;left:' + pN + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:10px solid #1B1F23"></div>';
+  h += '<div style="position:absolute;top:200px;left:' + pN + '%;transform:translateX(-50%);background:#1B1F23;color:#FFFFFF;padding:4px 10px;border-radius:6px;' + SNX_MONO + 'font-size:13px;font-weight:500;white-space:nowrap">NAV core ' + snxFmt(M.NOW) + '</div>';
   h += '</div>';
   const legend = [
     [C.CT, 'Vùng xả tụ + DCA: đáy tới B5 (≤ ' + snxFmt(M.B5) + '). DCA chạy song song, mua trên app quỹ từ 01/11/26 (TCBS dừng mua)'],
@@ -4110,7 +4112,7 @@ function navStdDay() {
 function renderNavForm() {
   const el = document.getElementById('trd-navform-root'); if (!el) return;
   const keepOpen = (document.getElementById('navFormDet') || {}).open;
-  const f = (id, label) => '<div class="exec-form-field"><label>' + label + '</label><input type="text" inputmode="decimal" id="' + id + '" placeholder="—" style="text-align:right"></div>';
+  const f = (id, label) => '<div class="exec-form-field" style="flex:0 1 150px"><label>' + label + '</label><input type="text" inputmode="decimal" id="' + id + '" placeholder="—" style="text-align:right"></div>';
   const extras = navExtraFunds();
   el.innerHTML = '<details id="navFormDet" class="exec-form-card"' + (keepOpen ? ' open' : '') + '><summary style="cursor:pointer;font-size:15px;font-weight:600">Ghi NAV ngày vào tab NAV daily</summary>'
     + '<div style="font-size:12px;color:var(--muted);margin:8px 0">Đây là nơi duy nhất nhập NAV. Ngày chuẩn là ngày của dòng (cuối tuần chuyển sang thứ 2). Giá quỹ mở là NAV phiên d−1 nhưng ghi cùng dòng ngày chuẩn; ETF và VNI theo giá trong ngày. Ô trống không bị ghi đè.</div>'
