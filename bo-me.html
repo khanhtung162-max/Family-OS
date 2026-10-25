@@ -917,6 +917,8 @@
               <div class="why">Không gồm cổ phiếu lẻ — xem ở tab Execution.</div>
             </div>
 
+            <div id="trd-navform-root"></div>
+
             <div class="exec-form-card">
               <h3>+ Giao dịch chứng chỉ quỹ</h3>
 
@@ -2693,6 +2695,7 @@ async function loadTrading(){
     renderExecViaQuy();
     renderDanhMucQuy();
     renderQuyMoPositions();
+    renderNavForm();
     renderResult();
     renderHieuSuat();
     renderVonPhanBo();
@@ -2927,8 +2930,10 @@ function renderPositionGroup(rows, elIds, coTucByMa, viaQuyByMa){
           <div class="num">${fmtNum(sl)}</div>
           <div class="priceflow-edit">
             <span>${fmtNum(gv)} →</span>
-            <input type="number" class="gia-edit-input" id="gia-${safeId}" value="${isNaN(gh) ? '' : gh}" step="1">
-            <button class="gia-edit-btn" id="giabtn-${safeId}" onclick="updateGiaHienTai('${r['Mã']}','gia-${safeId}','giabtn-${safeId}')">↻</button>
+            ${(typeof navIsNavFund === 'function' && navIsNavFund(r['Mã']))
+              ? `<b class="num" title="Giá từ tab NAV daily — nhập ở form Ghi NAV ngày">${fmtNum(gh)}</b><span style="font-size:10px;color:var(--muted);">NAV ${(r['_navNgay'] || '').slice(0, 5)}</span>`
+              : `<input type="number" class="gia-edit-input" id="gia-${safeId}" value="${isNaN(gh) ? '' : gh}" step="1">
+            <button class="gia-edit-btn" id="giabtn-${safeId}" onclick="updateGiaHienTai('${r['Mã']}','gia-${safeId}','giabtn-${safeId}')">↻</button>`}
           </div>
           <div class="num ${ll >= 0 ? 'gain' : 'loss'}"><b>${fmtVND(ll)}</b><br><span style="font-size:11px;">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span></div>
           <div class="num ${ct > 0 ? 'gain' : ''}" style="color:${ct > 0 ? '' : 'var(--muted)'}"><b>${ct > 0 ? fmtVND(ct) : '—'}</b></div>
@@ -2970,8 +2975,7 @@ function updateGiaHienTai(ma, inputId, btnId){
     key: TRADING_SECRET_KEY,
     action: 'updatePrice',
     ma: ma,
-    gia: gia,
-    ngay: new Date(Date.now() + 7*3600*1000).toISOString().slice(0, 10)
+    gia: gia
   }, function(err, data){
     btnEl.disabled = false;
     btnEl.textContent = '↻';
@@ -3892,7 +3896,7 @@ function snxRules(M, ctx) {
     ['C1', 'Core +20% từ đáy', 'Cắt lời 10% về tụ', M.NOW >= M.C1 ? 'Đạt' : 'Chờ: ' + dist(M.C1), M.NOW >= M.C1 ? 'near' : 'wait', M.NOW >= M.C1 && M.NOW < M.C2],
     ['C2', 'Core +35% từ đáy', 'Cắt lời thêm 20%', M.NOW >= M.C2 ? 'Đạt' : 'Chờ: ' + dist(M.C2), M.NOW >= M.C2 ? 'near' : 'wait', M.NOW >= M.C2],
     ['C3', 'Phân kỳ âm (W/D1)', 'Cắt 30%; gộp 50% nếu trước +35%; không cắt nếu trước +20%', 'Nhập tay', 'manual', false],
-    ['Sàn', 'Tỉ trọng core', 'Không dưới 40%', 'Chưa tính (chưa có số dư tụ)', 'manual', false]];
+    ['Sàn', 'Tỉ trọng core', 'Không dưới 40%', (M.TU && M.TU.val > 0) ? (M.SUM_VAL / (M.SUM_VAL + M.TU.val) >= 0.4 ? 'Đạt: core ' : 'Dưới sàn: core ') + snxF1(M.SUM_VAL / (M.SUM_VAL + M.TU.val) * 100) + '%' : 'Chưa tính (chưa có quỹ TP trong Onhand)', (M.TU && M.TU.val > 0) ? (M.SUM_VAL / (M.SUM_VAL + M.TU.val) >= 0.4 ? 'near' : 'wait') : 'manual', false]];
   let t = '<table style="width:100%;min-width:760px;border-collapse:collapse;font-size:14px"><thead><tr style="text-align:left;color:#4E5863;font-size:12px;text-transform:uppercase;letter-spacing:0.04em">'
     + '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;width:60px">Mã</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">Điều kiện</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">Hành động</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;width:260px">Hiện tại</th></tr></thead><tbody>';
   rows.forEach(r => {
@@ -3993,9 +3997,16 @@ function snxWeights(M, ipBal) {
     + seg(M.w['VESAF'] * 100, cV, '#fff', 'VESAF ' + pc0(M.w['VESAF'])) + seg(M.w['VMEEF'] * 100, cM, '#1B1F23', pc0(M.w['VMEEF']));
   const vinaA = M.w['VESAF'] + M.w['VMEEF'];
   const dv = (name, a, tg) => '<span style="font-weight:600;color:' + (a > tg ? '#8F2D1A' : '#1E6B3A') + '">' + name + ' ' + (a > tg ? '+' : '−') + Math.abs((a - tg) * 100).toFixed(0) + ' điểm %: ' + (a > tg ? 'vượt mục tiêu' : 'thiếu so với mục tiêu') + '</span>';
-  const coreV = M.SUM_VAL, hasIp = ipBal > 0;
+  const coreV = M.SUM_VAL, hasIp = ipBal > 0, TU = M.TU || { val: 0, rows: [] };
   let capBar = '';
-  if (hasIp) {
+  if (TU.val > 0) {
+    const tot = coreV + TU.val, pc = coreV / tot * 100;
+    capBar = '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;font-weight:600">Core so với tụ bù (quỹ TP) trong tổng vốn</div>'
+      + '<div style="position:relative;display:flex;height:44px;border-radius:8px;overflow:hidden">'
+      + seg(pc, cD, '#fff', 'Core ' + snxF1(pc) + '%') + seg(100 - pc, '#C9D9E4', '#1B1F23', 'Tụ bù ' + snxF1(100 - pc) + '%')
+      + '<div style="position:absolute;top:0;bottom:0;left:40%;width:0;border-left:3px dashed #A23B2A"></div></div>'
+      + '<div style="font-size:12px;color:#4E5863">Vạch đỏ nét đứt: sàn core 40%. ' + (pc >= 40 ? 'Core đang trên sàn.' : '<b style="color:#8F2D1A">Core dưới sàn 40%.</b>') + ' Core ' + snxFmt(coreV) + ' đ; tụ bù ' + snxFmt(TU.val) + ' đ = ' + TU.rows.map(r => r.ma + ' ' + snxFmt(r.qty) + ' CCQ × ' + snxFmt(r.nav)).join(' + ') + ' (các dòng Nhóm TP trong Onhand). Ipower ' + (hasIp ? snxFmt(ipBal) : '—') + ' đ là tiền mặt, không tính vào tụ.</div></div>';
+  } else if (hasIp) {
     const tot = coreV + ipBal;
     capBar = '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;font-weight:600">Core so với tụ bù trong tổng vốn</div>'
       + '<div style="position:relative;display:flex;height:44px;border-radius:8px;overflow:hidden">'
@@ -4079,38 +4090,60 @@ function snxHealthHtml(M, H) {
     + '<div style="font-size:12px;color:#4E5863">VNI cùng kỳ từ đáy core: ' + p2(H.vniSinceBot) + '. Quỹ mở dùng cột VNI đã ghép d−1 (NAV ngày d ứng với VNI đóng cửa phiên trước); ETF dùng VNI cùng ngày. z là độ lệch của phiên so với đường hồi quy chia cho sai số; |z| &gt; 3,5 ở 5 phiên gần nhất bị gắn cờ "NAV bất thường" và cảnh báo ở đầu trang. Quỹ đối chiếu (SSISCA, VEOF, MAGEF, TCEF, FUEVFVND, E1VFVN30) cần có số liệu trong NAV daily mới hiện; ô trống không bị tính là 0. Kết quả chỉ để rà lỗi nhập NAV và theo dõi quỹ lệch nhịp, không phải tín hiệu hành động.</div></div>';
 }
 
-// ---- Form ghi NAV ngày vào tab NAV daily ----
-function snxNavForm(M) {
-  const f = (id, label, ph) => '<label style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:#4E5863">' + label + '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + (ph || '') + '" style="border:1px solid #DAD8D1;border-radius:6px;padding:6px 8px;font:inherit;font-size:13px;width:120px;text-align:right"></label>';
-  const today = new Date(); const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-  return '<details style="' + SNX_CARD + '"><summary style="cursor:pointer;font-size:16px;font-weight:600">Ghi NAV ngày vào tab NAV daily</summary>'
-    + '<div style="display:flex;flex-direction:column;gap:12px;margin-top:12px"><div style="font-size:12px;color:#4E5863">NAV daily là nguồn giá của 4 quỹ. Ghi vào dòng có đúng ngày NAV (dòng đã nạp sẵn); ô để trống không bị ghi đè. Onhand và Fund stock list sẽ được cập nhật theo NAV mới nhất.</div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">'
-    + '<label style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:#4E5863">Ngày NAV<input type="date" id="snxNgay" value="' + iso + '" style="border:1px solid #DAD8D1;border-radius:6px;padding:6px 8px;font:inherit;font-size:13px"></label>'
-    + f('snxDCDS', 'DCDS') + f('snxBCF', 'VCBF-BCF') + f('snxVMEEF', 'VMEEF') + f('snxVESAF', 'VESAF')
-    + '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="snxChinhThuc" checked> Chính thức (Y)</label></div>'
-    + '<div style="font-size:12px;color:#4E5863">Chỉ số khác để hồi quy kiểm tra (không bắt buộc):</div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:12px">' + f('snxSSISCA', 'SSISCA') + f('snxVEOF', 'VEOF') + f('snxMAGEF', 'MAGEF') + f('snxTCEF', 'TCEF') + f('snxFUEVFVND', 'FUEVFVND') + f('snxE1VFVN30', 'E1VFVN30') + f('snxVNI', 'VNI đóng cửa (d−1)') + '</div>'
-    + '<div style="display:flex;gap:12px;align-items:center"><button class="gap-btn" id="snxSaveBtn" onclick="snxSaveNav()">Ghi NAV</button><span id="snxSaveNote" style="font-size:12.5px"></span></div></div></details>';
+// ---- Form ghi NAV ngày vào tab NAV daily (đặt ở tab Chứng chỉ quỹ, không phải tab Cảm biến) ----
+const NAV_FIXED_HEADERS = ['Ngày NAV', 'Phiên VNI ghép (d-1)', 'Chính thức (Y)'];
+function navHasCol(ma) {
+  const r0 = (NAVDAILY && NAVDAILY[0]) || null;
+  return !!(r0 && Object.keys(r0).some(k => k.trim().toUpperCase() === String(ma).trim().toUpperCase()));
 }
-
-function snxSaveNav() {
-  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  const note = document.getElementById('snxSaveNote'), btn = document.getElementById('snxSaveBtn');
+function navExtraFunds() {
+  // quỹ CCQ khác (vd quỹ TP) có cột trong NAV daily, không thuộc 4 quỹ core / quỹ đối chiếu / ETF
+  const known = SNX.FUNDS.concat(SNX.PEERS, SNX.ETFS);
+  return (ONHAND || []).filter(r => r['Loại hình'] === 'CCQ' && r['Mã'] && known.indexOf(r['Mã']) < 0 && navHasCol(r['Mã'])).map(r => r['Mã']);
+}
+function navIsNavFund(ma) { return SNX.FUNDS.indexOf(ma) >= 0 || navExtraFunds().indexOf(ma) >= 0; }
+function navStdDay() {
+  const t = new Date(Date.now() + 7 * 3600 * 1000);
+  while (t.getUTCDay() === 0 || t.getUTCDay() === 6) t.setUTCDate(t.getUTCDate() + 1);
+  return t.toISOString().slice(0, 10);
+}
+function renderNavForm() {
+  const el = document.getElementById('trd-navform-root'); if (!el) return;
+  const keepOpen = (document.getElementById('navFormDet') || {}).open;
+  const f = (id, label) => '<div class="exec-form-field"><label>' + label + '</label><input type="text" inputmode="decimal" id="' + id + '" placeholder="—" style="text-align:right"></div>';
+  const extras = navExtraFunds();
+  el.innerHTML = '<details id="navFormDet" class="exec-form-card"' + (keepOpen ? ' open' : '') + '><summary style="cursor:pointer;font-size:15px;font-weight:600">Ghi NAV ngày vào tab NAV daily</summary>'
+    + '<div style="font-size:12px;color:var(--muted);margin:8px 0">Đây là nơi duy nhất nhập NAV. Ngày chuẩn là ngày của dòng (cuối tuần chuyển sang thứ 2). Giá quỹ mở là NAV phiên d−1 nhưng ghi cùng dòng ngày chuẩn; ETF và VNI theo giá trong ngày. Ô trống không bị ghi đè.</div>'
+    + '<div class="exec-form-row"><div class="exec-form-field"><label>Ngày chuẩn</label><input type="date" id="navNgay" value="' + navStdDay() + '"></div>'
+    + f('navDCDS', 'DCDS') + f('navBCF', 'VCBF-BCF') + f('navVMEEF', 'VMEEF') + f('navVESAF', 'VESAF') + '</div>'
+    + (extras.length ? '<div class="exec-form-row">' + extras.map((m, i) => f('navX' + i, m + ' (quỹ TP)')).join('') + '</div>' : '')
+    + '<div style="font-size:12px;color:var(--muted);margin:6px 0">Quỹ đối chiếu, ETF, VNI (không bắt buộc):</div>'
+    + '<div class="exec-form-row">' + f('navSSISCA', 'SSISCA') + f('navVEOF', 'VEOF') + f('navMAGEF', 'MAGEF') + f('navTCEF', 'TCEF') + f('navFUEVFVND', 'FUEVFVND') + f('navE1VFVN30', 'E1VFVN30') + f('navVNI', 'VNI đóng cửa') + '</div>'
+    + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0"><input type="checkbox" id="navChinhThuc" checked> NAV chính thức (ghi Y)</label>'
+    + '<button class="exec-btn-save" id="navSaveBtn" onclick="navSave()">Ghi NAV</button><div class="exec-save-note" id="navSaveNote"></div></details>';
+}
+function navSave() {
+  const g = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  const note = document.getElementById('navSaveNote'), btn = document.getElementById('navSaveBtn');
   const num = s => { const n = parseVNNumber(s.replace(/\s/g, '')); return isNaN(n) ? '' : n; };
   const params = {
-    key: TRADING_SECRET_KEY, action: 'addNav', ngay: g('snxNgay'), chinhThuc: document.getElementById('snxChinhThuc').checked ? 'Y' : '',
-    dcds: num(g('snxDCDS')), bcf: num(g('snxBCF')), vmeef: num(g('snxVMEEF')), vesaf: num(g('snxVESAF')),
-    ssisca: num(g('snxSSISCA')), veof: num(g('snxVEOF')), magef: num(g('snxMAGEF')), tcef: num(g('snxTCEF')),
-    fuevfvnd: num(g('snxFUEVFVND')), e1vfvn30: num(g('snxE1VFVN30')), vni: num(g('snxVNI'))
+    key: TRADING_SECRET_KEY, action: 'addNav', ngay: g('navNgay'), chinhThuc: document.getElementById('navChinhThuc').checked ? 'Y' : '',
+    dcds: num(g('navDCDS')), bcf: num(g('navBCF')), vmeef: num(g('navVMEEF')), vesaf: num(g('navVESAF')),
+    ssisca: num(g('navSSISCA')), veof: num(g('navVEOF')), magef: num(g('navMAGEF')), tcef: num(g('navTCEF')),
+    fuevfvnd: num(g('navFUEVFVND')), e1vfvn30: num(g('navE1VFVN30')), vni: num(g('navVNI'))
   };
-  if (!params.ngay) { note.style.color = 'var(--danger)'; note.textContent = 'Thiếu ngày NAV.'; return; }
-  if (params.dcds === '' && params.bcf === '' && params.vmeef === '' && params.vesaf === '') { note.style.color = 'var(--danger)'; note.textContent = 'Chưa nhập NAV quỹ nào.'; return; }
+  const ex = {};
+  navExtraFunds().forEach((m, i) => { const v = num(g('navX' + i)); if (v !== '') ex[m] = v; });
+  if (Object.keys(ex).length) params.extra = JSON.stringify(ex);
+  if (!params.ngay) { note.style.color = 'var(--danger)'; note.textContent = 'Thiếu ngày.'; return; }
+  const any = ['dcds', 'bcf', 'vmeef', 'vesaf', 'ssisca', 'veof', 'magef', 'tcef', 'fuevfvnd', 'e1vfvn30', 'vni'].some(k => params[k] !== '') || params.extra;
+  if (!any) { note.style.color = 'var(--danger)'; note.textContent = 'Chưa nhập giá trị nào.'; return; }
   btn.disabled = true; note.style.color = 'var(--muted)'; note.textContent = 'Đang ghi...';
   jsonpRequest(TRADING_ADDTRADE_URL, params, function (err, data) {
     btn.disabled = false;
     if (err || !data || !data.success) { note.style.color = 'var(--danger)'; note.textContent = 'Lỗi: ' + (err ? err.message : (data && data.error) || 'không rõ'); return; }
-    note.style.color = 'var(--moss)'; note.textContent = 'Đã ghi dòng ' + data.row + ' (' + (data.written || []).join(', ') + ').';
+    note.style.color = 'var(--moss)';
+    note.textContent = 'Đã ghi dòng ' + data.row + ' · ngày ' + data.ngay + (data.created ? ' (dòng mới, phiên d−1 = ' + data.phien + ')' : '') + ' · ' + Object.keys(data.written || {}).join(', ');
     if (typeof loadTrading === 'function') loadTrading();
   });
 }
@@ -4122,6 +4155,11 @@ function snxRenderAll(navRows, onhand, ipBal) {
   const M = snxModel(navRows, onhand);
   if (!M) { root.innerHTML = '<div class="trd-closed">Chưa đủ dữ liệu NAV daily (cần ít nhất 2 phiên có đủ NAV 4 quỹ từ ' + SNX.SEED.peakDate + ').</div>'; return; }
   window.SNX_LAST = M;
+  const tuRows = (onhand || []).filter(r => r['Mã'] && String(r['Nhóm'] || '').trim().toUpperCase() === 'TP').map(r => {
+    const qty = parseVNNumber(r['Số lượng đang giữ']) || 0, nav = parseVNNumber(r['Giá hiện tại']) || 0;
+    return { ma: r['Mã'], qty, nav, val: qty * nav, von: parseVNNumber(r['Tổng vốn']) || 0 };
+  }).filter(r => r.qty > 0.0001 && r.nav > 0);
+  M.TU = { rows: tuRows, val: tuRows.reduce((s, r) => s + r.val, 0), von: tuRows.reduce((s, r) => s + r.von, 0) };
   M.SUM_VAL = SNX.FUNDS.reduce((s, f) => s + (M.units[f] || 0) * M.nowF[f], 0);
   const H = snxHealth(M);
   const st = snxState(M);
@@ -4138,9 +4176,9 @@ function snxRenderAll(navRows, onhand, ipBal) {
     + tile('% từ đỉnh', snxPc(M.fromPeak), 'cần ' + snxPc(M.needPeak) + ' để về đỉnh') + tile('% từ đáy', snxPc(M.fromBot), 'đáy ' + snxLab(M.botDate))
     + tile('Giảm so với VNI', String(bCore.rdd.toFixed(1)).replace('.', ',') + '×', 'core ' + snxPc(bCore.dd) + ' / VNI ' + snxPc(M.vniDD)) + '</div>';
   const info = '<div style="padding:10px 14px;border:1px dashed #A9B0B8;border-radius:8px;font-size:13px;color:#4E5863;background:#FBFAF7">Giá lấy từ tab NAV daily, số CCQ và vốn lấy từ Onhand. Tỉ trọng theo giá trị hiện tại: '
-    + SNX.FUNDS.map(f => SNX.LABEL[f] + ' ' + snxF1(M.w[f] * 100) + '%').join(' · ') + '. Đỉnh sóng ' + snxLabFull(M.peakDate) + ' là hằng số seed vì NAV daily chỉ bắt đầu từ ' + snxLabFull(M.R[0].d) + '. Chưa có số dư tụ, sổ lô theo nền tảng hay nút giải ngân.</div>';
+    + SNX.FUNDS.map(f => SNX.LABEL[f] + ' ' + snxF1(M.w[f] * 100) + '%').join(' · ') + '. Đỉnh sóng ' + snxLabFull(M.peakDate) + ' là hằng số seed vì NAV daily chỉ bắt đầu từ ' + snxLabFull(M.R[0].d) + '. Tụ bù = các dòng Nhóm TP trong Onhand. Chưa có sổ lô theo nền tảng hay nút giải ngân.</div>';
   root.innerHTML = '<div style="display:flex;flex-direction:column;gap:20px;font-family:\'IBM Plex Sans\',system-ui,sans-serif;color:#1B1F23">'
-    + head + alertHtml + info + tiles + snxSlider(M) + snxRules(M) + snxChart(M) + snxLog(M) + snxBeta(M) + snxWeights(M, ipBal) + snxFundCards(M) + snxHealthHtml(M, H) + snxNavForm(M) + '</div>';
+    + head + alertHtml + info + tiles + snxSlider(M) + snxRules(M) + snxChart(M) + snxLog(M) + snxBeta(M) + snxWeights(M, ipBal) + snxFundCards(M) + snxHealthHtml(M, H) + '</div>';
   return M;
 }
 
@@ -4150,10 +4188,11 @@ function snxRenderAll(navRows, onhand, ipBal) {
 let CONV = { mode: 'cut', pct: '10', amt: '', s0: '', navMode: 'now', alloc: 'target' };
 function convSet(k, v){ CONV[k] = v; if (k === 'mode') CONV.amt = ''; renderGap(); }
 function convPreset(kind){
-  const s0 = parseVNNumber(CONV.s0) || 0, van = s0 * 0.3;
+  const s0 = convS0(), van = s0 * 0.3;
   const m = { B2: s0 * 0.7 / 12, B3: van * 0.05, B4: van, ALL: s0 };
   CONV.amt = String(Math.round(m[kind] || 0)); renderGap();
 }
+function convS0(){ const v = parseVNNumber(CONV.s0); if (v > 0) return v; const M = window.SNX_LAST; return (M && M.TU) ? M.TU.val : 0; }
 function convTargets(rows){
   const t = {};
   const vs = (rows.find(r => r.ma === 'VESAF') || {}).val || 0, vm = (rows.find(r => r.ma === 'VMEEF') || {}).val || 0;
@@ -4214,7 +4253,7 @@ function convHtml(){
     h += '<label>Cắt % giá trị core: <input type="text" inputmode="decimal" value="' + CONV.pct + '" onchange="convSet(\'pct\',this.value)" style="width:60px;"></label>'
       + ['10', '20', '30', '50'].map(p => '<button class="gap-btn ghost" onclick="convSet(\'pct\',\'' + p + '\')">' + p + '%</button>').join('') + '<span class="sm">C1 10% · C2 20% · C3 30% (50% gộp)</span>';
   } else {
-    h += '<label>Tụ ban đầu S0 (đ): <input type="text" inputmode="numeric" value="' + (CONV.s0 ? (parseVNNumber(CONV.s0) || 0).toLocaleString('vi-VN') : '') + '" placeholder="0" onchange="convSet(\'s0\',this.value)" style="width:110px;"></label>'
+    h += '<label>Tụ S0 (đ, để trống = tụ hiện có trong Onhand): <input type="text" inputmode="numeric" value="' + (CONV.s0 ? (parseVNNumber(CONV.s0) || 0).toLocaleString('vi-VN') : '') + '" placeholder="' + Math.round(convS0()).toLocaleString('vi-VN') + ' (tụ hiện có)" onchange="convSet(\'s0\',this.value)" style="width:110px;"></label>'
       + ['B2', 'B3', 'B4', 'ALL'].map(p => '<button class="gap-btn ghost" onclick="convPreset(\'' + p + '\')">' + ({ B2: 'B2 · S0×70%÷12', B3: 'B3 · 5% van', B4: 'B4 · toàn van', ALL: 'B5 · toàn S0' })[p] + '</button>').join('')
       + '<label>Số tiền xả (đ): <input type="text" inputmode="numeric" value="' + (CONV.amt ? (parseVNNumber(CONV.amt) || 0).toLocaleString('vi-VN') : '') + '" placeholder="0" onchange="convSet(\'amt\',this.value)" style="width:110px;"></label>';
   }
@@ -4246,7 +4285,7 @@ function navLatestByFund(){
   const out = {};
   (NAVDAILY || []).forEach(r => {
     const d = snxDate(r['Ngày NAV']); if (!d) return;
-    SNX.FUNDS.forEach(f => {
+    SNX.FUNDS.concat(navExtraFunds()).forEach(f => {
       const v = parseVNNumber(r[f]);
       if (v > 0 && (!out[f] || d >= out[f].d)) out[f] = { d, v, date: r['Ngày NAV'] };
     });
