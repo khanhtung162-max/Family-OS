@@ -3599,6 +3599,18 @@ function snxDays(a, b) { return Math.round((b - a) / 86400000); }
 
 // ---- 1. Dựng chuỗi từ các dòng NAV daily (object theo tiêu đề cột) ----
 // Chỉ giữ dòng có đủ NAV cả 4 quỹ core; ô trống = chưa có (không phải 0).
+// Đọc số có thể ở hai kiểu (1.879,64 kiểu Việt hoặc 1879.64 kiểu Anh) — chọn cách đọc nằm trong khoảng hợp lý.
+function snxNumIn(raw, lo, hi) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return NaN;
+  const t = String(raw).trim();
+  const vn = parseVNNumber(t);
+  if (vn >= lo && vn <= hi) return vn;
+  const en = parseFloat(t.replace(/,/g, ''));
+  if (en >= lo && en <= hi) return en;
+  return NaN;
+}
+const SNX_VNI_RANGE = [300, 5000];
+
 function snxSeries(navRows) {
   // Cột 'VNI đóng cửa' = VNI CÙNG NGÀY với dòng (cùng ETF, cổ phiếu Vin). NAV quỹ mở của dòng ngày d là NAV phiên d−1,
   // nên VNI "ghép" cho quỹ mở = VNI của phiên ghi ở cột 'Phiên VNI ghép (d-1)' (không có thì dòng liền trước).
@@ -3606,7 +3618,7 @@ function snxSeries(navRows) {
   const rawBy = {}, all = [];
   (navRows || []).forEach(r => {
     const d = snxDate(r['Ngày NAV']); if (!d) return;
-    const v = parseVNNumber(r['VNI đóng cửa']);
+    const v = snxNumIn(r['VNI đóng cửa'], SNX_VNI_RANGE[0], SNX_VNI_RANGE[1]);
     rawBy[d.getTime()] = v > 0 ? v : NaN;
     all.push({ d, r });
   });
