@@ -599,6 +599,7 @@
             <button class="trd-nav-item" data-trdkey="execution" onclick="selectTrdTab('execution')"><span class="ic">⚡</span>Execution</button>
             <button class="trd-nav-item" data-trdkey="quymo" onclick="selectTrdTab('quymo')"><span class="ic">🏦</span>Chứng chỉ quỹ</button>
             <button class="trd-nav-item" data-trdkey="gap" onclick="selectTrdTab('gap')"><span class="ic">⚖️</span>Gap</button>
+            <button class="trd-nav-item" data-trdkey="camben" onclick="selectTrdTab('camben')"><span class="ic">🎯</span>Cảm biến</button>
           </div>
           <div class="trd-sidebar-foot">
             <button id="trdModeToggleBtn" class="trd-nav-item trd-nav-ghost" onclick="toggleTrdMode()"><span class="ic">⊞</span>Chế độ Tổng hợp</button>
@@ -977,6 +978,13 @@
           </section>
         </div>
 
+        <!-- Cảm biến NAV core + sức khỏe quỹ (nguồn: tab NAV daily) -->
+        <div class="trd-subpanel" id="trd-panel-camben">
+          <section class="trd-section">
+            <div id="trd-camben-root"></div>
+          </section>
+        </div>
+
         <!-- Result — tổng hợp lãi/lỗ tất toán (In-out) + dòng tiền (Ipower) -->
         <div class="trd-subpanel active" id="trd-panel-result">
           <section class="trd-section">
@@ -1091,7 +1099,8 @@ const TRADING_CSV_BY_NHA = {
     inout:      "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=0",
     ipower:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=885075156",
     danhMucQuy: "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531559558",
-    onhand:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531442378"
+    onhand:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531442378",
+    navDaily:   "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=2100291625"
   }
 };
 const MF_CSV = {
@@ -1113,7 +1122,7 @@ const TKB_SHEET_CSV     = trjSheetCsvUrl('Thời khóa biểu');
 const MUCLUC_SHEET_CSV  = trjSheetCsvUrl('Mục lục sách');
 const TIENDO_CSV        = trjSheetCsvUrl('Tiến độ');
 const MAUHINH_CSV       = trjSheetCsvUrl('Mẫu hình biểu đồ');
-let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {}, INOUT = [], IPOWER = [];
+let ONHAND = [], DANHMUCQUY = [], DMQ_SUMMARY = {}, INOUT = [], IPOWER = [], NAVDAILY = [];
 let ONHAND_BANNER = { tongVon: 0, laiLoTrenGia: 0, laiLoTatToan: 0, tongVonGoc: 0 };
 let selectedFund = null;
 
@@ -1592,6 +1601,7 @@ const MACRO_CTX_CSV = trjSheetCsvUrl('Context');
 
 function selectTrdTab(key){
   if (key === 'gap' && typeof renderGap === 'function') renderGap();
+  if (key === 'camben' && typeof snxRefresh === 'function') snxRefresh();
   document.querySelectorAll('#trd-subtabs .trd-nav-item').forEach(b => b.classList.toggle('active', b.dataset.trdkey === key));
   document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('trd-panel-' + key);
@@ -2641,12 +2651,14 @@ async function loadTrading(){
 
   const content = document.getElementById('trd-content');
   try {
-    const [onhandRaw, dmqRaw, inoutRows, ipowerRows] = await Promise.all([
+    const [onhandRaw, dmqRaw, inoutRows, ipowerRows, navRows] = await Promise.all([
       fetchCSVRaw(csvSet.onhand),
       fetchCSVRaw(csvSet.danhMucQuy),
       fetchCSV(csvSet.inout),
-      fetchCSV(csvSet.ipower)
+      fetchCSV(csvSet.ipower),
+      csvSet.navDaily ? fetchCSV(csvSet.navDaily).catch(() => []) : Promise.resolve([])
     ]);
+    NAVDAILY = navRows || [];
 
     // Onhand: dòng 0 là banner gộp ô ("On-hand stock" + 3 số tổng), header thật ở dòng 1
     // Col F=5: Tổng vốn, G=6: Lãi/lỗ trên giá, H=7: Lãi/lỗ tất toán, I=8: Tổng vốn gốc
@@ -2658,6 +2670,7 @@ async function loadTrading(){
       tongVonGoc:   parseVNNumber(bannerRow[8]) || 0
     };
     ONHAND = rowsToObjects(onhandRaw, 1);
+    navApplyToOnhand();   // giá CCQ core lấy từ NAV daily, không đọc cột giá Onhand
     INOUT = inoutRows;
     IPOWER = ipowerRows;
 
@@ -2685,6 +2698,7 @@ async function loadTrading(){
     renderVonPhanBo();
     renderDongTien();
     renderGap();
+    snxRefresh();
   } catch (err){
     content.innerHTML = `
       <div class="placeholder-block">
@@ -2956,7 +2970,8 @@ function updateGiaHienTai(ma, inputId, btnId){
     key: TRADING_SECRET_KEY,
     action: 'updatePrice',
     ma: ma,
-    gia: gia
+    gia: gia,
+    ngay: new Date(Date.now() + 7*3600*1000).toISOString().slice(0, 10)
   }, function(err, data){
     btnEl.disabled = false;
     btnEl.textContent = '↻';
@@ -3533,6 +3548,735 @@ function renderVonPhanBo(){
   `;
 }
 
+
+// ======================================================================
+// CẢM BIẾN NAV CORE (Core V1)
+// ======================================================================
+// ======================================================================
+// CẢM BIẾN NAV CORE V1 — đỉnh/đáy core, quy tắc B1–B5/C1–C3, chart core vs VNI, tỉ trọng, sức khỏe quỹ
+// Nguồn dữ liệu: tab "NAV daily" (NAV 4 quỹ core + quỹ đối chiếu + VNI ghép d-1) và Onhand (số CCQ, vốn).
+// Không ghi gì vào sheet. Mọi hằng số "seed" bên dưới là số KHÔNG có trong NAV daily (NAV daily bắt đầu 12/03/2026,
+// còn đỉnh sóng là 27/02/2026) — sửa ở đây khi chu kỳ mới bắt đầu.
+// ======================================================================
+const SNX = {
+  FUNDS: ['DCDS', 'VESAF', 'VCBF-BCF', 'VMEEF'],
+  LABEL: { 'DCDS': 'DCDS', 'VESAF': 'VESAF', 'VCBF-BCF': 'BCF', 'VMEEF': 'VMEEF' },
+  PEERS: ['SSISCA', 'VEOF', 'MAGEF', 'TCEF'],     // quỹ đối chiếu (NAV, quy ước d-1 như 4 quỹ core)
+  ETFS: ['FUEVFVND', 'E1VFVN30'],                 // ETF: giá sàn cùng ngày, không theo quy ước d-1
+  SEED: {
+    peakDate: '27/02/2026',
+    peak: { 'DCDS': 112346, 'VESAF': 37881, 'VCBF-BCF': 47689, 'VMEEF': 18620 },   // NAV từng quỹ tại đỉnh sóng chung 27/02/2026
+    vniNavPeak: 75910 / 40.385,   // VNI ghép d-1 của NAV ngày 27/02/2026 (dùng quy đổi VNI về cùng gốc với core tại đỉnh)
+    vniWavePeak: 1860.1,          // VNI đỉnh sóng (23/02/2026) để so biên độ giảm — chưa thống nhất với 1.900–1.910 của bạn
+    vniWavePeakDate: '23/02/2026'
+  },
+  // Tỉ trọng mục tiêu trên tổng vốn core, không phụ thuộc thời gian hay giá trị. VinaCapital = VESAF + VMEEF (chia theo tỉ lệ đang giữ)
+  TARGET: { 'DCDS': 0.40, 'VCBF-BCF': 0.30, 'VINA': 0.30 },
+  FLOOR: 0.40,        // sàn tỉ trọng core trong tổng vốn (tụ bù tối đa 60%)
+  GAP_LIMIT: 0.08
+};
+
+function snxFmt(v) {
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  const s = String(Math.abs(Math.round(v))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (v < 0 ? '−' : '') + s;
+}
+function snxF1(v) { return v.toFixed(1).replace('.', ','); }
+function snxPc(v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1).replace('.', ',') + '%'; }
+function snxPc2(v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(2).replace('.', ',') + '%'; }
+function snxDate(s) {                      // 'dd/mm/yyyy' → Date (giờ địa phương), sai định dạng → null
+  const m = String(s || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+}
+function snxLab(d) { return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + String(d.getFullYear()).slice(2); }
+function snxLabFull(d) { return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); }
+function snxDays(a, b) { return Math.round((b - a) / 86400000); }
+
+// ---- 1. Dựng chuỗi từ các dòng NAV daily (object theo tiêu đề cột) ----
+// Chỉ giữ dòng có đủ NAV cả 4 quỹ core; ô trống = chưa có (không phải 0).
+function snxSeries(navRows) {
+  const cols = SNX.FUNDS.concat(SNX.PEERS, SNX.ETFS);
+  const out = [];
+  (navRows || []).forEach(r => {
+    const d = snxDate(r['Ngày NAV']);
+    if (!d) return;
+    const nav = {};
+    let ok = true;
+    SNX.FUNDS.forEach(f => { const v = parseVNNumber(r[f]); if (!(v > 0)) ok = false; nav[f] = v; });
+    if (!ok) return;
+    const other = {};
+    SNX.PEERS.concat(SNX.ETFS).forEach(c => { const v = parseVNNumber(r[c]); other[c] = v > 0 ? v : NaN; });
+    const vni = parseVNNumber(r['VNI đóng cửa']);
+    out.push({
+      d, lab: snxLab(d), nav, other, vni: vni > 0 ? vni : NaN,
+      official: String(r['Chính thức (Y)'] || '').trim().toUpperCase() === 'Y'
+    });
+  });
+  out.sort((a, b) => a.d - b.d);
+  return out;
+}
+
+// ---- 2. Mô hình cảm biến ----
+function snxModel(navRows, onhand) {
+  const S = snxSeries(navRows);
+  const seedD = snxDate(SNX.SEED.peakDate);
+  const R = S.filter(r => r.d >= seedD);           // chỉ các phiên từ đỉnh sóng trở đi
+  if (R.length < 2) return null;
+  const last = R[R.length - 1];
+
+  // tỉ trọng theo giá trị hiện tại = số CCQ đang giữ × NAV mới nhất
+  const units = {};
+  (onhand || []).forEach(r => { if (SNX.FUNDS.indexOf(r['Mã']) >= 0) units[r['Mã']] = parseVNNumber(r['Số lượng đang giữ']) || 0; });
+  const val = {}; let tot = 0;
+  SNX.FUNDS.forEach(f => { val[f] = (units[f] || 0) * last.nav[f]; tot += val[f]; });
+  const noUnits = !(tot > 0);
+  const w = {};
+  if (noUnits) { w['DCDS'] = .511; w['VESAF'] = .272; w['VCBF-BCF'] = .143; w['VMEEF'] = .074; }   // dự phòng khi Onhand thiếu số CCQ
+  else SNX.FUNDS.forEach(f => { w[f] = val[f] / tot; });
+
+  const coreOf = (nav) => SNX.FUNDS.reduce((s, f) => s + w[f] * nav[f], 0);
+  const peakF = {}, botF = {}, nowF = {};
+  SNX.FUNDS.forEach(f => {
+    peakF[f] = Math.max(SNX.SEED.peak[f], ...R.map(r => r.nav[f]));
+    botF[f] = Math.min(...R.map(r => r.nav[f]));
+    nowF[f] = last.nav[f];
+  });
+  const PEAK = SNX.FUNDS.reduce((s, f) => s + w[f] * peakF[f], 0);
+  const BOT = SNX.FUNDS.reduce((s, f) => s + w[f] * botF[f], 0);
+  const NOW = coreOf(last.nav);
+  const coreSeries = R.map(r => coreOf(r.nav));
+  let iBot = 0; coreSeries.forEach((v, i) => { if (v < coreSeries[iBot]) iBot = i; });
+  const newPeak = coreSeries.some(v => v > PEAK + 1e-6);
+
+  const B1 = PEAK * 0.85, B4 = BOT * 1.05, B5 = BOT * 1.10, C1 = BOT * 1.20, C2 = BOT * 1.35;
+
+  // gap core (giá vốn ÷ giá trị hiện tại − 1) từ Onhand, cùng cách tính với tab Gap
+  let sV = 0, sM = 0;
+  (onhand || []).forEach(r => {
+    if (SNX.FUNDS.indexOf(r['Mã']) < 0) return;
+    const q = parseVNNumber(r['Số lượng đang giữ']) || 0;
+    let von = parseVNNumber(r['Tổng vốn']);
+    if (isNaN(von)) von = q * (parseVNNumber(r['Giá vốn bình quân']) || 0);
+    sV += von; sM += q * last.nav[r['Mã']];
+  });
+  const gap = sM > 0 ? sV / sM - 1 : NaN;
+
+  // VNI quy đổi cùng gốc với core tại đỉnh
+  const k = PEAK / SNX.SEED.vniNavPeak;
+  const vniScaled = R.map(r => (isNaN(r.vni) ? NaN : r.vni * k));
+  // So biên độ VNI tại ĐÚNG hai ngày của core (đỉnh sóng và đáy core), không lấy đáy thấp nhất của VNI trong kỳ
+  const vniVals = R.map(r => r.vni).filter(v => !isNaN(v));
+  const vniNow = vniVals.length ? vniVals[vniVals.length - 1] : NaN;
+  const vniAtBot = R[iBot].vni;
+  let vniLow = Infinity, vniLowDate = null;
+  R.forEach(r => { if (r.vni < vniLow) { vniLow = r.vni; vniLowDate = r.d; } });
+  const vniPeak = SNX.SEED.vniWavePeak;
+  const vniDD = vniAtBot / vniPeak - 1, vniUp = vniNow / vniAtBot - 1;
+
+  const ddCore = BOT / PEAK - 1, upCore = NOW / BOT - 1;
+  const beta = [{ name: 'Core', dd: ddCore, up: upCore, core: true }].concat(SNX.FUNDS.map(f => ({
+    name: SNX.LABEL[f], dd: botF[f] / peakF[f] - 1, up: nowF[f] / botF[f] - 1
+  }))).map(b => Object.assign(b, { rdd: b.dd / vniDD, rup: b.up / vniUp }));
+
+  return {
+    S, R, last, w, noUnits, units, val, peakF, botF, nowF, PEAK, BOT, NOW, coreSeries, iBot, newPeak,
+    B1, B4, B5, C1, C2, gap, k, vniScaled, vniNow, vniAtBot, vniLow, vniLowDate, vniPeak, vniDD, vniUp, ddCore, upCore, beta,
+    fromPeak: NOW / PEAK - 1, fromBot: NOW / BOT - 1, needPeak: PEAK / NOW - 1,
+    botDate: R[iBot].d, peakDate: seedD, nowDate: last.d, coreOf
+  };
+}
+
+// ---- 3. Hồi quy kiểm tra sức khỏe quỹ (return ngày của quỹ ~ return ngày của VNI) ----
+function snxOls(y, x) {
+  const n = y.length;
+  if (n < 5) return null;
+  const mx = x.reduce((s, v) => s + v, 0) / n, my = y.reduce((s, v) => s + v, 0) / n;
+  let sxx = 0, sxy = 0, syy = 0;
+  for (let i = 0; i < n; i++) { sxx += (x[i] - mx) ** 2; sxy += (x[i] - mx) * (y[i] - my); syy += (y[i] - my) ** 2; }
+  if (sxx === 0 || syy === 0) return null;
+  const b = sxy / sxx, a = my - b * mx;
+  let sse = 0; for (let i = 0; i < n; i++) sse += (y[i] - a - b * x[i]) ** 2;
+  const sd = Math.sqrt(sse / Math.max(1, n - 2));
+  return { n, a, b, corr: sxy / Math.sqrt(sxx * syy), r2: 1 - sse / syy, sd, sdY: Math.sqrt(syy / (n - 1)) };
+}
+
+// Trả danh sách đối tượng kiểm tra: mỗi mục {name, kind, pairs:[{i, date, ry, rx}], ...}
+function snxHealth(M) {
+  if (!M) return null;
+  const S = M.S;                     // toàn bộ chuỗi (kể cả trước đỉnh nếu có)
+  const items = [];
+  const cols = SNX.FUNDS.map(f => ({ key: f, name: SNX.LABEL[f], kind: 'core' }))
+    .concat(SNX.PEERS.map(c => ({ key: c, name: c, kind: 'peer' })))
+    .concat(SNX.ETFS.map(c => ({ key: c, name: c, kind: 'etf' })));
+  const getV = (r, c) => (SNX.FUNDS.indexOf(c) >= 0 ? r.nav[c] : r.other[c]);
+  cols.forEach(c => {
+    const pairs = [];
+    for (let i = 1; i < S.length; i++) {
+      const y0 = getV(S[i - 1], c.key), y1 = getV(S[i], c.key);
+      let x0, x1;
+      if (c.kind === 'etf') { x0 = S[i].vni; x1 = (i + 1 < S.length) ? S[i + 1].vni : NaN; }   // ETF: giá sàn cùng ngày → VNI phiên d (hàng kế tiếp)
+      else { x0 = S[i - 1].vni; x1 = S[i].vni; }
+      if (!(y0 > 0 && y1 > 0 && x0 > 0 && x1 > 0)) continue;
+      pairs.push({ i, d: S[i].d, ry: y1 / y0 - 1, rx: x1 / x0 - 1 });
+    }
+    const have = S.filter(r => getV(r, c.key) > 0).length;
+    const res = { key: c.key, name: c.name, kind: c.kind, have, total: S.length, pairs };
+    if (pairs.length >= 10) {
+      const fit = snxOls(pairs.map(p => p.ry), pairs.map(p => p.rx));
+      if (fit) {
+        res.fit = fit;
+        pairs.forEach(p => { p.z = (p.ry - fit.a - fit.b * p.rx) / (fit.sd || 1e-9); });
+        const rec = pairs.slice(-60);
+        const f60 = rec.length >= 20 ? snxOls(rec.map(p => p.ry), rec.map(p => p.rx)) : null;
+        res.beta60 = f60 ? f60.b : NaN;
+        const r20 = pairs.slice(-20).map(p => p.ry);
+        const sd20 = r20.length >= 10 ? Math.sqrt(r20.reduce((s, v) => s + v * v, 0) / r20.length) : NaN;   // căn bình phương trung bình, bỏ trung bình
+        res.vol20 = sd20; res.volAll = fit.sdY;
+        res.volRatio = sd20 / (Math.sqrt(pairs.reduce((s, p) => s + p.ry * p.ry, 0) / pairs.length));
+        const lastP = pairs[pairs.length - 1];
+        res.lastP = lastP;
+        res.lastIsLatest = lastP.i === S.length - 1;
+        res.outliers = pairs.filter(p => Math.abs(p.z) > 3.5 && p.i >= S.length - 30);
+        res.recentBad = pairs.filter(p => Math.abs(p.z) > 3.5 && p.i >= S.length - 5);
+      }
+    }
+    // % từ đáy core (28/07) đến nay
+    const iB = S.findIndex(r => r.d.getTime() === M.botDate.getTime());
+    const vB = iB >= 0 ? getV(S[iB], c.key) : NaN, vN = getV(S[S.length - 1], c.key);
+    res.sinceBot = (vB > 0 && vN > 0) ? vN / vB - 1 : NaN;
+    items.push(res);
+  });
+  // VNI cùng kỳ
+  const iB = S.findIndex(r => r.d.getTime() === M.botDate.getTime());
+  const vniSinceBot = (iB >= 0 && S[iB].vni > 0 && S[S.length - 1].vni > 0) ? S[S.length - 1].vni / S[iB].vni - 1 : NaN;
+  const missing = S.slice(-5).filter(r => !r.official).map(r => snxLab(r.d));
+  return { items, vniSinceBot, missing };
+}
+
+function snxHealthChip(h) {
+  if (!h.fit) return { t: h.have < 10 ? 'Thiếu dữ liệu' : 'Chưa tính được', c: 'wait' };
+  if (h.recentBad && h.recentBad.length) return { t: 'NAV bất thường: kiểm tra', c: 'fall' };
+  if (h.fit.corr < 0.5 && h.kind !== 'etf') return { t: 'Tương quan thấp', c: 'near' };
+  if (isFinite(h.beta60) && Math.abs(h.beta60 - h.fit.b) / Math.max(0.05, Math.abs(h.fit.b)) > 0.35) return { t: 'Beta lệch khỏi lịch sử', c: 'near' };
+  return { t: 'Bình thường', c: 'past' };
+}
+
+// ======================================================================
+// CẢM BIẾN NAV — phần hiển thị (dựng HTML từ mô hình snxModel / snxHealth)
+// ======================================================================
+const SNX_C = { CT: '#2B7A9B', CL: '#D08A00', CA: '#A23B2A', CB: '#1E6B3A', INK: '#1B1F23', MUTE: '#4E5863', LINE: '#DAD8D1', CORE: '#1F4E79', VNI: '#6B7480' };
+const SNX_CHIP_BASE = 'padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;white-space:normal;display:inline-block;';
+const SNX_CHIP = {
+  fall: SNX_CHIP_BASE + 'background:#FBE9E7;color:#8F2D1A', near: SNX_CHIP_BASE + 'background:#FFF1D6;color:#7A4B00',
+  past: SNX_CHIP_BASE + 'background:#E3F1E8;color:#1E6B3A', manual: SNX_CHIP_BASE + 'background:#ECEFF2;color:#44505C',
+  wait: SNX_CHIP_BASE + 'background:#F2F0EA;color:#4E5863'
+};
+const SNX_CARD = 'background:#FFFFFF;border:1px solid #DAD8D1;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:12px;';
+const SNX_MONO = "font-family:'IBM Plex Mono',monospace;";
+function snxEsc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function snxCardHead(title, note) {
+  return '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2 style="margin:0;font-size:18px;font-weight:600">' + title + '</h2>'
+    + (note ? '<div style="font-size:13px;color:#4E5863">' + note + '</div>' : '') + '</div>';
+}
+
+// ---- Trạng thái core (chip đầu trang) ----
+function snxState(M) {
+  if (M.newPeak) return { t: 'Đỉnh mới: cần reset chu kỳ', k: 'near' };
+  if (M.fromPeak > -0.15 && M.BOT > M.B1) return { t: 'Nghỉ', k: 'wait' };
+  if (M.fromBot < 0.0005) return { t: 'Đang rơi', k: 'fall' };
+  if (M.fromBot < 0.05) return { t: 'Gần đáy', k: 'near' };
+  if (M.fromBot < 0.10) return { t: 'Đã qua đáy', k: 'past' };
+  return { t: 'Xác nhận hồi', k: 'past' };
+}
+
+// ---- Cảnh báo ----
+function snxAlerts(M, H, ctx) {
+  const a = [];
+  const reached = [['B4 (+5%)', M.B4], ['B5 (+10%)', M.B5], ['C1 (+20%)', M.C1], ['C2 (+35%)', M.C2]].filter(x => M.NOW >= x[1]);
+  const next = [['B4 (+5%)', M.B4], ['B5 (+10%)', M.B5], ['C1 (+20%)', M.C1], ['C2 (+35%)', M.C2]].find(x => M.NOW < x[1]);
+  a.push({ tag: 'Core', text: 'Core ' + snxPc(M.fromBot) + ' từ đáy, ' + snxPc(M.fromPeak) + ' so với đỉnh.'
+    + (reached.length ? ' Đã vượt ' + reached.map(x => x[0] + ' tại ' + snxFmt(x[1])).join(', ') + '.' : '')
+    + (next ? ' Mốc kế tiếp ' + next[0] + ' tại ' + snxFmt(next[1]) + ' (cần thêm ' + snxF1((next[1] / M.NOW - 1) * 100) + '%).' : '') });
+  const up = SNX.FUNDS.map(f => ({ f, u: M.nowF[f] / M.botF[f] - 1 }));
+  const over10 = up.filter(x => x.u >= 0.10), over5 = up.filter(x => x.u >= 0.05 && x.u < 0.10), under5 = up.filter(x => x.u < 0.05);
+  const lab = x => SNX.LABEL[x.f] + ' ' + snxPc(x.u);
+  a.push({ tag: 'Từng quỹ', text: [over10.length ? 'Đã qua +10% từ đáy riêng: ' + over10.map(lab).join(', ') + '.' : '',
+    over5.length ? 'Qua +5%: ' + over5.map(lab).join(', ') + '.' : '',
+    under5.length ? 'Chưa tới +5%: ' + under5.map(lab).join(', ') + '.' : ''].filter(Boolean).join(' ') });
+  // dữ liệu
+  const dt = [];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const stale = snxDays(M.nowDate, today);
+  if (stale > 4) dt.push('NAV mới nhất là ngày ' + snxLabFull(M.nowDate) + ', đã ' + stale + ' ngày chưa có NAV mới.');
+  if (H && H.missing.length) dt.push('NAV các ngày ' + H.missing.join(', ') + ' chưa đánh dấu chính thức (cột "Chính thức (Y)").');
+  if (H) {
+    const bad = H.items.filter(h => h.recentBad && h.recentBad.length);
+    if (bad.length) dt.push('Phiên gần đây lệch bất thường so với VNI: ' + bad.map(h => h.name + ' (' + h.recentBad.map(p => snxLab(p.d) + ' z=' + p.z.toFixed(1).replace('.', ',')).join('; ') + ')').join(', ') + '. Kiểm tra NAV trước khi hành động.');
+  }
+  if (M.noUnits) dt.push('Onhand thiếu số CCQ, đang dùng tỉ trọng dự phòng 51,1/27,2/14,3/7,4.');
+  a.push({ tag: 'Dữ liệu', text: dt.length ? dt.join(' ') : 'NAV tới ' + snxLabFull(M.nowDate) + ' đã chính thức, không thấy phiên nào lệch bất thường so với VNI.' });
+  // lệch tỉ trọng
+  const big = SNX.FUNDS.slice().sort((x, y) => M.w[y] - M.w[x])[0];
+  const bigUp = M.nowF[big] / M.botF[big] - 1;
+  const others = SNX.FUNDS.filter(f => f !== big).map(f => SNX.LABEL[f] + ' ' + snxPc(M.nowF[f] / M.botF[f] - 1)).join(', ');
+  const t = snxTargets(M);
+  const dev = [['DCDS', M.w['DCDS'], t.DCDS], ['BCF', M.w['VCBF-BCF'], t['VCBF-BCF']], ['VinaCapital', M.w['VESAF'] + M.w['VMEEF'], t.VINA]]
+    .map(x => x[0] + ' ' + (x[1] > x[2] ? '+' : '−') + Math.abs((x[1] - x[2]) * 100).toFixed(0) + ' điểm %').join(', ');
+  a.push({ tag: 'Lệch tỉ trọng', text: 'Core ' + snxPc(M.fromBot) + ' từ đáy bị ' + SNX.LABEL[big] + ' kéo: chiếm ' + snxF1(M.w[big] * 100) + '% nhưng chỉ ' + snxPc(bigUp) + '; còn lại ' + others + '. So với mục tiêu 40/30/30: ' + dev + '.' });
+  return a;
+}
+function snxTargets(M) {
+  const vina = M.w['VESAF'] + M.w['VMEEF'];
+  const tgt = { 'DCDS': SNX.TARGET['DCDS'], 'VCBF-BCF': SNX.TARGET['VCBF-BCF'], 'VINA': SNX.TARGET['VINA'] };
+  tgt['VESAF'] = SNX.TARGET['VINA'] * (vina > 0 ? M.w['VESAF'] / vina : 0.5);
+  tgt['VMEEF'] = SNX.TARGET['VINA'] - tgt['VESAF'];
+  return tgt;
+}
+
+// ---- Thanh trượt ----
+function snxSlider(M) {
+  const SPAN = M.PEAK - M.BOT, pos = v => (v - M.BOT) / SPAN * 100;
+  const pN = pos(M.NOW).toFixed(2);
+  const zb = 'position:absolute;top:52px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:0.08em;white-space:nowrap;box-sizing:border-box;';
+  const C = SNX_C;
+  const sw = c => 'display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;background:' + c;
+  const zoneNow = M.NOW <= M.B5 ? 'vùng xả tụ + DCA (app quỹ)' : (M.NOW < M.C1 ? 'vùng DCA (Fmarket)' : 'vùng chốt lãi');
+  let h = '<div style="position:relative;height:190px;margin:0 48px">';
+  h += '<div style="' + zb + 'left:0;border-radius:10px 0 0 10px;background:' + C.CT + ';color:#FFFFFF;width:' + pos(M.B5).toFixed(2) + '%">XẢ TỤ + DCA · app quỹ</div>';
+  h += '<div style="' + zb + 'left:' + pos(M.B5).toFixed(2) + '%;width:' + (pos(M.C1) - pos(M.B5)).toFixed(2) + '%;background:#DAD8D1;color:#4E5863">VÙNG DCA · Fmarket</div>';
+  h += '<div style="' + zb + 'border-radius:0 10px 10px 0;background:' + C.CL + ';color:#1B1F23;left:' + pos(M.C1).toFixed(2) + '%;width:' + (100 - pos(M.C1)).toFixed(2) + '%">VÙNG CHỐT LÃI</div>';
+  const tk = [
+    { v: M.BOT, l1: 'Đáy · ' + snxLab(M.botDate), c: C.CB }, { v: M.B4, l1: 'B4 +5%', c: C.CB },
+    { v: M.B1, l1: 'B1 −15%', c: C.CA }, { v: M.B5, l1: 'B5 +10%', c: C.CB },
+    { v: M.C1, l1: 'C1 +20%', c: C.CB }, { v: M.PEAK, l1: 'Đỉnh · ' + snxLab(M.peakDate), c: C.CA }];
+  tk.forEach(t => {
+    const p = pos(t.v).toFixed(2);
+    h += '<div style="position:absolute;top:0;left:' + p + '%;transform:translateX(-50%);text-align:center;font-size:12px;line-height:1.35;' + SNX_MONO + 'color:' + t.c + ';white-space:nowrap"><div style="font-weight:600">' + t.l1 + '</div><div>' + snxFmt(t.v) + '</div></div>';
+    h += '<div style="position:absolute;top:40px;left:' + p + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid ' + t.c + '"></div>';
+  });
+  const arrow = (text, left, width, col, headLeft) =>
+    '<div style="position:absolute;top:106px;left:' + left + ';width:' + width + ';height:3px;background:' + col + '"></div>'
+    + '<div style="position:absolute;top:100px;left:' + headLeft + ';margin-left:-12px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:12px solid ' + col + '"></div>'
+    + '<div style="position:absolute;top:116px;left:' + left + ';width:' + width + ';text-align:center;font-size:13px;font-weight:600;white-space:nowrap;color:' + col + '">' + text + '</div>';
+  h += arrow(snxPc(M.fromBot) + ' từ đáy', '0', pN + '%', C.CB, pN + '%');
+  h += arrow(snxPc(M.fromPeak) + ' so với đỉnh', pN + '%', (100 - pos(M.NOW)).toFixed(2) + '%', C.CA, '100%');
+  h += '<div style="position:absolute;top:96px;left:' + pN + '%;width:2px;height:58px;margin-left:-1px;background:#1B1F23"></div>';
+  h += '<div style="position:absolute;top:86px;left:' + pN + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:10px solid #1B1F23"></div>';
+  h += '<div style="position:absolute;top:154px;left:' + pN + '%;transform:translateX(-50%);background:#1B1F23;color:#FFFFFF;padding:4px 10px;border-radius:6px;' + SNX_MONO + 'font-size:13px;font-weight:500;white-space:nowrap">NAV core ' + snxFmt(M.NOW) + '</div>';
+  h += '</div>';
+  const legend = [
+    [C.CT, 'Vùng xả tụ + DCA: đáy tới B5 (≤ ' + snxFmt(M.B5) + '). DCA chạy song song, mua trên app quỹ từ 01/11/26 (TCBS dừng mua)'],
+    ['#DAD8D1', 'Vùng DCA, mua trên Fmarket: B5 tới C1, hết tụ (' + snxFmt(M.B5) + ' – ' + snxFmt(M.C1) + ')'],
+    [C.CL, 'Vùng chốt lãi: từ C1 (≥ ' + snxFmt(M.C1) + '), không mua. Nạp tụ: chuyển đổi sang TP trên app quỹ và Fmarket, tại nơi giữ lô']];
+  return '<div style="' + SNX_CARD.replace('padding:20px', 'padding:20px 28px 16px') + '">'
+    + snxCardHead('Vị trí NAV core giữa đáy và đỉnh', 'Thanh trượt từ đáy (min) tới đỉnh (max)') + h
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:#1B1F23">' + legend.map(g => '<span><span style="' + sw(g[0]) + '"></span>' + g[1] + '</span>').join('') + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:#4E5863"><div>Cần ' + snxPc(M.needPeak) + ' để về đỉnh. Hiện ở ' + zoneNow + '.</div>'
+    + '<div>Các điểm B1–B5, C1–C3 xem theo bảng Quy tắc hành động bên dưới.</div>'
+    + '<div>Điểm chốt lãi C2 (+35%: ' + snxFmt(M.C2) + ') nằm ngoài thanh, chỉ đạt khi vượt đỉnh cũ. C3 (phân kỳ âm) là tín hiệu bật tay, không có điểm giá trên thanh.</div></div></div>';
+}
+
+// ---- Bảng quy tắc ----
+function snxRules(M, ctx) {
+  const gapTxt = isNaN(M.gap) ? '—' : (M.gap * 100).toFixed(1).replace('.', ',') + '%';
+  const gapOk = !isNaN(M.gap) && M.gap < SNX.GAP_LIMIT;
+  const b1 = M.BOT <= M.B1;
+  const manual = (st) => st;
+  const dist = (thr) => 'core ≥ ' + snxFmt(thr) + ' (+' + snxF1((thr / M.NOW - 1) * 100) + '%)';
+  const rows = [
+    ['B1', 'Core −15% từ đỉnh', 'Bắt đầu xả tụ bù: 70% số dư chia đều 12 tháng, 30% làm van', b1 ? 'Đã kích hoạt (đáy ' + snxPc(M.BOT / M.PEAK - 1) + ', nay ' + snxPc(M.fromPeak) + ')' : 'Chờ: core ≤ ' + snxFmt(M.B1), b1 ? 'fall' : 'wait', b1 && M.NOW < M.B5],
+    ['B2', 'Mỗi tháng trong chu kỳ', 'Xả 1/12 phần 70%', b1 ? (M.NOW >= M.B5 ? 'Dừng: B5 đã đạt' : 'Đang chạy') : 'Chưa bắt đầu', b1 && M.NOW < M.B5 ? 'fall' : 'wait', false],
+    ['B3', 'Gap core > 8%', 'Xả van 5% mỗi tháng', gapOk ? 'Chưa: gap core ≈ ' + gapTxt : 'Đạt: gap core ≈ ' + gapTxt, gapOk ? 'wait' : 'near', false],
+    ['B4', 'Core +5% từ đáy và gap < 8%', 'Xả hết van', (M.NOW >= M.B4 && gapOk) ? 'Đạt: ' + snxFmt(M.NOW) + ' ≥ ' + snxFmt(M.B4) + ' · gap ≈ ' + gapTxt : 'Chờ: ' + dist(M.B4) + ' · gap ≈ ' + gapTxt, (M.NOW >= M.B4 && gapOk) ? 'near' : 'wait', M.NOW >= M.B4 && gapOk && M.NOW < M.B5],
+    ['B5', 'Core +10% từ đáy', 'Xả hết tụ còn lại, reset đỉnh và đáy', M.NOW >= M.B5 ? 'Đạt: xả hết tụ, reset đỉnh/đáy (app chưa tự reset)' : 'Kế tiếp: ' + dist(M.B5), M.NOW >= M.B5 ? 'near' : 'wait', M.NOW >= M.B5 && M.NOW < M.C1],
+    ['C1', 'Core +20% từ đáy', 'Cắt lời 10% về tụ', M.NOW >= M.C1 ? 'Đạt' : 'Chờ: ' + dist(M.C1), M.NOW >= M.C1 ? 'near' : 'wait', M.NOW >= M.C1 && M.NOW < M.C2],
+    ['C2', 'Core +35% từ đáy', 'Cắt lời thêm 20%', M.NOW >= M.C2 ? 'Đạt' : 'Chờ: ' + dist(M.C2), M.NOW >= M.C2 ? 'near' : 'wait', M.NOW >= M.C2],
+    ['C3', 'Phân kỳ âm (W/D1)', 'Cắt 30%; gộp 50% nếu trước +35%; không cắt nếu trước +20%', 'Nhập tay', 'manual', false],
+    ['Sàn', 'Tỉ trọng core', 'Không dưới 40%', 'Chưa tính (chưa có số dư tụ)', 'manual', false]];
+  let t = '<table style="width:100%;min-width:760px;border-collapse:collapse;font-size:14px"><thead><tr style="text-align:left;color:#4E5863;font-size:12px;text-transform:uppercase;letter-spacing:0.04em">'
+    + '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;width:60px">Mã</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">Điều kiện</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">Hành động</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;width:260px">Hiện tại</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    t += '<tr style="' + (r[5] ? 'background:#FFF8E6' : '') + '"><td style="padding:10px;border-bottom:1px solid #ECEAE3;' + SNX_MONO + 'font-weight:500">' + r[0] + '</td>'
+      + '<td style="padding:10px;border-bottom:1px solid #ECEAE3">' + r[1] + '</td><td style="padding:10px;border-bottom:1px solid #ECEAE3">' + r[2] + '</td>'
+      + '<td style="padding:10px;border-bottom:1px solid #ECEAE3"><span style="' + SNX_CHIP[r[4]] + '">' + r[3] + '</span></td></tr>';
+  });
+  t += '</tbody></table>';
+  return '<div style="' + SNX_CARD + '">' + snxCardHead('Quy tắc hành động', 'Tính trên NAV core chung. Dòng nền vàng là mốc vừa đạt.')
+    + '<div style="overflow-x:auto">' + t + '</div>'
+    + '<div style="font-size:12px;color:#4E5863">Gap core lấy từ Onhand (giá vốn bình quân so với giá trị theo NAV mới nhất). Phân kỳ âm (C3) là ô bật tay. Trạng thái B2–B5 chỉ suy ra từ giá, app chưa có sổ ghi xả tụ nên chưa biết đã xả bao nhiêu.</div></div>';
+}
+
+// ---- Chart core vs VNI + thanh ngày ----
+function snxChart(M) {
+  // điểm đầu = đỉnh sóng (seed, 27/02) → các phiên NAV daily
+  const pts = [{ d: M.peakDate, c: M.PEAK, v: M.PEAK, seed: true }].concat(M.R.map((r, i) => ({ d: r.d, c: M.coreSeries[i], v: M.vniScaled[i] })));
+  const n = pts.length;
+  const L = 52, Rr = 780, T = 14, B = 290;
+  const maxV = Math.max(M.C2, M.PEAK, ...pts.map(p => isNaN(p.v) ? 0 : p.v));
+  const minV = Math.min(M.BOT, ...pts.map(p => p.c), ...pts.map(p => isNaN(p.v) ? 1e12 : p.v));
+  const LO = Math.floor((minV - 1500) / 5000) * 5000, HI = Math.ceil((maxV + 1500) / 5000) * 5000;
+  const xi = i => L + (Rr - L) * i / (n - 1), yv = v => B - (B - T) * (v - LO) / (HI - LO);
+  const path = (get, from) => { let s = '', started = false; for (let i = from; i < n; i++) { const v = get(pts[i]); if (isNaN(v)) continue; s += (started ? 'L' : 'M') + xi(i).toFixed(1) + ' ' + yv(v).toFixed(1) + ' '; started = true; } return s; };
+  const coreD = path(p => p.c, 1), vniD = path(p => p.v, 1);
+  const gapCore = 'M' + xi(0).toFixed(1) + ' ' + yv(pts[0].c).toFixed(1) + ' L' + xi(1).toFixed(1) + ' ' + yv(pts[1].c).toFixed(1);
+  const gapVni = 'M' + xi(0).toFixed(1) + ' ' + yv(pts[0].v).toFixed(1) + ' L' + xi(1).toFixed(1) + ' ' + yv(pts[1].v).toFixed(1);
+  let grid = '', ylab = '';
+  for (let v = LO + 5000; v < HI; v += 5000) { grid += 'M' + L + ' ' + yv(v).toFixed(1) + ' H' + Rr + ' '; ylab += '<text x="42" y="' + (yv(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="#4E5863" font-family="IBM Plex Mono, monospace">' + snxFmt(v) + '</text>'; }
+  const xt = [0, Math.round((n - 1) / 5), Math.round(2 * (n - 1) / 5), Math.round(3 * (n - 1) / 5), Math.round(4 * (n - 1) / 5), n - 1];
+  const xlab = xt.map(i => '<text x="' + xi(i).toFixed(1) + '" y="310" text-anchor="middle" font-size="11" fill="#4E5863" font-family="IBM Plex Mono, monospace">' + snxLab(pts[i].d) + '</text>').join('');
+  const lvl = (v, label, c, dash, w) => '<line x1="52" x2="780" y1="' + yv(v).toFixed(1) + '" y2="' + yv(v).toFixed(1) + '" stroke="' + c + '" stroke-width="' + w + '" stroke-dasharray="' + dash + '"></line>'
+    + '<text x="786" y="' + (yv(v) + 4).toFixed(1) + '" font-size="11" font-weight="600" fill="' + c + '" font-family="IBM Plex Sans, sans-serif">' + label + '</text>';
+  let svg = '<svg viewBox="0 0 900 396" style="width:100%;height:auto;display:block" role="img" aria-label="NAV core chung và VNI quy đổi">';
+  svg += '<rect x="52" y="' + T + '" width="728" height="' + (yv(M.PEAK) - T).toFixed(1) + '" fill="#D08A00" fill-opacity="0.12"></rect>';
+  svg += '<text x="60" y="' + (T + 18) + '" font-size="12" font-weight="600" fill="#8A5A00" font-family="IBM Plex Sans, sans-serif">VÙNG CHỐT LÃI C2 · C3 (ngoài thanh trượt)</text>';
+  svg += '<text x="60" y="' + (yv(M.C2) + 40).toFixed(1) + '" font-size="11" fill="#8A5A00" font-family="IBM Plex Sans, sans-serif">C3: phân kỳ âm, tín hiệu bật tay, không có điểm giá</text>';
+  svg += '<path d="' + grid + '" stroke="#E6E4DD" stroke-width="1" fill="none"></path>' + ylab + xlab;
+  svg += lvl(M.PEAK, 'Đỉnh: ' + snxFmt(M.PEAK), SNX_C.CA, '6 4', 1.3) + lvl(M.NOW, 'Hiện tại: ' + snxFmt(M.NOW), SNX_C.INK, 'none', 1.4)
+    + lvl(M.BOT, 'Đáy: ' + snxFmt(M.BOT), SNX_C.CB, '6 4', 1.3) + lvl(M.C2, 'C2 +35%: ' + snxFmt(M.C2), '#8A5A00', '2 3', 1.3);
+  svg += '<path d="' + gapVni + '" fill="none" stroke="#B5BBC2" stroke-width="1.2" stroke-dasharray="2 3"></path><path d="' + vniD + '" fill="none" stroke="#6B7480" stroke-width="1.6" stroke-dasharray="5 4"></path>';
+  const lastV = pts[n - 1].v;
+  if (!isNaN(lastV)) svg += '<text x="786" y="' + (yv(lastV) + 4).toFixed(1) + '" font-size="11" fill="#6B7480" font-family="IBM Plex Sans, sans-serif">VNI quy đổi: ' + snxFmt(lastV) + '</text>';
+  svg += '<path d="' + gapCore + '" fill="none" stroke="#7F9DB8" stroke-width="1.6" stroke-dasharray="2 3"></path><path d="' + coreD + '" fill="none" stroke="#1F4E79" stroke-width="2.4" stroke-linejoin="round"></path>';
+  svg += '<circle cx="' + xi(n - 1).toFixed(1) + '" cy="' + yv(M.NOW).toFixed(1) + '" r="5" fill="#1F4E79" stroke="#FFFFFF" stroke-width="2"></circle>';
+  const iB = pts.findIndex(p => !p.seed && p.d.getTime() === M.botDate.getTime());
+  const xP = xi(0), xB = xi(iB), xN = xi(n - 1);
+  svg += '<rect x="' + xP.toFixed(1) + '" y="336" width="' + (xB - xP).toFixed(1) + '" height="18" fill="#E8BDB5"></rect><text x="' + ((xP + xB) / 2).toFixed(1) + '" y="349" text-anchor="middle" font-size="10" font-weight="600" fill="#1B1F23" font-family="IBM Plex Sans, sans-serif">' + snxLab(M.peakDate).slice(0,5) + ' → ' + snxLab(M.botDate).slice(0,5) + '</text>';
+  svg += '<rect x="' + xB.toFixed(1) + '" y="336" width="' + (xN - xB).toFixed(1) + '" height="18" fill="#A9CDB6"></rect><text x="' + ((xB + xN) / 2).toFixed(1) + '" y="349" text-anchor="middle" font-size="10" font-weight="600" fill="#1B1F23" font-family="IBM Plex Sans, sans-serif">' + snxLab(M.botDate).slice(0,5) + ' → ' + snxLab(M.nowDate).slice(0,5) + '</text>';
+  const tri = x => 'M' + (x - 6).toFixed(1) + ' 324 L' + (x + 6).toFixed(1) + ' 324 L' + x.toFixed(1) + ' 334 Z';
+  [[xP, SNX_C.CA, 'Đỉnh · ' + snxLab(M.peakDate), xP + 24, 372], [xB, SNX_C.CB, 'Đáy · ' + snxLab(M.botDate), xB, 372], [xN, SNX_C.INK, 'Nay · ' + snxLab(M.nowDate), xN - 40, 387]].forEach(m => {
+    svg += '<path d="' + tri(m[0]) + '" fill="' + m[1] + '"></path><text x="' + m[3].toFixed(1) + '" y="' + m[4] + '" text-anchor="middle" font-size="11" font-weight="600" fill="' + m[1] + '" font-family="IBM Plex Mono, monospace">' + m[2] + '</text>';
+  });
+  svg += '</svg>';
+  const dDown = snxDays(M.peakDate, M.botDate), dUp = snxDays(M.botDate, M.nowDate);
+  const firstD = M.R[0].d;
+  return '<div style="' + SNX_CARD + '">'
+    + '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><h2 style="margin:0;font-size:18px;font-weight:600">NAV core chung và VNI</h2>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#4E5863"><span><span style="display:inline-block;width:18px;height:3px;background:#1F4E79;vertical-align:middle;margin-right:6px"></span>Core (Σ tỉ trọng × NAV, đồng)</span>'
+    + '<span><span style="display:inline-block;width:18px;height:0;border-top:2px dashed #6B7480;vertical-align:middle;margin-right:6px"></span>VNI quy đổi cùng gốc tại đỉnh ' + snxLab(M.peakDate) + '</span></div></div>'
+    + svg
+    + '<div style="font-size:12px;color:#4E5863">Đỉnh và đáy của core là giá tổng hợp (nhân tỉ trọng) tại đỉnh sóng chung ' + snxLabFull(M.peakDate) + ' (' + dDown + ' ngày giảm) và đáy ' + snxLabFull(M.botDate) + ' (' + dUp + ' ngày hồi) của 4 quỹ. VNI được nhân hệ số để trùng core tại đỉnh, nên khoảng cách giữa hai đường là độ lệch so với VNI kể từ đỉnh sóng. NAV daily bắt đầu từ ' + snxLabFull(firstD) + ', đoạn nối chấm từ đỉnh tới phiên đó chỉ là đường nối thẳng minh họa, không phải dữ liệu thật.</div></div>';
+}
+
+function snxLog(M) {
+  const e = (date, title, note) => '<div style="border:1px solid #E6E4DD;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#4E5863;' + SNX_MONO + '">' + date + '</div><div style="font-size:15px;font-weight:600">' + title + '</div><div style="font-size:13px;color:#4E5863">' + note + '</div></div>';
+  return '<div style="' + SNX_CARD + '">' + snxCardHead('Nhật ký đỉnh và đáy (tự ghi)') + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">'
+    + e(snxLabFull(M.peakDate), 'Đỉnh core: ' + snxFmt(M.PEAK), 'Đỉnh sóng chung của 4 quỹ, nhân tỉ trọng. Mọi mốc −15% tính từ đây.')
+    + e(snxLabFull(M.botDate), 'Đáy core: ' + snxFmt(M.BOT), 'Thấp hơn đỉnh ' + snxF1(Math.abs(M.BOT / M.PEAK - 1) * 100) + '%. Mọi mốc +5%, +10%, +20%, +35% tính từ đây.') + '</div></div>';
+}
+
+// ---- Bảng độ lệch & beta so với VNI ----
+function snxBeta(M) {
+  let t = '<table style="width:100%;min-width:640px;border-collapse:collapse;font-size:14px"><thead><tr style="text-align:left;color:#4E5863;font-size:12px;text-transform:uppercase;letter-spacing:0.04em">'
+    + ['Đối tượng', 'Giảm đỉnh tới đáy', 'Hệ số giảm', 'Hồi từ đáy tới nay', 'Hệ số hồi'].map(h => '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">' + h + '</th>').join('') + '</tr></thead><tbody>';
+  const td = (v, mono) => '<td style="padding:10px;border-bottom:1px solid #ECEAE3;' + (mono ? SNX_MONO : 'font-weight:600') + '">' + v + '</td>';
+  const x = v => v.toFixed(2).replace('.', ',') + '×';
+  M.beta.forEach(b => { t += '<tr style="' + (b.core ? 'background:#F4F8FC' : '') + '">' + td(b.name) + td(snxPc(b.dd), 1) + td(x(b.rdd), 1) + td(snxPc(b.up), 1) + td(x(b.rup), 1) + '</tr>'; });
+  t += '<tr>' + td('VNI') + td(snxPc(M.vniDD), 1) + td('1,00×', 1) + td(snxPc(M.vniUp), 1) + td('1,00×', 1) + '</tr></tbody></table>';
+  return '<div style="' + SNX_CARD + '">' + snxCardHead('Độ lệch và beta so với VNI (sóng tháng 2 tới nay)', 'Hệ số = mức giảm hoặc hồi của quỹ / mức của VNI trong cùng khoảng')
+    + '<div style="overflow-x:auto">' + t + '</div>'
+    + '<div style="font-size:12px;color:#4E5863">VNI so tại đúng hai ngày của core: đỉnh sóng (' + snxLabFull(snxDate(SNX.SEED.vniWavePeakDate)) + ' = ' + String(M.vniPeak.toFixed(1)).replace('.', ',') + ', hằng số seed) và ngày đáy core (' + snxLabFull(M.botDate) + ' = ' + String(M.vniAtBot.toFixed(1)).replace('.', ',') + '); hiện ' + String(M.vniNow.toFixed(1)).replace('.', ',')
+    + '. Đáy thấp nhất của VNI trong kỳ là ' + String(M.vniLow.toFixed(1)).replace('.', ',') + ' (' + snxLabFull(M.vniLowDate) + '), thấp hơn ngày đáy core, nên hệ số giảm sẽ nhỏ hơn nếu lấy đáy đó. Hệ số hồi mới ở đoạn đầu của nhịp hồi, chưa ổn định.</div></div>';
+}
+
+// ======================================================================
+// CẢM BIẾN NAV — tỉ trọng, từng quỹ, sức khỏe quỹ, form ghi NAV, hàm render tổng
+// ======================================================================
+function snxWeights(M, ipBal) {
+  const t = snxTargets(M);
+  const segSt = (w, bg, fg) => 'width:' + w + '%;background:' + bg + ';color:' + fg + ';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;box-sizing:border-box;border-right:2px solid #FFFFFF';
+  const cD = '#1F4E79', cB = '#2B7A9B', cV = '#6E8F3E', cM = '#B7C77F';
+  const seg = (w, bg, fg, text) => '<div style="' + segSt(w, bg, fg) + '">' + text + '</div>';
+  const pc0 = v => (v * 100).toFixed(0) + '%';
+  const tgtBar = seg(t['DCDS'] * 100, cD, '#fff', 'DCDS ' + pc0(t['DCDS'])) + seg(t['VCBF-BCF'] * 100, cB, '#fff', 'VCBF-BCF ' + pc0(t['VCBF-BCF']))
+    + seg(t['VESAF'] * 100, cV, '#fff', 'VESAF ' + (t['VESAF'] * 100).toFixed(0) + '%') + seg(t['VMEEF'] * 100, cM, '#1B1F23', (t['VMEEF'] * 100).toFixed(0) + '%');
+  const actBar = seg(M.w['DCDS'] * 100, cD, '#fff', 'DCDS ' + pc0(M.w['DCDS'])) + seg(M.w['VCBF-BCF'] * 100, cB, '#fff', 'BCF ' + pc0(M.w['VCBF-BCF']))
+    + seg(M.w['VESAF'] * 100, cV, '#fff', 'VESAF ' + pc0(M.w['VESAF'])) + seg(M.w['VMEEF'] * 100, cM, '#1B1F23', pc0(M.w['VMEEF']));
+  const vinaA = M.w['VESAF'] + M.w['VMEEF'];
+  const dv = (name, a, tg) => '<span style="font-weight:600;color:' + (a > tg ? '#8F2D1A' : '#1E6B3A') + '">' + name + ' ' + (a > tg ? '+' : '−') + Math.abs((a - tg) * 100).toFixed(0) + ' điểm %: ' + (a > tg ? 'vượt mục tiêu' : 'thiếu so với mục tiêu') + '</span>';
+  const coreV = M.SUM_VAL, hasIp = ipBal > 0;
+  let capBar = '';
+  if (hasIp) {
+    const tot = coreV + ipBal;
+    capBar = '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;font-weight:600">Core so với tụ bù trong tổng vốn</div>'
+      + '<div style="position:relative;display:flex;height:44px;border-radius:8px;overflow:hidden">'
+      + seg(coreV / tot * 100, cD, '#fff', 'Core ' + snxF1(coreV / tot * 100) + '%') + seg(ipBal / tot * 100, '#DAD8D1', '#1B1F23', 'Ipower gộp (chưa tách) ' + snxF1(ipBal / tot * 100) + '%')
+      + '<div style="position:absolute;top:0;bottom:0;left:40%;width:0;border-left:3px dashed #A23B2A"></div></div>'
+      + '<div style="font-size:12px;color:#4E5863">Vạch đỏ nét đứt: sàn core 40% (tụ bù tối đa 60%). Hiện tụ bù = 0%. Ipower ' + snxFmt(ipBal) + ' gộp vốn đầu tư, DCA, swing và sinh hoạt, đổi theo tháng nên chưa đáng tin làm mẫu số tỉ trọng; cần tách phần vốn đầu tư trước khi tính sàn 40%. Core ' + snxFmt(coreV) + '.</div></div>';
+  }
+  return '<div style="' + SNX_CARD.replace('gap:12px', 'gap:14px') + '">' + snxCardHead('Tỉ trọng mục tiêu và thực tế', 'Mục tiêu 40 : 30 : 30 trên tổng vốn core, không phụ thuộc khung thời gian hay giá trị')
+    + '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;font-weight:600">Mục tiêu</div><div style="display:flex;height:44px;border-radius:8px;overflow:hidden">' + tgtBar + '</div></div>'
+    + '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;font-weight:600">Thực tế hiện tại (theo số CCQ × NAV mới nhất)</div><div style="display:flex;height:44px;border-radius:8px;overflow:hidden">' + actBar + '</div></div>'
+    + capBar
+    + '<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px">' + dv('DCDS', M.w['DCDS'], t['DCDS']) + dv('BCF', M.w['VCBF-BCF'], t['VCBF-BCF']) + dv('VinaCapital (VESAF + VMEEF)', vinaA, t['VINA']) + '</div>'
+    + '<div style="font-size:12px;color:#4E5863">VinaCapital 30% chia VESAF/VMEEF theo tỉ lệ đang giữ (chưa có tỉ lệ mục tiêu riêng). Không bán gì: chỉ dừng DCA vào quỹ đang vượt và dồn DCA vào quỹ đang thiếu, tỉ trọng tự cân bằng dần. Nền mua: TCBS dừng mua từ tháng 11, các lô TCBS hiện có đóng băng làm nền. Dưới +10% từ đáy mua trên app quỹ, trên +10% mua trên Fmarket.</div></div>';
+}
+
+function snxFundCards(M) {
+  let cards = '';
+  SNX.FUNDS.forEach(f => {
+    const a = M.R.map(r => r.nav[f]);
+    const peak = M.peakF[f], bot = M.botF[f], now = M.nowF[f];
+    const up = now / bot - 1, dd = now / peak - 1;
+    const sp = peak - bot, ps = v => (v - bot) / sp * 100, pn = ps(now), pnS = pn.toFixed(2);
+    const lo = Math.min(bot * 0.97, Math.min(...a) - 100), hi = Math.max(peak * 1.03, Math.max(...a));
+    const gx = i => 4 + 292 * i / (a.length - 1), gy = v => 92 - 84 * (v - lo) / (hi - lo);
+    const d = a.map((v, i) => (i ? 'L' : 'M') + gx(i).toFixed(1) + ' ' + gy(v).toFixed(1)).join(' ');
+    const cA = SNX_C.CA, cB = SNX_C.CB;
+    const tri = (p, c) => '<div style="position:absolute;top:18px;left:' + p.toFixed(2) + '%;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid ' + c + '"></div>';
+    const st = up >= 0.10 ? ['Xác nhận hồi', 'past'] : (up >= 0.05 ? ['Đã qua đáy', 'past'] : (up < 0.0005 ? ['Đang rơi', 'fall'] : ['Gần đáy', 'near']));
+    const nextTxt = up < 0.05 ? 'Còn ' + snxF1(((bot * 1.05) / now - 1) * 100) + '% tới +5% từ đáy riêng.' : (up < 0.10 ? 'Còn ' + snxF1(((bot * 1.10) / now - 1) * 100) + '% tới +10% từ đáy riêng.' : 'Đã qua +10% từ đáy riêng.');
+    const ar = (text, left, width, col, headLeft) => '<div style="position:absolute;top:58px;left:' + left + ';width:' + width + ';height:2px;background:' + col + '"></div>'
+      + '<div style="position:absolute;top:54px;left:' + headLeft + ';margin-left:-8px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid ' + col + '"></div>'
+      + '<div style="position:absolute;top:63px;left:' + left + ';width:' + width + ';text-align:center;font-size:12px;font-weight:600;white-space:nowrap;color:' + col + '">' + text + '</div>';
+    cards += '<div style="background:#FFFFFF;border:1px solid #DAD8D1;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-weight:600;font-size:16px">' + SNX.LABEL[f] + ' <span style="font-weight:400;font-size:12px;color:#4E5863">tỉ trọng ' + snxF1(M.w[f] * 100) + '%</span></div><span style="' + SNX_CHIP[st[1]] + '">' + st[0] + '</span></div>'
+      + '<div style="position:relative;height:108px;margin:0 4px">'
+      + '<div style="position:absolute;left:0;top:0;' + SNX_MONO + 'font-size:11px;color:' + cB + ';white-space:nowrap">Đáy ' + snxFmt(bot) + '</div>'
+      + '<div style="position:absolute;right:0;top:0;' + SNX_MONO + 'font-size:11px;color:' + cA + ';white-space:nowrap">Đỉnh ' + snxFmt(peak) + '</div>'
+      + '<div style="position:absolute;left:0;top:28px;height:14px;border-radius:7px 0 0 7px;background:#A9CDB6;width:' + pnS + '%"></div>'
+      + '<div style="position:absolute;top:28px;height:14px;border-radius:0 7px 7px 0;background:#E8BDB5;left:' + pnS + '%;width:' + (100 - pn).toFixed(2) + '%"></div>'
+      + tri(0, cB) + tri(ps(bot * 1.05), cB) + tri(ps(bot * 1.10), cB) + tri(ps(peak * 0.85), cA) + tri(100, cA)
+      + '<div style="position:absolute;top:50px;left:' + pnS + '%;width:2px;height:30px;margin-left:-1px;background:#1B1F23"></div>'
+      + '<div style="position:absolute;top:43px;left:' + pnS + '%;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:7px solid #1B1F23"></div>'
+      + ar(snxPc(up), '0', pnS + '%', cB, pnS + '%') + ar(snxPc(dd), pnS + '%', (100 - pn).toFixed(2) + '%', cA, '100%')
+      + '<div style="position:absolute;top:80px;left:' + pnS + '%;transform:translateX(-50%);background:#1B1F23;color:#FFFFFF;padding:3px 8px;border-radius:6px;font-family:IBM Plex Mono,monospace;font-size:12px;white-space:nowrap">' + snxFmt(now) + '</div></div>'
+      + '<svg viewBox="0 0 300 100" preserveAspectRatio="none" style="width:100%;height:64px;display:block" role="img" aria-label="NAV ' + SNX.LABEL[f] + '">'
+      + '<line x1="4" x2="296" y1="' + gy(peak).toFixed(1) + '" y2="' + gy(peak).toFixed(1) + '" stroke="#6B7480" stroke-width="1" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"></line>'
+      + '<line x1="4" x2="296" y1="' + gy(bot).toFixed(1) + '" y2="' + gy(bot).toFixed(1) + '" stroke="#C2570C" stroke-width="1" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"></line>'
+      + '<path d="' + d + '" fill="none" stroke="#1F4E79" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"></path></svg>'
+      + '<div style="' + SNX_MONO + 'font-size:12px;color:#4E5863">Nay ' + snxFmt(now) + ' · Đỉnh ' + snxFmt(peak) + ' · Đáy ' + snxFmt(bot) + '</div>'
+      + '<div style="font-size:12px;color:#4E5863">' + nextTxt + '</div></div>';
+  });
+  return '<div style="display:flex;flex-direction:column;gap:12px">' + snxCardHead('Từng quỹ', 'Mũi tên xanh: % từ đáy. Mũi tên đỏ: % so với đỉnh. Chỉ để theo dõi, hành động theo core.')
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px">' + cards + '</div></div>';
+}
+
+// ---- Sức khỏe quỹ (hồi quy theo VNI) ----
+function snxHealthHtml(M, H) {
+  const th = h => '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;text-align:right;white-space:nowrap">' + h + '</th>';
+  const td = (v, extra) => '<td style="padding:9px 10px;border-bottom:1px solid #ECEAE3;text-align:right;' + SNX_MONO + (extra || '') + '">' + v + '</td>';
+  const n2 = v => isNaN(v) ? '—' : v.toFixed(2).replace('.', ',');
+  const p2 = v => isNaN(v) ? '—' : (v * 100).toFixed(2).replace('.', ',') + '%';
+  let rows = '';
+  H.items.forEach(h => {
+    const c = snxHealthChip(h);
+    const kind = h.kind === 'core' ? 'core' : (h.kind === 'etf' ? 'ETF, giá sàn cùng ngày' : 'quỹ đối chiếu');
+    rows += '<tr' + (h.kind === 'core' ? ' style="background:#F4F8FC"' : '') + '><td style="padding:9px 10px;border-bottom:1px solid #ECEAE3;font-weight:600">' + h.name + '<div style="font-size:11px;font-weight:400;color:#4E5863">' + kind + '</div></td>'
+      + td(h.have + '/' + h.total) + (h.fit ? td(n2(h.fit.b)) + td(n2(h.beta60)) + td(n2(h.fit.corr)) + td(n2(h.fit.r2)) + td(p2(h.fit.sd)) + td(isNaN(h.volRatio) ? '—' : n2(h.volRatio) + '×')
+        + td(h.lastP ? p2(h.lastP.ry) + ' <span style="color:#4E5863">z ' + n2(h.lastP.z) + '</span>' : '—', Math.abs(h.lastP ? h.lastP.z : 0) > 3.5 ? 'color:#8F2D1A;font-weight:600' : '') : td('—') + td('—') + td('—') + td('—') + td('—') + td('—') + td('—'))
+      + td(p2(h.sinceBot)) + '<td style="padding:9px 10px;border-bottom:1px solid #ECEAE3;text-align:right"><span style="' + SNX_CHIP[c.c] + '">' + c.t + '</span></td></tr>';
+  });
+  const out = [];
+  H.items.forEach(h => (h.outliers || []).forEach(p => out.push({ name: h.name, p })));
+  out.sort((a, b) => b.p.d - a.p.d);
+  const outHtml = out.length
+    ? '<div style="font-size:13px"><b>Phiên lệch bất thường (|z| &gt; 3,5, 30 phiên gần nhất):</b> ' + out.map(o => o.name + ' ' + snxLab(o.p.d) + ' (' + p2(o.p.ry) + ', z ' + n2(o.p.z) + ')').join(' · ') + '</div>'
+    : '<div style="font-size:13px;color:#4E5863">Không có phiên nào lệch bất thường trong 30 phiên gần nhất.</div>';
+  return '<div style="' + SNX_CARD + '">' + snxCardHead('Sức khỏe quỹ: hồi quy theo VNI', 'Return ngày của quỹ ~ return ngày của VNI, từ tab NAV daily')
+    + '<div style="overflow-x:auto"><table style="width:100%;min-width:900px;border-collapse:collapse;font-size:13px"><thead><tr style="color:#4E5863;font-size:11px;text-transform:uppercase;letter-spacing:0.03em">'
+    + '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;text-align:left">Quỹ</th>' + th('Số phiên') + th('Beta') + th('Beta 60 phiên') + th('Tương quan') + th('R²') + th('Sai số ngày') + th('Vol 20 phiên / toàn kỳ') + th('Phiên cuối (return, z)') + th('Từ đáy core') + th('Trạng thái') + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+    + outHtml
+    + '<div style="font-size:12px;color:#4E5863">VNI cùng kỳ từ đáy core: ' + p2(H.vniSinceBot) + '. Quỹ mở dùng cột VNI đã ghép d−1 (NAV ngày d ứng với VNI đóng cửa phiên trước); ETF dùng VNI cùng ngày. z là độ lệch của phiên so với đường hồi quy chia cho sai số; |z| &gt; 3,5 ở 5 phiên gần nhất bị gắn cờ "NAV bất thường" và cảnh báo ở đầu trang. Quỹ đối chiếu (SSISCA, VEOF, MAGEF, TCEF, FUEVFVND, E1VFVN30) cần có số liệu trong NAV daily mới hiện; ô trống không bị tính là 0. Kết quả chỉ để rà lỗi nhập NAV và theo dõi quỹ lệch nhịp, không phải tín hiệu hành động.</div></div>';
+}
+
+// ---- Form ghi NAV ngày vào tab NAV daily ----
+function snxNavForm(M) {
+  const f = (id, label, ph) => '<label style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:#4E5863">' + label + '<input type="text" inputmode="decimal" id="' + id + '" placeholder="' + (ph || '') + '" style="border:1px solid #DAD8D1;border-radius:6px;padding:6px 8px;font:inherit;font-size:13px;width:120px;text-align:right"></label>';
+  const today = new Date(); const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  return '<details style="' + SNX_CARD + '"><summary style="cursor:pointer;font-size:16px;font-weight:600">Ghi NAV ngày vào tab NAV daily</summary>'
+    + '<div style="display:flex;flex-direction:column;gap:12px;margin-top:12px"><div style="font-size:12px;color:#4E5863">NAV daily là nguồn giá của 4 quỹ. Ghi vào dòng có đúng ngày NAV (dòng đã nạp sẵn); ô để trống không bị ghi đè. Onhand và Fund stock list sẽ được cập nhật theo NAV mới nhất.</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">'
+    + '<label style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:#4E5863">Ngày NAV<input type="date" id="snxNgay" value="' + iso + '" style="border:1px solid #DAD8D1;border-radius:6px;padding:6px 8px;font:inherit;font-size:13px"></label>'
+    + f('snxDCDS', 'DCDS') + f('snxBCF', 'VCBF-BCF') + f('snxVMEEF', 'VMEEF') + f('snxVESAF', 'VESAF')
+    + '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="snxChinhThuc" checked> Chính thức (Y)</label></div>'
+    + '<div style="font-size:12px;color:#4E5863">Chỉ số khác để hồi quy kiểm tra (không bắt buộc):</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:12px">' + f('snxSSISCA', 'SSISCA') + f('snxVEOF', 'VEOF') + f('snxMAGEF', 'MAGEF') + f('snxTCEF', 'TCEF') + f('snxFUEVFVND', 'FUEVFVND') + f('snxE1VFVN30', 'E1VFVN30') + f('snxVNI', 'VNI đóng cửa (d−1)') + '</div>'
+    + '<div style="display:flex;gap:12px;align-items:center"><button class="gap-btn" id="snxSaveBtn" onclick="snxSaveNav()">Ghi NAV</button><span id="snxSaveNote" style="font-size:12.5px"></span></div></div></details>';
+}
+
+function snxSaveNav() {
+  const g = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const note = document.getElementById('snxSaveNote'), btn = document.getElementById('snxSaveBtn');
+  const num = s => { const n = parseVNNumber(s.replace(/\s/g, '')); return isNaN(n) ? '' : n; };
+  const params = {
+    key: TRADING_SECRET_KEY, action: 'addNav', ngay: g('snxNgay'), chinhThuc: document.getElementById('snxChinhThuc').checked ? 'Y' : '',
+    dcds: num(g('snxDCDS')), bcf: num(g('snxBCF')), vmeef: num(g('snxVMEEF')), vesaf: num(g('snxVESAF')),
+    ssisca: num(g('snxSSISCA')), veof: num(g('snxVEOF')), magef: num(g('snxMAGEF')), tcef: num(g('snxTCEF')),
+    fuevfvnd: num(g('snxFUEVFVND')), e1vfvn30: num(g('snxE1VFVN30')), vni: num(g('snxVNI'))
+  };
+  if (!params.ngay) { note.style.color = 'var(--danger)'; note.textContent = 'Thiếu ngày NAV.'; return; }
+  if (params.dcds === '' && params.bcf === '' && params.vmeef === '' && params.vesaf === '') { note.style.color = 'var(--danger)'; note.textContent = 'Chưa nhập NAV quỹ nào.'; return; }
+  btn.disabled = true; note.style.color = 'var(--muted)'; note.textContent = 'Đang ghi...';
+  jsonpRequest(TRADING_ADDTRADE_URL, params, function (err, data) {
+    btn.disabled = false;
+    if (err || !data || !data.success) { note.style.color = 'var(--danger)'; note.textContent = 'Lỗi: ' + (err ? err.message : (data && data.error) || 'không rõ'); return; }
+    note.style.color = 'var(--moss)'; note.textContent = 'Đã ghi dòng ' + data.row + ' (' + (data.written || []).join(', ') + ').';
+    if (typeof loadTrading === 'function') loadTrading();
+  });
+}
+
+// ---- Render tổng ----
+function snxRenderAll(navRows, onhand, ipBal) {
+  const root = document.getElementById('trd-camben-root');
+  if (!root) return;
+  const M = snxModel(navRows, onhand);
+  if (!M) { root.innerHTML = '<div class="trd-closed">Chưa đủ dữ liệu NAV daily (cần ít nhất 2 phiên có đủ NAV 4 quỹ từ ' + SNX.SEED.peakDate + ').</div>'; return; }
+  window.SNX_LAST = M;
+  M.SUM_VAL = SNX.FUNDS.reduce((s, f) => s + (M.units[f] || 0) * M.nowF[f], 0);
+  const H = snxHealth(M);
+  const st = snxState(M);
+  const alerts = snxAlerts(M, H);
+  const head = '<div style="display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between">'
+    + '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;color:#4E5863;letter-spacing:0.04em;text-transform:uppercase">Core V1 · DCDS · VESAF · BCF · VMEEF</div><h2 style="margin:0;font-size:26px;font-weight:600">Cảm biến NAV</h2></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center"><span style="font-size:13px;color:#4E5863">NAV ghi đến <b style="color:#1B1F23">' + snxLabFull(M.nowDate) + '</b> (phiên VNI d−1)</span><span style="' + SNX_CHIP[st.k] + 'font-size:14px;padding:6px 14px">' + st.t + '</span></div></div>';
+  const alertHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">' + alerts.map(a =>
+    '<div style="background:#FFFFFF;border:1px solid #DAD8D1;border-left:4px solid #C2570C;border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;font-weight:600;color:#8A3D05;text-transform:uppercase;letter-spacing:0.04em">' + a.tag + '</div><div style="font-size:14px;line-height:1.45">' + a.text + '</div></div>').join('') + '</div>';
+  const tile = (l, v, n) => '<div style="background:#FFFFFF;border:1px solid #DAD8D1;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#4E5863">' + l + '</div><div style="' + SNX_MONO + 'font-size:24px;font-weight:500">' + v + '</div><div style="font-size:12px;color:#4E5863">' + n + '</div></div>';
+  const bCore = M.beta[0];
+  const tiles = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">'
+    + tile('NAV core', snxFmt(M.NOW), 'tính tới ' + snxLab(M.nowDate)) + tile('Đỉnh', snxFmt(M.PEAK), snxLabFull(M.peakDate)) + tile('Đáy', snxFmt(M.BOT), snxLabFull(M.botDate))
+    + tile('% từ đỉnh', snxPc(M.fromPeak), 'cần ' + snxPc(M.needPeak) + ' để về đỉnh') + tile('% từ đáy', snxPc(M.fromBot), 'đáy ' + snxLab(M.botDate))
+    + tile('Giảm so với VNI', String(bCore.rdd.toFixed(1)).replace('.', ',') + '×', 'core ' + snxPc(bCore.dd) + ' / VNI ' + snxPc(M.vniDD)) + '</div>';
+  const info = '<div style="padding:10px 14px;border:1px dashed #A9B0B8;border-radius:8px;font-size:13px;color:#4E5863;background:#FBFAF7">Giá lấy từ tab NAV daily, số CCQ và vốn lấy từ Onhand. Tỉ trọng theo giá trị hiện tại: '
+    + SNX.FUNDS.map(f => SNX.LABEL[f] + ' ' + snxF1(M.w[f] * 100) + '%').join(' · ') + '. Đỉnh sóng ' + snxLabFull(M.peakDate) + ' là hằng số seed vì NAV daily chỉ bắt đầu từ ' + snxLabFull(M.R[0].d) + '. Chưa có số dư tụ, sổ lô theo nền tảng hay nút giải ngân.</div>';
+  root.innerHTML = '<div style="display:flex;flex-direction:column;gap:20px;font-family:\'IBM Plex Sans\',system-ui,sans-serif;color:#1B1F23">'
+    + head + alertHtml + info + tiles + snxSlider(M) + snxRules(M) + snxChart(M) + snxLog(M) + snxBeta(M) + snxWeights(M, ipBal) + snxFundCards(M) + snxHealthHtml(M, H) + snxNavForm(M) + '</div>';
+  return M;
+}
+
+// ======================================================================
+// GAP · Giả định chuyển đổi CCQ (cắt chốt lãi / xả tụ) — chỉ nằm trong bộ nhớ
+// ======================================================================
+let CONV = { mode: 'cut', pct: '10', amt: '', s0: '', navMode: 'now', alloc: 'target' };
+function convSet(k, v){ CONV[k] = v; if (k === 'mode') CONV.amt = ''; renderGap(); }
+function convPreset(kind){
+  const s0 = parseVNNumber(CONV.s0) || 0, van = s0 * 0.3;
+  const m = { B2: s0 * 0.7 / 12, B3: van * 0.05, B4: van, ALL: s0 };
+  CONV.amt = String(Math.round(m[kind] || 0)); renderGap();
+}
+function convTargets(rows){
+  const t = {};
+  const vs = (rows.find(r => r.ma === 'VESAF') || {}).val || 0, vm = (rows.find(r => r.ma === 'VMEEF') || {}).val || 0;
+  const sh = (vs + vm) > 0 ? vs / (vs + vm) : 0.5;
+  t['DCDS'] = SNX.TARGET['DCDS']; t['VCBF-BCF'] = SNX.TARGET['VCBF-BCF'];
+  t['VESAF'] = SNX.TARGET.VINA * sh; t['VMEEF'] = SNX.TARGET.VINA * (1 - sh);
+  return t;
+}
+function convCalc(){
+  const M = window.SNX_LAST; if (!M) return null;
+  const funds = gapFunds().filter(f => SNX.FUNDS.indexOf(f.ma) >= 0);
+  if (!funds.length) return null;
+  const k = CONV.navMode === 'c1' ? M.C1 / M.NOW : CONV.navMode === 'c2' ? M.C2 / M.NOW : 1;
+  const rows = funds.map(f => { const nv = f.nav * k; return { ma: f.ma, qty: f.qty, von: f.von, nav: nv, cost: f.von / f.qty, val: f.qty * nv }; });
+  const V = rows.reduce((s, r) => s + r.val, 0);
+  const t = convTargets(rows);
+  const cut = CONV.mode === 'cut';
+  let X = cut ? V * ((parseVNNumber(CONV.pct) || 0) / 100) : (parseVNNumber(CONV.amt) || 0);
+  if (cut && CONV.pct === '') X = 0;
+  let mv = rows.map(() => 0);
+  if (X > 0) {
+    if (CONV.alloc === 'prorata') mv = rows.map(r => cut ? X * r.val / V : X * t[r.ma]);
+    else if (cut) {
+      mv = rows.map(r => Math.max(0, r.val - t[r.ma] * (V - X)));
+      let s = mv.reduce((a, b) => a + b, 0);
+      if (s > X) mv = mv.map(x => x * X / s);
+      else if (s < X) { const rest = rows.map((r, i) => r.val - mv[i]), rs = rest.reduce((a, b) => a + b, 0); mv = mv.map((x, i) => x + (X - s) * rest[i] / rs); }
+    } else {
+      mv = rows.map(r => Math.max(0, t[r.ma] * (V + X) - r.val));
+      let s = mv.reduce((a, b) => a + b, 0);
+      if (s > X) mv = mv.map(x => x * X / s);
+      else if (s < X) mv = mv.map((x, i) => x + (X - s) * t[rows[i].ma]);
+    }
+  }
+  const out = rows.map((r, i) => {
+    let u = Math.round(mv[i] / r.nav * 10) / 10;
+    if (cut) u = Math.min(u, r.qty);
+    const money = u * r.nav;
+    const q2 = cut ? r.qty - u : r.qty + u;
+    const v2 = cut ? r.von - u * r.cost : r.von + money;
+    return Object.assign({}, r, { u, money, q2, v2, val2: q2 * r.nav, gap: r.von / r.val - 1, gap2: q2 > 0 ? v2 / (q2 * r.nav) - 1 : NaN, pnl: cut ? u * (r.nav - r.cost) : 0, t: t[r.ma] });
+  });
+  const V2 = out.reduce((s, r) => s + r.val2, 0);
+  out.forEach(r => { r.w = r.val / V; r.w2 = V2 > 0 ? r.val2 / V2 : 0; });
+  const von1 = out.reduce((s, r) => s + r.von, 0), von2 = out.reduce((s, r) => s + r.v2, 0);
+  const fromBot = M.NOW * k / M.BOT - 1;
+  return { out, V, V2, X, cut, k, fromBot, g1: von1 / V - 1, g2: von2 / V2 - 1, pnl: out.reduce((s, r) => s + r.pnl, 0), money: out.reduce((s, r) => s + r.money, 0) };
+}
+function convHtml(){
+  const C = convCalc();
+  const btn = (k, v, l, on) => '<button class="gap-btn' + (on ? '' : ' ghost') + '" style="' + (on ? 'background:var(--moss);color:#fff;' : '') + '" onclick="convSet(\'' + k + '\',\'' + v + '\')">' + l + '</button>';
+  let h = '<h3 class="gap-h">Giả định chuyển đổi CCQ</h3><div class="gap-sim-head" style="flex-wrap:wrap;gap:8px">'
+    + btn('mode', 'cut', 'Cắt chốt lãi (CCQ → TP)', CONV.mode === 'cut') + btn('mode', 'buy', 'Xả tụ (TP → CCQ)', CONV.mode === 'buy')
+    + '<span style="width:12px"></span>' + btn('navMode', 'now', 'NAV hiện tại', CONV.navMode === 'now') + btn('navMode', 'c1', 'NAV tại C1 (+20%)', CONV.navMode === 'c1') + btn('navMode', 'c2', 'NAV tại C2 (+35%)', CONV.navMode === 'c2')
+    + '<span style="width:12px"></span>' + btn('alloc', 'target', 'Hướng về 40/30/30', CONV.alloc === 'target') + btn('alloc', 'prorata', 'Theo tỉ lệ', CONV.alloc === 'prorata') + '</div>';
+  h += '<div class="gap-sim-head" style="flex-wrap:wrap;gap:8px">';
+  if (CONV.mode === 'cut') {
+    h += '<label>Cắt % giá trị core: <input type="text" inputmode="decimal" value="' + CONV.pct + '" onchange="convSet(\'pct\',this.value)" style="width:60px;"></label>'
+      + ['10', '20', '30', '50'].map(p => '<button class="gap-btn ghost" onclick="convSet(\'pct\',\'' + p + '\')">' + p + '%</button>').join('') + '<span class="sm">C1 10% · C2 20% · C3 30% (50% gộp)</span>';
+  } else {
+    h += '<label>Tụ ban đầu S0 (đ): <input type="text" inputmode="numeric" value="' + (CONV.s0 ? (parseVNNumber(CONV.s0) || 0).toLocaleString('vi-VN') : '') + '" placeholder="0" onchange="convSet(\'s0\',this.value)" style="width:110px;"></label>'
+      + ['B2', 'B3', 'B4', 'ALL'].map(p => '<button class="gap-btn ghost" onclick="convPreset(\'' + p + '\')">' + ({ B2: 'B2 · S0×70%÷12', B3: 'B3 · 5% van', B4: 'B4 · toàn van', ALL: 'B5 · toàn S0' })[p] + '</button>').join('')
+      + '<label>Số tiền xả (đ): <input type="text" inputmode="numeric" value="' + (CONV.amt ? (parseVNNumber(CONV.amt) || 0).toLocaleString('vi-VN') : '') + '" placeholder="0" onchange="convSet(\'amt\',this.value)" style="width:110px;"></label>';
+  }
+  h += '</div>';
+  if (!C) return h + '<div class="gap-note">Chưa có dữ liệu cảm biến (NAV daily) để tính.</div>';
+  if (C.X <= 0) return h + '<div class="gap-note">Nhập ' + (C.cut ? '% cắt' : 'số tiền xả') + ' để xem số CCQ cần chuyển.</div>';
+  const pp = x => (x * 100).toFixed(1).replace('.', ',') + '%';
+  h += '<div class="trd-table"><div style="overflow-x:auto;"><table class="gap-tbl"><thead><tr><th>Quỹ</th><th>CCQ đang giữ</th><th>NAV giả định</th><th>Tỉ trọng nay → sau</th><th>Mục tiêu</th><th>' + (C.cut ? 'CCQ cần bán/chuyển' : 'CCQ cần mua') + '</th><th>Giá trị (đ)</th>' + (C.cut ? '<th>Lãi ước tính</th>' : '') + '<th>Gap nay → sau</th></tr></thead><tbody>'
+    + C.out.map(r => '<tr><td><b>' + r.ma + '</b></td><td>' + fmtNum(r.qty) + '</td><td>' + fmtNum(r.nav) + '</td><td>' + pp(r.w) + ' → <b>' + pp(r.w2) + '</b></td><td>' + pp(r.t) + '</td><td><b>' + (r.u ? r.u.toFixed(1).replace('.', ',') : '—') + '</b></td><td>' + (r.money ? fmtVND(r.money) : '—') + '</td>'
+      + (C.cut ? '<td style="color:' + (r.pnl >= 0 ? '#1e8e5a' : '#c0392b') + ';">' + (r.u ? fmtVND(r.pnl) : '—') + '</td>' : '')
+      + '<td>' + gapPct(r.gap) + ' → <b style="color:' + gapCol(r.gap2) + ';">' + gapPct(r.gap2) + '</b></td></tr>').join('')
+    + '<tr class="gap-core"><td><b>CORE</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><b>' + fmtVND(C.money) + '</b></td>' + (C.cut ? '<td><b>' + fmtVND(C.pnl) + '</b></td>' : '') + '<td>' + gapPct(C.g1) + ' → <b style="color:' + gapCol(C.g2) + ';">' + gapPct(C.g2) + '</b></td></tr></tbody></table></div></div>';
+  const where = C.cut ? 'Cắt tại nền tảng đang giữ lô: TCBS bán trực tiếp; Fmarket hoặc app quỹ chuyển đổi sang quỹ trái phiếu.'
+    : (C.fromBot < 0.10 ? 'Core dưới +10% từ đáy: mua trên app quỹ (DC, VinaCapital, VCBF).' : 'Core trên +10% từ đáy: mua trên Fmarket.');
+  h += '<div class="gap-note">' + where + ' Tính trên giá trị core ' + fmtVND(C.V) + ' (NAV ' + (CONV.navMode === 'now' ? 'hiện tại' : 'nhân hệ số ' + C.k.toFixed(3).replace('.', ',') + ' đồng loạt cho cả 4 quỹ, chỉ là ước lượng') + '). Mục tiêu VESAF/VMEEF chia 30% theo tỉ lệ đang giữ. Lãi ước tính theo giá vốn bình quân, chưa trừ phí/thuế. Giá vốn bình quân giữ nguyên khi bán; khi mua, giá vốn mới = (vốn + tiền) ÷ (CCQ + tiền/NAV). Làm tròn 0,1 CCQ. Chỉ nằm trong bộ nhớ, không ghi vào Sheet.</div>';
+  return h;
+}
+
+
+// ======================================================================
+// NAV DAILY → Onhand: giá CCQ core lấy từ NAV daily (dòng có đủ NAV mới nhất của từng quỹ)
+// ======================================================================
+function navToVN(n, dec){
+  const s = Math.abs(n).toFixed(dec).split('.');
+  s[0] = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (n < 0 ? '-' : '') + s.join(',');
+}
+function navLatestByFund(){
+  const out = {};
+  (NAVDAILY || []).forEach(r => {
+    const d = snxDate(r['Ngày NAV']); if (!d) return;
+    SNX.FUNDS.forEach(f => {
+      const v = parseVNNumber(r[f]);
+      if (v > 0 && (!out[f] || d >= out[f].d)) out[f] = { d, v, date: r['Ngày NAV'] };
+    });
+  });
+  return out;
+}
+function navApplyToOnhand(){
+  const L = navLatestByFund();
+  let delta = 0;
+  ONHAND.forEach(r => {
+    const ma = r['Mã'];
+    if (!L[ma]) return;
+    const qty = parseVNNumber(r['Số lượng đang giữ']) || 0;
+    const von = parseVNNumber(r['Tổng vốn']) || 0;
+    const oldLL = parseVNNumber(r['Lãi/lỗ trên giá']) || 0;
+    const val = qty * L[ma].v, ll = qty > 0.0001 ? val - von : 0;
+    r['Giá hiện tại'] = navToVN(L[ma].v, 2);
+    if ('Giá trị hiện tại' in r) r['Giá trị hiện tại'] = navToVN(val, 0);
+    r['Lãi/lỗ trên giá'] = navToVN(ll, 0);
+    r['_navNgay'] = L[ma].date;
+    delta += ll - oldLL;
+  });
+  ONHAND_BANNER.laiLoTrenGia += delta;
+}
+function snxRefresh(){
+  const ip = IPOWER.length ? (parseVNNumber(IPOWER[IPOWER.length - 1]['Số dư lũy kế']) || 0) : 0;
+  try { snxRenderAll(NAVDAILY, ONHAND, ip); }
+  catch (e) { const el = document.getElementById('trd-camben-root'); if (el) el.innerHTML = '<div class="trd-closed">Lỗi cảm biến NAV: ' + e.message + '</div>'; }
+}
+
 // ======================================================================
 // GAP — khoảng cách giữa NAV hiện tại (đường 0%) và NAV DCA (giá vốn bình quân)
 // gap = giá vốn ÷ NAV − 1  → % NAV cần tăng để hòa vốn. Core: Σ vốn ÷ Σ(CCQ×NAV) − 1.
@@ -3654,7 +4398,7 @@ function renderGap(){
     <div class="gap-note">Nhập số tiền mua cho từng quỹ (không phải %). Ô NAV mua để trống = NAV hiện tại. Giá vốn mới = (vốn + tiền) ÷ (CCQ + tiền/NAV mua). Gap luôn tính theo NAV hiện tại. Giả định chỉ nằm trong bộ nhớ, tải lại trang là mất; không ghi vào Sheet.</div>`
     : '<div class="gap-note">Bấm “+ Kịch bản” để thử mua nhiều quỹ cùng lúc và xem gap thay đổi.</div>'}`;
 
-  el.innerHTML = chart + tbl + `<h3 class="gap-h">Mô phỏng mua</h3>` + sim;
+  el.innerHTML = chart + tbl + `<h3 class="gap-h">Mô phỏng mua</h3>` + sim + convHtml();
 }
 
 // Dòng tiền — line chart SVG đơn giản, vẽ Số dư lũy kế (Ipower) qua các dòng gần nhất
