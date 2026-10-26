@@ -640,8 +640,9 @@
           <div class="exec-save-note" id="ipSaveNote"></div>
         </div>
 
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
-          <label style="font-size:.85rem;color:var(--muted);">Phiên trước:
+        </div><!-- /#trd-money-widgets -->
+        <div id="trd-price-bar" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
+          <label style="font-size:.85rem;color:var(--muted);" title="Để trống = giá trong phiên. Điền cả hai ngày = tính chênh lệch giữa hai phiên cho Fund stock list">Phiên trước:
             <input type="date" id="price-date-prev" style="
               padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;
               background:var(--card-bg);color:var(--fg);margin-left:4px;
@@ -667,7 +668,6 @@
           </button>
           <span id="price-update-status" style="font-size:.85rem;color:var(--muted);"></span>
         </div>
-        </div><!-- /#trd-money-widgets -->
 
         <!-- Macro Context — bối cảnh vĩ mô theo tháng (đọc tab "Context tháng" của Trading journal); chỉ để cân nhắc, không phải luật quyết định -->
         <div class="trd-subpanel" id="trd-panel-macro">
