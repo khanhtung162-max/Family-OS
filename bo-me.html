@@ -657,7 +657,13 @@
             padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.95rem;
             background:var(--accent);color:#fff;display:inline-flex;align-items:center;gap:6px;
           ">
-            <span id="btn-price-icon">⟳</span> Cập nhật giá
+            <span id="btn-price-icon">⟳</span> Cập nhật giá CP
+          </button>
+          <button id="btn-fund-nav" onclick="triggerFundNav()" style="
+            padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.95rem;
+            background:var(--accent);color:#fff;display:inline-flex;align-items:center;gap:6px;
+          ">
+            <span>⟳</span> Lấy NAV quỹ
           </button>
           <span id="price-update-status" style="font-size:.85rem;color:var(--muted);"></span>
         </div>
@@ -2730,6 +2736,7 @@ async function triggerPriceUpdate(){
 
   // Mở tab mới để chạy Apps Script (tránh CORS)
   const mode = isHistorical ? '(lịch sử)' : '(realtime)';
+  if (!isHistorical) { triggerStocksRefresh(); return; }
   window.open(url, '_blank');
 
   btn.disabled = true;
@@ -3577,10 +3584,26 @@ const SNX = {
   },
   // Tỉ trọng mục tiêu trên tổng vốn core, không phụ thuộc thời gian hay giá trị. VinaCapital = VESAF + VMEEF (chia theo tỉ lệ đang giữ)
   TARGET: { 'DCDS': 0.40, 'VCBF-BCF': 0.30, 'VINA': 0.30 },
+  // Ngưỡng Core V1 (VN). B1: % giảm từ đỉnh bắt đầu xả tụ; B4, B5, C1, C2: % hồi từ đáy.
+  P: { B1: 0.15, B4: 0.05, B5: 0.10, C1: 0.20, C2: 0.35 },
   FLOOR: 0.40,        // sàn tỉ trọng core trong tổng vốn (tụ bù tối đa 60%)
   GAP_LIMIT: 0.08
 };
 
+function snxP() { return SNX.P; }
+// Tỉ trọng ban đầu của VIC, VHM trong VNI tại dòng đầu của NAV daily (ước lượng, sửa trong ô nhập ở chart). Lưu trong trình duyệt.
+function snxVinW() {
+  let w = { VIC: 0.15, VHM: 0.08 };
+  try { const s = JSON.parse(localStorage.getItem('snxVinW') || 'null'); if (s && s.VIC >= 0 && s.VHM >= 0 && s.VIC + s.VHM < 0.6) w = { VIC: s.VIC, VHM: s.VHM }; } catch (e) {}
+  return w;
+}
+function snxSetVinW(k, v) {
+  const x = parseFloat(String(v).replace(',', '.')); if (isNaN(x) || x < 0 || x > 50) return;
+  const w = snxVinW(); w[k] = x / 100;
+  try { localStorage.setItem('snxVinW', JSON.stringify(w)); } catch (e) {}
+  if (typeof snxRefresh === 'function') snxRefresh();
+}
+function snxPp(x) { return String(+(x * 100).toFixed(1)).replace('.', ',') + '%'; }   // 0.15 → '15%', 0.075 → '7,5%'
 function snxFmt(v) {
   if (v === null || v === undefined || isNaN(v)) return '—';
   const s = String(Math.abs(Math.round(v))).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -3625,6 +3648,23 @@ function snxSeries(navRows) {
   all.sort((a, b) => a.d - b.d);
   const prevVni = {}, prevD = {};          // VNI và ngày của dòng liền trước
   all.forEach((o, i) => { prevVni[o.d.getTime()] = i > 0 ? rawBy[all[i - 1].d.getTime()] : NaN; prevD[o.d.getTime()] = i > 0 ? all[i - 1].d : null; });
+  // VNI ex-Vin (xấp xỉ): lợi suất ngày VNI trừ phần đóng góp của VIC và VHM theo tỉ trọng chạy theo giá (tỉ trọng ban đầu nhập tay).
+  const W0 = snxVinW(); let E = 1, wV = W0.VIC, wH = W0.VHM, pv = NaN, pvic = NaN, pvhm = NaN;
+  const exBy = {};
+  all.forEach(o => {
+    const v = rawBy[o.d.getTime()], vic = parseVNNumber(o.r['VIC']), vhm = parseVNNumber(o.r['VHM']);
+    if (v > 0 && pv > 0) {
+      const rV = v / pv - 1;
+      const rVic = (vic > 0 && pvic > 0) ? vic / pvic - 1 : rV, rVhm = (vhm > 0 && pvhm > 0) ? vhm / pvhm - 1 : rV;
+      const den = 1 - wV - wH;
+      if (den > 0.2) E *= 1 + (rV - wV * rVic - wH * rVhm) / den; else E *= 1 + rV;
+      wV = wV * (1 + rVic) / (1 + rV); wH = wH * (1 + rVhm) / (1 + rV);
+      if (!(vic > 0) && pvic > 0) pvic = pvic * (1 + rV); else if (vic > 0) pvic = vic;
+      if (!(vhm > 0) && pvhm > 0) pvhm = pvhm * (1 + rV); else if (vhm > 0) pvhm = vhm;
+    } else { if (vic > 0) pvic = vic; if (vhm > 0) pvhm = vhm; }
+    if (v > 0) pv = v;
+    exBy[o.d.getTime()] = E;
+  });
   const out = [];
   all.forEach(o => {
     const r = o.r, d = o.d;
@@ -3637,8 +3677,9 @@ function snxSeries(navRows) {
     const okPd = pd && pd < d && (!prevD[d.getTime()] || pd >= prevD[d.getTime()]);   // ngày ghép phải nằm giữa dòng trước và dòng này
     let vniAl = okPd && rawBy[pd.getTime()] > 0 ? rawBy[pd.getTime()] : prevVni[d.getTime()];
     const vr = rawBy[d.getTime()];
+    const exAl = okPd && exBy[pd.getTime()] > 0 ? exBy[pd.getTime()] : (prevD[d.getTime()] ? exBy[prevD[d.getTime()].getTime()] : exBy[d.getTime()]);
     out.push({
-      d, lab: snxLab(d), nav, other, vni: vniAl > 0 ? vniAl : NaN, vniRaw: vr > 0 ? vr : NaN,
+      d, lab: snxLab(d), nav, other, vni: vniAl > 0 ? vniAl : NaN, vniRaw: vr > 0 ? vr : NaN, ex: exAl > 0 ? exAl : NaN,
       official: String(r['Chính thức (Y)'] || '').trim().toUpperCase() === 'Y'
     });
   });
@@ -3684,7 +3725,7 @@ function snxModel(navRows, onhand, inout) {
   const RA = S.slice();
   let seedUsed = false;
   if (S[0].d > seedD) {          // NAV daily chưa lùi tới đỉnh sóng 27/02 → chèn 1 dòng seed (tự bỏ khi dữ liệu đã đủ)
-    RA.unshift({ d: seedD, lab: snxLab(seedD), nav: Object.assign({}, SNX.SEED.peak), other: {}, vni: SNX.SEED.vniNavPeak, official: true, seed: true });
+    RA.unshift({ d: seedD, lab: snxLab(seedD), nav: Object.assign({}, SNX.SEED.peak), other: {}, vni: SNX.SEED.vniNavPeak, ex: (() => { const f = S.find(r => r.ex > 0 && r.vni > 0); return f ? f.ex * SNX.SEED.vniNavPeak / f.vni : NaN; })(), official: true, seed: true });   // ex tại seed: giả định tỉ trọng Vin không đổi so với dòng đầu
     seedUsed = true;
   }
   const last = RA[RA.length - 1], n = RA.length;
@@ -3742,7 +3783,8 @@ function snxModel(navRows, onhand, inout) {
   const R = RA.slice(ws), coreSeries = C.slice(ws);
   const iBot = ib - ws, iPk = ip - ws;
 
-  const B1 = PEAK * 0.85, B4 = BOT * 1.05, B5 = BOT * 1.10, C1 = BOT * 1.20, C2 = BOT * 1.35;
+  const P = snxP();
+  const B1 = PEAK * (1 - P.B1), B4 = BOT * (1 + P.B4), B5 = BOT * (1 + P.B5), C1 = BOT * (1 + P.C1), C2 = BOT * (1 + P.C2);
 
   let sV = 0, sM = 0;
   (onhand || []).forEach(r => {
@@ -3763,15 +3805,21 @@ function snxModel(navRows, onhand, inout) {
   let vniLow = Infinity, vniLowDate = null;
   RA.slice(ip).forEach(r => { if (r.vni < vniLow) { vniLow = r.vni; vniLowDate = r.d; } });
   const vniDD = vniAtBot / vniPeak - 1, vniUp = vniNow / vniAtBot - 1;
+  // VNI ex-Vin quy đổi cùng gốc với core tại ngày đỉnh
+  const exPeak = RA[ip].ex, exAtBot = RA[ib].ex;
+  const kEx = exPeak > 0 ? PEAK / exPeak : NaN;
+  const exScaled = R.map(r => (r.ex > 0 && kEx > 0 ? r.ex * kEx : NaN));
+  const exVals = RA.map(r => r.ex).filter(v => v > 0), exNow = exVals.length ? exVals[exVals.length - 1] : NaN;
+  const exDD = exAtBot / exPeak - 1, exUp = exNow / exAtBot - 1;
 
   const ddCore = BOT / PEAK - 1, upCore = NOW / BOT - 1;
   const beta = [{ name: 'Core', dd: ddCore, up: upCore, core: true }].concat(SNX.FUNDS.map(f => ({
     name: SNX.LABEL[f], dd: botF[f] / peakF[f] - 1, up: nowF[f] / botF[f] - 1
-  }))).map(b => Object.assign(b, { rdd: b.dd / vniDD, rup: b.up / vniUp }));
+  }))).concat(exPeak > 0 ? [{ name: 'VNI ex-Vin (xấp xỉ)', dd: exDD, up: exUp }] : []).map(b => Object.assign(b, { rdd: b.dd / vniDD, rup: b.up / vniUp }));
 
   return {
     S, R, RA, last, w, wAt, noUnits, units, val, peakF, botF, nowF, PEAK, BOT, NOW, coreSeries, iBot, iPk, newPeak, atPeak, seedUsed, unitSrc, H,
-    B1, B4, B5, C1, C2, gap, k, vniScaled, vniNow, vniAtBot, vniLow, vniLowDate, vniPeak, vniDD, vniUp, ddCore, upCore, beta,
+    P, B1, B4, B5, C1, C2, gap, k, vniScaled, exScaled, exDD, exUp, vinW: snxVinW(), vniNow, vniAtBot, vniLow, vniLowDate, vniPeak, vniDD, vniUp, ddCore, upCore, beta,
     fromPeak: NOW / PEAK - 1, fromBot: NOW / BOT - 1, needPeak: PEAK / NOW - 1,
     botDate: RA[ib].d, peakDate: RA[ip].d, nowDate: last.d, coreOf
   };
@@ -3874,7 +3922,7 @@ function snxCardHead(title, note) {
 // ---- Trạng thái core (chip đầu trang) ----
 function snxState(M) {
   if (M.newPeak) return { t: 'Đỉnh mới: cần reset chu kỳ', k: 'near' };
-  if (M.fromPeak > -0.15 && M.BOT > M.B1) return { t: 'Nghỉ', k: 'wait' };
+  if (M.fromPeak > -M.P.B1 && M.BOT > M.B1) return { t: 'Nghỉ', k: 'wait' };
   if (M.fromBot < 0.0005) return { t: 'Đang rơi', k: 'fall' };
   if (M.fromBot < 0.05) return { t: 'Gần đáy', k: 'near' };
   if (M.fromBot < 0.10) return { t: 'Đã qua đáy', k: 'past' };
@@ -3884,17 +3932,18 @@ function snxState(M) {
 // ---- Cảnh báo ----
 function snxAlerts(M, H, ctx) {
   const a = [];
-  const reached = [['B4 (+5%)', M.B4], ['B5 (+10%)', M.B5], ['C1 (+20%)', M.C1], ['C2 (+35%)', M.C2]].filter(x => M.NOW >= x[1]);
-  const next = [['B4 (+5%)', M.B4], ['B5 (+10%)', M.B5], ['C1 (+20%)', M.C1], ['C2 (+35%)', M.C2]].find(x => M.NOW < x[1]);
+  const lvls = [['B4 (+' + snxPp(M.P.B4) + ')', M.B4], ['B5 (+' + snxPp(M.P.B5) + ')', M.B5], ['C1 (+' + snxPp(M.P.C1) + ')', M.C1], ['C2 (+' + snxPp(M.P.C2) + ')', M.C2]];
+  const reached = lvls.filter(x => M.NOW >= x[1]);
+  const next = lvls.find(x => M.NOW < x[1]);
   a.push({ tag: 'Core', text: 'Core ' + snxPc(M.fromBot) + ' từ đáy, ' + snxPc(M.fromPeak) + ' so với đỉnh.'
     + (reached.length ? ' Đã vượt ' + reached.map(x => x[0] + ' tại ' + snxFmt(x[1])).join(', ') + '.' : '')
     + (next ? ' Mốc kế tiếp ' + next[0] + ' tại ' + snxFmt(next[1]) + ' (cần thêm ' + snxF1((next[1] / M.NOW - 1) * 100) + '%).' : '') });
   const up = SNX.FUNDS.map(f => ({ f, u: M.nowF[f] / M.botF[f] - 1 }));
-  const over10 = up.filter(x => x.u >= 0.10), over5 = up.filter(x => x.u >= 0.05 && x.u < 0.10), under5 = up.filter(x => x.u < 0.05);
+  const over10 = up.filter(x => x.u >= M.P.B5), over5 = up.filter(x => x.u >= M.P.B4 && x.u < M.P.B5), under5 = up.filter(x => x.u < M.P.B4);
   const lab = x => SNX.LABEL[x.f] + ' ' + snxPc(x.u);
-  a.push({ tag: 'Từng quỹ', text: [over10.length ? 'Đã qua +10% từ đáy riêng: ' + over10.map(lab).join(', ') + '.' : '',
-    over5.length ? 'Qua +5%: ' + over5.map(lab).join(', ') + '.' : '',
-    under5.length ? 'Chưa tới +5%: ' + under5.map(lab).join(', ') + '.' : ''].filter(Boolean).join(' ') });
+  a.push({ tag: 'Từng quỹ', text: [over10.length ? 'Đã qua +' + snxPp(M.P.B5) + ' từ đáy riêng: ' + over10.map(lab).join(', ') + '.' : '',
+    over5.length ? 'Qua +' + snxPp(M.P.B4) + ': ' + over5.map(lab).join(', ') + '.' : '',
+    under5.length ? 'Chưa tới +' + snxPp(M.P.B4) + ': ' + under5.map(lab).join(', ') + '.' : ''].filter(Boolean).join(' ') });
   // dữ liệu
   const dt = [];
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -3938,9 +3987,9 @@ function snxSlider(M) {
   h += '<div style="' + zb + 'left:' + pos(M.B5).toFixed(2) + '%;width:' + (pos(M.C1) - pos(M.B5)).toFixed(2) + '%;background:#DAD8D1;color:#4E5863">VÙNG DCA · Fmarket</div>';
   h += '<div style="' + zb + 'border-radius:0 10px 10px 0;background:' + C.CL + ';color:#1B1F23;left:' + pos(M.C1).toFixed(2) + '%;width:' + (100 - pos(M.C1)).toFixed(2) + '%">VÙNG CHỐT LÃI</div>';
   const tk = [
-    { v: M.BOT, l1: 'Đáy · ' + snxLab(M.botDate), c: C.CB }, { v: M.B4, l1: 'B4 +5%', c: C.CB },
-    { v: M.B1, l1: 'B1 −15%', c: C.CA }, { v: M.B5, l1: 'B5 +10%', c: C.CB },
-    { v: M.C1, l1: 'C1 +20%', c: C.CB }, { v: M.PEAK, l1: 'Đỉnh · ' + snxLab(M.peakDate), c: C.CA }];
+    { v: M.BOT, l1: 'Đáy · ' + snxLab(M.botDate), c: C.CB }, { v: M.B4, l1: 'B4 +' + snxPp(M.P.B4), c: C.CB },
+    { v: M.B1, l1: 'B1 −' + snxPp(M.P.B1), c: C.CA }, { v: M.B5, l1: 'B5 +' + snxPp(M.P.B5), c: C.CB },
+    { v: M.C1, l1: 'C1 +' + snxPp(M.P.C1), c: C.CB }, { v: M.PEAK, l1: 'Đỉnh · ' + snxLab(M.peakDate), c: C.CA }];
   tk.forEach(t => {
     const p = pos(t.v).toFixed(2);
     const top = t.c === C.CA ? 0 : 46;   // dòng trên: mốc theo đỉnh; dòng dưới: mốc theo đáy
@@ -3967,7 +4016,7 @@ function snxSlider(M) {
     + '<div style="display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:#1B1F23">' + legend.map(g => '<span><span style="' + sw(g[0]) + '"></span>' + g[1] + '</span>').join('') + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:2px;font-size:12px;color:#4E5863"><div>Cần ' + snxPc(M.needPeak) + ' để về đỉnh. Hiện ở ' + zoneNow + '.</div>'
     + '<div>Các điểm B1–B5, C1–C3 xem theo bảng Quy tắc hành động bên dưới.</div>'
-    + '<div>Điểm chốt lãi C2 (+35%: ' + snxFmt(M.C2) + ') nằm ngoài thanh, chỉ đạt khi vượt đỉnh cũ. C3 (phân kỳ âm) là tín hiệu bật tay, không có điểm giá trên thanh.</div></div></div>';
+    + '<div>Điểm chốt lãi C2 (+' + snxPp(M.P.C2) + ': ' + snxFmt(M.C2) + ') nằm ngoài thanh, chỉ đạt khi vượt đỉnh cũ. C3 (phân kỳ âm) là tín hiệu bật tay, không có điểm giá trên thanh.</div></div></div>';
 }
 
 // ---- Bảng quy tắc ----
@@ -3978,14 +4027,14 @@ function snxRules(M, ctx) {
   const manual = (st) => st;
   const dist = (thr) => 'core ≥ ' + snxFmt(thr) + ' (+' + snxF1((thr / M.NOW - 1) * 100) + '%)';
   const rows = [
-    ['B1', 'Core −15% từ đỉnh', 'Bắt đầu xả tụ bù: 70% số dư chia đều 12 tháng, 30% làm van', b1 ? 'Đã kích hoạt (đáy ' + snxPc(M.BOT / M.PEAK - 1) + ', nay ' + snxPc(M.fromPeak) + ')' : 'Chờ: core ≤ ' + snxFmt(M.B1), b1 ? 'fall' : 'wait', b1 && M.NOW < M.B5],
+    ['B1', 'Core −' + snxPp(M.P.B1) + ' từ đỉnh', 'Bắt đầu xả tụ bù: 70% số dư chia đều 12 tháng, 30% làm van', b1 ? 'Đã kích hoạt (đáy ' + snxPc(M.BOT / M.PEAK - 1) + ', nay ' + snxPc(M.fromPeak) + ')' : 'Chờ: core ≤ ' + snxFmt(M.B1), b1 ? 'fall' : 'wait', b1 && M.NOW < M.B5],
     ['B2', 'Mỗi tháng trong chu kỳ', 'Xả 1/12 phần 70%', b1 ? (M.NOW >= M.B5 ? 'Dừng: B5 đã đạt' : 'Đang chạy') : 'Chưa bắt đầu', b1 && M.NOW < M.B5 ? 'fall' : 'wait', false],
     ['B3', 'Gap core > 8%', 'Xả van 5% mỗi tháng', gapOk ? 'Chưa: gap core ≈ ' + gapTxt : 'Đạt: gap core ≈ ' + gapTxt, gapOk ? 'wait' : 'near', false],
-    ['B4', 'Core +5% từ đáy và gap < 8%', 'Xả hết van', (M.NOW >= M.B4 && gapOk) ? 'Đạt: ' + snxFmt(M.NOW) + ' ≥ ' + snxFmt(M.B4) + ' · gap ≈ ' + gapTxt : 'Chờ: ' + dist(M.B4) + ' · gap ≈ ' + gapTxt, (M.NOW >= M.B4 && gapOk) ? 'near' : 'wait', M.NOW >= M.B4 && gapOk && M.NOW < M.B5],
-    ['B5', 'Core +10% từ đáy', 'Xả hết tụ còn lại, reset đỉnh và đáy', M.NOW >= M.B5 ? 'Đạt: xả hết tụ, reset đỉnh/đáy (app chưa tự reset)' : 'Kế tiếp: ' + dist(M.B5), M.NOW >= M.B5 ? 'near' : 'wait', M.NOW >= M.B5 && M.NOW < M.C1],
-    ['C1', 'Core +20% từ đáy', 'Cắt lời 10% về tụ', M.NOW >= M.C1 ? 'Đạt' : 'Chờ: ' + dist(M.C1), M.NOW >= M.C1 ? 'near' : 'wait', M.NOW >= M.C1 && M.NOW < M.C2],
-    ['C2', 'Core +35% từ đáy', 'Cắt lời thêm 20%', M.NOW >= M.C2 ? 'Đạt' : 'Chờ: ' + dist(M.C2), M.NOW >= M.C2 ? 'near' : 'wait', M.NOW >= M.C2],
-    ['C3', 'Phân kỳ âm (W/D1)', 'Cắt 30%; gộp 50% nếu trước +35%; không cắt nếu trước +20%', 'Nhập tay', 'manual', false],
+    ['B4', 'Core +' + snxPp(M.P.B4) + ' từ đáy và gap < 8%', 'Xả hết van', (M.NOW >= M.B4 && gapOk) ? 'Đạt: ' + snxFmt(M.NOW) + ' ≥ ' + snxFmt(M.B4) + ' · gap ≈ ' + gapTxt : 'Chờ: ' + dist(M.B4) + ' · gap ≈ ' + gapTxt, (M.NOW >= M.B4 && gapOk) ? 'near' : 'wait', M.NOW >= M.B4 && gapOk && M.NOW < M.B5],
+    ['B5', 'Core +' + snxPp(M.P.B5) + ' từ đáy', 'Xả hết tụ còn lại, reset đỉnh và đáy', M.NOW >= M.B5 ? 'Đạt: xả hết tụ, reset đỉnh/đáy (app chưa tự reset)' : 'Kế tiếp: ' + dist(M.B5), M.NOW >= M.B5 ? 'near' : 'wait', M.NOW >= M.B5 && M.NOW < M.C1],
+    ['C1', 'Core +' + snxPp(M.P.C1) + ' từ đáy', 'Cắt lời 10% về tụ', M.NOW >= M.C1 ? 'Đạt' : 'Chờ: ' + dist(M.C1), M.NOW >= M.C1 ? 'near' : 'wait', M.NOW >= M.C1 && M.NOW < M.C2],
+    ['C2', 'Core +' + snxPp(M.P.C2) + ' từ đáy', 'Cắt lời thêm 20%', M.NOW >= M.C2 ? 'Đạt' : 'Chờ: ' + dist(M.C2), M.NOW >= M.C2 ? 'near' : 'wait', M.NOW >= M.C2],
+    ['C3', 'Phân kỳ âm (W/D1)', 'Cắt 30%; gộp 50% nếu trước +' + snxPp(M.P.C2) + '; không cắt nếu trước +' + snxPp(M.P.C1), 'Nhập tay', 'manual', false],
     ['Sàn', 'Tỉ trọng core', 'Không dưới 40%', (M.TU && M.TU.val > 0) ? (M.SUM_VAL / (M.SUM_VAL + M.TU.val) >= 0.4 ? 'Đạt: core ' : 'Dưới sàn: core ') + snxF1(M.SUM_VAL / (M.SUM_VAL + M.TU.val) * 100) + '%' : 'Chưa tính (chưa có quỹ TP trong Onhand)', (M.TU && M.TU.val > 0) ? (M.SUM_VAL / (M.SUM_VAL + M.TU.val) >= 0.4 ? 'near' : 'wait') : 'manual', false]];
   let t = '<table style="width:100%;min-width:760px;border-collapse:collapse;font-size:14px"><thead><tr style="text-align:left;color:#4E5863;font-size:12px;text-transform:uppercase;letter-spacing:0.04em">'
     + '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;width:60px">Mã</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">Điều kiện</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1">Hành động</th><th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;width:260px">Hiện tại</th></tr></thead><tbody>';
@@ -4001,18 +4050,29 @@ function snxRules(M, ctx) {
 }
 
 // ---- Chart core vs VNI + thanh ngày ----
+function snxExLine(M) {
+  if (!M.exScaled || !(M.exScaled.filter(v => !isNaN(v)).length > 1)) return '';
+  const w = M.vinW, inp = (k, v) => '<input type="number" step="0.5" min="0" max="50" value="' + (v * 100).toFixed(1) + '" onchange="snxSetVinW(\'' + k + '\', this.value)" style="width:56px;border:1px solid #DAD8D1;border-radius:6px;padding:2px 6px;font:inherit;font-size:13px">';
+  const pc = v => (isNaN(v) ? '—' : (v >= 0 ? '+' : '−') + snxF1(Math.abs(v) * 100) + '%');
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:13px;color:#4E5863">'
+    + '<span>Từ đỉnh core tới đáy: Core <b style="' + SNX_MONO + 'color:#1B1F23">' + pc(M.ddCore) + '</b> · VNI <b style="' + SNX_MONO + 'color:#1B1F23">' + pc(M.vniDD) + '</b> · VNI ex-Vin <b style="' + SNX_MONO + 'color:#B4560A">' + pc(M.exDD) + '</b></span>'
+    + '<span>Từ đáy tới nay: Core <b style="' + SNX_MONO + 'color:#1B1F23">' + pc(M.upCore) + '</b> · VNI <b style="' + SNX_MONO + 'color:#1B1F23">' + pc(M.vniUp) + '</b> · VNI ex-Vin <b style="' + SNX_MONO + 'color:#B4560A">' + pc(M.exUp) + '</b></span>'
+    + '<span style="margin-left:auto">Tỉ trọng VIC ' + inp('VIC', w.VIC) + '% · VHM ' + inp('VHM', w.VHM) + '% trong VNI ở dòng đầu NAV daily</span></div>'
+    + '<div style="font-size:12px;color:#4E5863">VNI ex-Vin chỉ là xấp xỉ: lấy lợi suất ngày VNI trừ phần đóng góp của VIC và VHM (giá sàn cùng ngày), tỉ trọng chạy theo giá từ mức bạn nhập. Chưa gồm VRE, VPL; muốn chính xác hơn nhập chỉ số ex-Vin thật. Không dùng làm điều kiện B1–C3.</div>';
+}
+
 function snxChart(M) {
   // từ dòng đỉnh hiện tại tới nay (đỉnh/đáy động từ chuỗi); dòng seed chỉ có khi NAV daily chưa lùi tới 27/02
-  const pts = M.R.map((r, i) => ({ d: r.d, c: M.coreSeries[i], v: M.vniScaled[i], seed: !!r.seed }));
+  const pts = M.R.map((r, i) => ({ d: r.d, c: M.coreSeries[i], v: M.vniScaled[i], e: M.exScaled ? M.exScaled[i] : NaN, seed: !!r.seed }));
   const n = pts.length;
   const L = 52, Rr = 780, T = 14, B = 290;
-  const maxV = Math.max(M.C2, M.PEAK, ...pts.map(p => isNaN(p.v) ? 0 : p.v));
-  const minV = Math.min(M.BOT, ...pts.map(p => p.c), ...pts.map(p => isNaN(p.v) ? 1e12 : p.v));
+  const maxV = Math.max(M.C2, M.PEAK, ...pts.map(p => isNaN(p.v) ? 0 : p.v), ...pts.map(p => isNaN(p.e) ? 0 : p.e));
+  const minV = Math.min(M.BOT, ...pts.map(p => p.c), ...pts.map(p => isNaN(p.v) ? 1e12 : p.v), ...pts.map(p => isNaN(p.e) ? 1e12 : p.e));
   const LO = Math.floor((minV - 1500) / 5000) * 5000, HI = Math.ceil((maxV + 1500) / 5000) * 5000;
   const xi = i => L + (Rr - L) * i / (n - 1), yv = v => B - (B - T) * (v - LO) / (HI - LO);
   const path = (get, from) => { let s = '', started = false; for (let i = from; i < n; i++) { const v = get(pts[i]); if (isNaN(v)) continue; s += (started ? 'L' : 'M') + xi(i).toFixed(1) + ' ' + yv(v).toFixed(1) + ' '; started = true; } return s; };
   const s0 = pts[0].seed ? 1 : 0;
-  const coreD = path(p => p.c, s0), vniD = path(p => p.v, s0);
+  const coreD = path(p => p.c, s0), vniD = path(p => p.v, s0), exD = path(p => p.e, s0);
   const gapCore = !pts[0].seed ? '' : 'M' + xi(0).toFixed(1) + ' ' + yv(pts[0].c).toFixed(1) + ' L' + xi(1).toFixed(1) + ' ' + yv(pts[1].c).toFixed(1);
   const gapVni = (!pts[0].seed || isNaN(pts[1].v)) ? '' : 'M' + xi(0).toFixed(1) + ' ' + yv(pts[0].v).toFixed(1) + ' L' + xi(1).toFixed(1) + ' ' + yv(pts[1].v).toFixed(1);
   let grid = '', ylab = '';
@@ -4027,10 +4087,13 @@ function snxChart(M) {
   svg += '<text x="60" y="' + (yv(M.C2) + 40).toFixed(1) + '" font-size="11" fill="#8A5A00" font-family="IBM Plex Sans, sans-serif">C3: phân kỳ âm, tín hiệu bật tay, không có điểm giá</text>';
   svg += '<path d="' + grid + '" stroke="#E6E4DD" stroke-width="1" fill="none"></path>' + ylab + xlab;
   svg += lvl(M.PEAK, 'Đỉnh: ' + snxFmt(M.PEAK), SNX_C.CA, '6 4', 1.3) + lvl(M.NOW, 'Hiện tại: ' + snxFmt(M.NOW), SNX_C.INK, 'none', 1.4)
-    + lvl(M.BOT, 'Đáy: ' + snxFmt(M.BOT), SNX_C.CB, '6 4', 1.3) + lvl(M.C2, 'C2 +35%: ' + snxFmt(M.C2), '#8A5A00', '2 3', 1.3);
+    + lvl(M.BOT, 'Đáy: ' + snxFmt(M.BOT), SNX_C.CB, '6 4', 1.3) + lvl(M.C2, 'C2 +' + snxPp(M.P.C2) + ': ' + snxFmt(M.C2), '#8A5A00', '2 3', 1.3);
   svg += '<path d="' + gapVni + '" fill="none" stroke="#B5BBC2" stroke-width="1.2" stroke-dasharray="2 3"></path><path d="' + vniD + '" fill="none" stroke="#6B7480" stroke-width="1.6" stroke-dasharray="5 4"></path>';
   const lastV = pts[n - 1].v;
   if (!isNaN(lastV)) svg += '<text x="786" y="' + (yv(lastV) + 4).toFixed(1) + '" font-size="11" fill="#6B7480" font-family="IBM Plex Sans, sans-serif">VNI quy đổi: ' + snxFmt(lastV) + '</text>';
+  svg += '<path d="' + exD + '" fill="none" stroke="#B4560A" stroke-width="1.8" stroke-dasharray="1 3" stroke-linecap="round"></path>';
+  const lastE = pts[n - 1].e;
+  if (!isNaN(lastE)) svg += '<text x="786" y="' + (yv(lastE) + (Math.abs(yv(lastE) - yv(lastV)) < 12 ? 16 : 4)).toFixed(1) + '" font-size="11" fill="#B4560A" font-family="IBM Plex Sans, sans-serif">VNI ex-Vin: ' + snxFmt(lastE) + '</text>';
   svg += '<path d="' + gapCore + '" fill="none" stroke="#7F9DB8" stroke-width="1.6" stroke-dasharray="2 3"></path><path d="' + coreD + '" fill="none" stroke="#1F4E79" stroke-width="2.4" stroke-linejoin="round"></path>';
   svg += '<circle cx="' + xi(n - 1).toFixed(1) + '" cy="' + yv(M.NOW).toFixed(1) + '" r="5" fill="#1F4E79" stroke="#FFFFFF" stroke-width="2"></circle>';
   const iB = M.iBot;
@@ -4047,16 +4110,18 @@ function snxChart(M) {
   return '<div style="' + SNX_CARD + '">'
     + '<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px"><h2 style="margin:0;font-size:18px;font-weight:600">NAV core chung và VNI</h2>'
     + '<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px;color:#4E5863"><span><span style="display:inline-block;width:18px;height:3px;background:#1F4E79;vertical-align:middle;margin-right:6px"></span>Core (Σ tỉ trọng × NAV, đồng)</span>'
-    + '<span><span style="display:inline-block;width:18px;height:0;border-top:2px dashed #6B7480;vertical-align:middle;margin-right:6px"></span>VNI quy đổi cùng gốc tại đỉnh ' + snxLab(M.peakDate) + '</span></div></div>'
+    + '<span><span style="display:inline-block;width:18px;height:0;border-top:2px dashed #6B7480;vertical-align:middle;margin-right:6px"></span>VNI quy đổi cùng gốc tại đỉnh ' + snxLab(M.peakDate) + '</span>'
+    + '<span><span style="display:inline-block;width:18px;height:0;border-top:2px dotted #B4560A;vertical-align:middle;margin-right:6px"></span>VNI ex-Vin (xấp xỉ)</span></div></div>'
     + svg
+    + snxExLine(M)
     + '<div style="font-size:12px;color:#4E5863">Core là chỉ số liên kết theo lợi suất ngày, trọng số từng ngày là tỉ trọng thực (số CCQ × NAV), nên mua hoặc bán chỉ đổi trọng số từ phiên sau, không đổi đỉnh/đáy quá khứ; ngày cuối neo bằng Σ tỉ trọng hiện tại × NAV. Đỉnh ' + snxLabFull(M.peakDate) + ' và đáy ' + snxLabFull(M.botDate) + ' tự chạy theo chuỗi: giá vượt đỉnh thì đỉnh chuyển sang ngày mới, thủng đáy thì đáy chuyển sang ngày mới (' + dDown + ' ngày giảm, ' + dUp + ' ngày hồi). VNI nhân hệ số để trùng core tại ngày đỉnh. NAV daily bắt đầu từ ' + snxLabFull(firstD) + (M.seedUsed ? '; chưa lùi tới đỉnh 27/02 nên điểm đầu là hằng số seed và đoạn nối chấm chỉ minh họa. Điền NAV daily lùi về trước 27/02 để bỏ seed.' : '.') + '</div></div>';
 }
 
 function snxLog(M) {
   const e = (date, title, note) => '<div style="border:1px solid #E6E4DD;border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:4px"><div style="font-size:12px;color:#4E5863;' + SNX_MONO + '">' + date + '</div><div style="font-size:15px;font-weight:600">' + title + '</div><div style="font-size:13px;color:#4E5863">' + note + '</div></div>';
   return '<div style="' + SNX_CARD + '">' + snxCardHead('Nhật ký đỉnh và đáy (tự ghi)') + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">'
-    + e(snxLabFull(M.peakDate), 'Đỉnh core: ' + snxFmt(M.PEAK), 'Đỉnh động của chuỗi core (tỉ trọng thực). Vượt đỉnh thì chuyển sang ngày mới. Mọi mốc −15% tính từ đây.')
-    + e(snxLabFull(M.botDate), 'Đáy core: ' + snxFmt(M.BOT), 'Thấp hơn đỉnh ' + snxF1(Math.abs(M.BOT / M.PEAK - 1) * 100) + '%. Mọi mốc +5%, +10%, +20%, +35% tính từ đây.') + '</div></div>';
+    + e(snxLabFull(M.peakDate), 'Đỉnh core: ' + snxFmt(M.PEAK), 'Đỉnh động của chuỗi core (tỉ trọng thực). Vượt đỉnh thì chuyển sang ngày mới. Mọi mốc −' + snxPp(M.P.B1) + ' tính từ đây.')
+    + e(snxLabFull(M.botDate), 'Đáy core: ' + snxFmt(M.BOT), 'Thấp hơn đỉnh ' + snxF1(Math.abs(M.BOT / M.PEAK - 1) * 100) + '%. Mọi mốc +' + snxPp(M.P.B4) + ', +' + snxPp(M.P.B5) + ', +' + snxPp(M.P.C1) + ', +' + snxPp(M.P.C2) + ' tính từ đây.') + '</div></div>';
 }
 
 // ---- Bảng độ lệch & beta so với VNI ----
@@ -4110,7 +4175,7 @@ function snxWeights(M, ipBal) {
     + '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:13px;font-weight:600">Thực tế hiện tại (theo số CCQ × NAV mới nhất)</div><div style="display:flex;height:44px;border-radius:8px;overflow:hidden">' + actBar + '</div></div>'
     + capBar
     + '<div style="display:flex;flex-wrap:wrap;gap:16px;font-size:13px">' + dv('DCDS', M.w['DCDS'], t['DCDS']) + dv('BCF', M.w['VCBF-BCF'], t['VCBF-BCF']) + dv('VinaCapital (VESAF + VMEEF)', vinaA, t['VINA']) + '</div>'
-    + '<div style="font-size:12px;color:#4E5863">VinaCapital 30% chia VESAF/VMEEF theo tỉ lệ đang giữ (chưa có tỉ lệ mục tiêu riêng). Không bán gì: chỉ dừng DCA vào quỹ đang vượt và dồn DCA vào quỹ đang thiếu, tỉ trọng tự cân bằng dần. Nền mua: TCBS dừng mua từ tháng 11, các lô TCBS hiện có đóng băng làm nền. Dưới +10% từ đáy mua trên app quỹ, trên +10% mua trên Fmarket.</div></div>';
+    + '<div style="font-size:12px;color:#4E5863">VinaCapital 30% chia VESAF/VMEEF theo tỉ lệ đang giữ (chưa có tỉ lệ mục tiêu riêng). Không bán gì: chỉ dừng DCA vào quỹ đang vượt và dồn DCA vào quỹ đang thiếu, tỉ trọng tự cân bằng dần. Nền mua: TCBS dừng mua từ tháng 11, các lô TCBS hiện có đóng băng làm nền. Dưới +' + snxPp(M.P.B5) + ' từ đáy mua trên app quỹ, trên +' + snxPp(M.P.B5) + ' mua trên Fmarket.</div></div>';
 }
 
 function snxFundCards(M) {
@@ -4125,8 +4190,8 @@ function snxFundCards(M) {
     const d = a.map((v, i) => (i ? 'L' : 'M') + gx(i).toFixed(1) + ' ' + gy(v).toFixed(1)).join(' ');
     const cA = SNX_C.CA, cB = SNX_C.CB;
     const tri = (p, c) => '<div style="position:absolute;top:18px;left:' + p.toFixed(2) + '%;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid ' + c + '"></div>';
-    const st = up >= 0.10 ? ['Xác nhận hồi', 'past'] : (up >= 0.05 ? ['Đã qua đáy', 'past'] : (up < 0.0005 ? ['Đang rơi', 'fall'] : ['Gần đáy', 'near']));
-    const nextTxt = up < 0.05 ? 'Còn ' + snxF1(((bot * 1.05) / now - 1) * 100) + '% tới +5% từ đáy riêng.' : (up < 0.10 ? 'Còn ' + snxF1(((bot * 1.10) / now - 1) * 100) + '% tới +10% từ đáy riêng.' : 'Đã qua +10% từ đáy riêng.');
+    const st = up >= M.P.B5 ? ['Xác nhận hồi', 'past'] : (up >= M.P.B4 ? ['Đã qua đáy', 'past'] : (up < 0.0005 ? ['Đang rơi', 'fall'] : ['Gần đáy', 'near']));
+    const nextTxt = up < M.P.B4 ? 'Còn ' + snxF1(((bot * (1 + M.P.B4)) / now - 1) * 100) + '% tới +' + snxPp(M.P.B4) + ' từ đáy riêng.' : (up < M.P.B5 ? 'Còn ' + snxF1(((bot * (1 + M.P.B5)) / now - 1) * 100) + '% tới +' + snxPp(M.P.B5) + ' từ đáy riêng.' : 'Đã qua +' + snxPp(M.P.B5) + ' từ đáy riêng.');
     const ar = (text, left, width, col, headLeft) => '<div style="position:absolute;top:58px;left:' + left + ';width:' + width + ';height:2px;background:' + col + '"></div>'
       + '<div style="position:absolute;top:54px;left:' + headLeft + ';margin-left:-8px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid ' + col + '"></div>'
       + '<div style="position:absolute;top:63px;left:' + left + ';width:' + width + ';text-align:center;font-size:12px;font-weight:600;white-space:nowrap;color:' + col + '">' + text + '</div>';
@@ -4137,7 +4202,7 @@ function snxFundCards(M) {
       + '<div style="position:absolute;right:0;top:0;' + SNX_MONO + 'font-size:11px;color:' + cA + ';white-space:nowrap">Đỉnh ' + snxFmt(peak) + '</div>'
       + '<div style="position:absolute;left:0;top:28px;height:14px;border-radius:7px 0 0 7px;background:#A9CDB6;width:' + pnS + '%"></div>'
       + '<div style="position:absolute;top:28px;height:14px;border-radius:0 7px 7px 0;background:#E8BDB5;left:' + pnS + '%;width:' + (100 - pn).toFixed(2) + '%"></div>'
-      + tri(0, cB) + tri(ps(bot * 1.05), cB) + tri(ps(bot * 1.10), cB) + tri(ps(peak * 0.85), cA) + tri(100, cA)
+      + tri(0, cB) + tri(ps(bot * (1 + M.P.B4)), cB) + tri(ps(bot * (1 + M.P.B5)), cB) + tri(ps(peak * (1 - M.P.B1)), cA) + tri(100, cA)
       + '<div style="position:absolute;top:50px;left:' + pnS + '%;width:2px;height:30px;margin-left:-1px;background:#1B1F23"></div>'
       + '<div style="position:absolute;top:43px;left:' + pnS + '%;margin-left:-5px;width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:7px solid #1B1F23"></div>'
       + ar(snxPc(up), '0', pnS + '%', cB, pnS + '%') + ar(snxPc(dd), pnS + '%', (100 - pn).toFixed(2) + '%', cA, '100%')
@@ -4213,29 +4278,67 @@ function renderNavForm() {
     + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0"><input type="checkbox" id="navChinhThuc" checked> NAV chính thức (ghi Y)</label>'
     + '<button class="exec-btn-save" id="navSaveBtn" onclick="navSave()">Ghi NAV</button><div class="exec-save-note" id="navSaveNote"></div></details>';
 }
+
+// ---- Đọc số dán từ TCBS (kiểu Anh 94,490.5) hoặc gõ tay (94490.5 / 94.490,5): chọn cách đọc sát giá phiên trước ----
+function navRef(code, ngayIso) {
+  const M = window.SNX_LAST; if (!M || !M.RA) return NaN;
+  const lim = ngayIso ? new Date(ngayIso + 'T00:00:00') : null;
+  for (let i = M.RA.length - 1; i >= 0; i--) {
+    const r = M.RA[i]; if (r.seed) continue;
+    if (lim && r.d >= lim) continue;
+    let v = NaN;
+    if (code === 'VNI') v = r.vniRaw; else if (r.nav && r.nav[code] > 0) v = r.nav[code]; else if (r.other && r.other[code] > 0) v = r.other[code];
+    if (v > 0) return v;
+  }
+  return NaN;
+}
+function navParse(raw, ref) {
+  let s = String(raw || '').replace(/[\s%]/g, ''); if (!s) return { v: '' };
+  if (!/^[0-9.,]+$/.test(s)) return { v: '', bad: true };
+  const lastD = s.lastIndexOf('.'), lastC = s.lastIndexOf(',');
+  const en = parseFloat(s.replace(/,/g, '')), vn = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+  let v, note = '';
+  if (lastD >= 0 && lastC >= 0) v = lastD > lastC ? en : vn;                    // có cả hai dấu: dấu đứng sau là thập phân
+  else if (lastD < 0 && lastC < 0) v = en;
+  else if (ref > 0) v = Math.abs(Math.log(en / ref)) <= Math.abs(Math.log(vn / ref)) ? en : vn;   // 1 loại dấu: chọn cách đọc sát giá cũ
+  else { const sep = lastD >= 0 ? '.' : ','; const after = s.length - 1 - s.lastIndexOf(sep); v = after === 3 ? en : (sep === '.' ? en : vn); if (after === 3) v = parseFloat(s.replace(/[.,]/g, '')); }
+  if (ref > 0 && (v / ref < 0.5 || v / ref > 2)) {                                // lệch thang nghìn
+    for (const k of [1000, 0.001, 100, 0.01, 10, 0.1]) if (v * k / ref > 0.7 && v * k / ref < 1.4) { v = v * k; note = '×' + k; break; }
+  }
+  return { v: isNaN(v) ? '' : v, note };
+}
 function navSave() {
   const g = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
   const note = document.getElementById('navSaveNote'), btn = document.getElementById('navSaveBtn');
-  const num = s => { const n = parseVNNumber(s.replace(/\s/g, '')); return isNaN(n) ? '' : n; };
+  const ngay = g('navNgay'), warns = [], fixes = [];
+  const num = (s, code) => { const ref = navRef(code, ngay); const r = navParse(s, ref); if (r.bad) { warns.push(code + ': ký tự lạ "' + s + '"'); return ''; }
+    if (r.v !== '' && r.note) fixes.push(code + ' ' + s + ' → ' + r.v + ' (' + r.note + ')');
+    if (r.v !== '' && ref > 0 && Math.abs(r.v / ref - 1) > 0.1) warns.push(code + ': ' + r.v + ' lệch ' + ((r.v / ref - 1) * 100).toFixed(1) + '% so với ' + ref);
+    return r.v; };
   const params = {
     key: TRADING_SECRET_KEY, action: 'addNav', ngay: g('navNgay'), chinhThuc: document.getElementById('navChinhThuc').checked ? 'Y' : '',
-    dcds: num(g('navDCDS')), bcf: num(g('navBCF')), vmeef: num(g('navVMEEF')), vesaf: num(g('navVESAF')),
-    ssisca: num(g('navSSISCA')), veof: num(g('navVEOF')), magef: num(g('navMAGEF')), tcef: num(g('navTCEF')),
-    fuevfvnd: num(g('navFUEVFVND')), e1vfvn30: num(g('navE1VFVN30')), vni: num(g('navVNI'))
+    dcds: num(g('navDCDS'), 'DCDS'), bcf: num(g('navBCF'), 'VCBF-BCF'), vmeef: num(g('navVMEEF'), 'VMEEF'), vesaf: num(g('navVESAF'), 'VESAF'),
+    ssisca: num(g('navSSISCA'), 'SSISCA'), veof: num(g('navVEOF'), 'VEOF'), magef: num(g('navMAGEF'), 'MAGEF'), tcef: num(g('navTCEF'), 'TCEF'),
+    fuevfvnd: num(g('navFUEVFVND'), 'FUEVFVND'), e1vfvn30: num(g('navE1VFVN30'), 'E1VFVN30'), vni: num(g('navVNI'), 'VNI')
   };
   const ex = {};
-  navExtraFunds().forEach((m, i) => { const v = num(g('navX' + i)); if (v !== '') ex[m] = v; });
-  ['VIC', 'VHM'].forEach(m => { const v = num(g('nav' + m)); if (v !== '') ex[m] = v; });
+  navExtraFunds().forEach((m, i) => { const v = num(g('navX' + i), m); if (v !== '') ex[m] = v; });
+  ['VIC', 'VHM'].forEach(m => { const v = num(g('nav' + m), m); if (v !== '') ex[m] = v; });
   if (Object.keys(ex).length) params.extra = JSON.stringify(ex);
   if (!params.ngay) { note.style.color = 'var(--danger)'; note.textContent = 'Thiếu ngày.'; return; }
   const any = ['dcds', 'bcf', 'vmeef', 'vesaf', 'ssisca', 'veof', 'magef', 'tcef', 'fuevfvnd', 'e1vfvn30', 'vni'].some(k => params[k] !== '') || params.extra;
   if (!any) { note.style.color = 'var(--danger)'; note.textContent = 'Chưa nhập giá trị nào.'; return; }
+  const sig = JSON.stringify(params);
+  if (warns.length && window._navForceSig !== sig) {
+    window._navForceSig = sig; note.style.color = 'var(--danger)';
+    note.textContent = 'Cảnh báo (chưa ghi): ' + warns.join(' · ') + ' — kiểm tra lại, hoặc bấm Ghi NAV lần nữa để ghi vẫn.'; return;
+  }
   btn.disabled = true; note.style.color = 'var(--muted)'; note.textContent = 'Đang ghi...';
   jsonpRequest(TRADING_ADDTRADE_URL, params, function (err, data) {
     btn.disabled = false;
     if (err || !data || !data.success) { note.style.color = 'var(--danger)'; note.textContent = 'Lỗi: ' + (err ? err.message : (data && data.error) || 'không rõ'); return; }
     note.style.color = 'var(--moss)';
-    note.textContent = 'Đã ghi dòng ' + data.row + ' · ngày ' + data.ngay + (data.created ? ' (dòng mới, phiên d−1 = ' + data.phien + ')' : '') + ' · ' + Object.keys(data.written || {}).join(', ');
+    note.textContent = 'Đã ghi dòng ' + data.row + ' · ngày ' + data.ngay + (data.created ? ' (dòng mới, phiên d−1 = ' + data.phien + ')' : '') + ' · ' + Object.keys(data.written || {}).map(k => k + '=' + data.written[k]).join(', ') + (fixes.length ? ' · Tự chỉnh thang: ' + fixes.join('; ') : '');
     if (typeof loadTrading === 'function') loadTrading();
   });
 }
@@ -4338,7 +4441,7 @@ function convHtml(){
   const btn = (k, v, l, on) => '<button class="gap-btn' + (on ? '' : ' ghost') + '" style="' + (on ? 'background:var(--moss);color:#fff;' : '') + '" onclick="convSet(\'' + k + '\',\'' + v + '\')">' + l + '</button>';
   let h = '<h3 class="gap-h">Giả định chuyển đổi CCQ</h3><div class="gap-sim-head" style="flex-wrap:wrap;gap:8px">'
     + btn('mode', 'cut', 'Cắt chốt lãi (CCQ → TP)', CONV.mode === 'cut') + btn('mode', 'buy', 'Xả tụ (TP → CCQ)', CONV.mode === 'buy')
-    + '<span style="width:12px"></span>' + btn('navMode', 'now', 'NAV hiện tại', CONV.navMode === 'now') + btn('navMode', 'c1', 'NAV tại C1 (+20%)', CONV.navMode === 'c1') + btn('navMode', 'c2', 'NAV tại C2 (+35%)', CONV.navMode === 'c2')
+    + '<span style="width:12px"></span>' + btn('navMode', 'now', 'NAV hiện tại', CONV.navMode === 'now') + btn('navMode', 'c1', 'NAV tại C1 (+' + snxPp(snxP().C1) + ')', CONV.navMode === 'c1') + btn('navMode', 'c2', 'NAV tại C2 (+' + snxPp(snxP().C2) + ')', CONV.navMode === 'c2')
     + '<span style="width:12px"></span>' + btn('alloc', 'target', 'Hướng về 40/30/30', CONV.alloc === 'target') + btn('alloc', 'prorata', 'Theo tỉ lệ', CONV.alloc === 'prorata') + '</div>';
   h += '<div class="gap-sim-head" style="flex-wrap:wrap;gap:8px">';
   if (CONV.mode === 'cut') {
@@ -4359,10 +4462,38 @@ function convHtml(){
       + '<td>' + gapPct(r.gap) + ' → <b style="color:' + gapCol(r.gap2) + ';">' + gapPct(r.gap2) + '</b></td></tr>').join('')
     + '<tr class="gap-core"><td><b>CORE</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td><b>' + fmtVND(C.money) + '</b></td>' + (C.cut ? '<td><b>' + fmtVND(C.pnl) + '</b></td>' : '') + '<td>' + gapPct(C.g1) + ' → <b style="color:' + gapCol(C.g2) + ';">' + gapPct(C.g2) + '</b></td></tr></tbody></table></div></div>';
   const where = C.cut ? 'Cắt tại nền tảng đang giữ lô: TCBS bán trực tiếp; Fmarket hoặc app quỹ chuyển đổi sang quỹ trái phiếu.'
-    : (C.fromBot < 0.10 ? 'Core dưới +10% từ đáy: mua trên app quỹ (DC, VinaCapital, VCBF).' : 'Core trên +10% từ đáy: mua trên Fmarket.');
+    : (C.fromBot < snxP().B5 ? 'Core dưới +' + snxPp(snxP().B5) + ' từ đáy: mua trên app quỹ (DC, VinaCapital, VCBF).' : 'Core trên +' + snxPp(snxP().B5) + ' từ đáy: mua trên Fmarket.');
   h += '<div class="gap-note">' + where + ' Tính trên giá trị core ' + fmtVND(C.V) + ' (NAV ' + (CONV.navMode === 'now' ? 'hiện tại' : 'nhân hệ số ' + C.k.toFixed(3).replace('.', ',') + ' đồng loạt cho cả 4 quỹ, chỉ là ước lượng') + '). Mục tiêu VESAF/VMEEF chia 30% theo tỉ lệ đang giữ. Lãi ước tính theo giá vốn bình quân, chưa trừ phí/thuế. Giá vốn bình quân giữ nguyên khi bán; khi mua, giá vốn mới = (vốn + tiền) ÷ (CCQ + tiền/NAV). Làm tròn 0,1 CCQ. Chỉ nằm trong bộ nhớ, không ghi vào Sheet.</div>';
   return h;
 }
+
+// ---- Hai nút cập nhật giá: (1) giá CP trong phiên + VIC/VHM/ETF/VNI, (2) NAV mọi quỹ trong NAV daily ----
+function navRefreshSummary_(d) {
+  const kv = o => Object.keys(o || {}).map(k => k + '=' + fmtNum(o[k])).join(', ');
+  const parts = [];
+  if (d.daGhi && Object.keys(d.daGhi).length) parts.push('Đã ghi ' + d.ngay + ': ' + kv(d.daGhi));
+  if (d.chuaMoi && d.chuaMoi.length) parts.push('Chưa có NAV mới: ' + d.chuaMoi.join(', '));
+  if (d.giuNguyen && d.giuNguyen.length) parts.push('Không đổi: ' + d.giuNguyen.join(', '));
+  if (d.thieu && d.thieu.length) parts.push('Không có dữ liệu: ' + d.thieu.join(', '));
+  if (d.navDaily) parts.unshift('NAV daily: ' + d.navDaily);
+  if (!parts.length) parts.push('Không có gì để ghi');
+  return { text: parts.join(' · '), warn: (d.canhBao || []).join(' · ') };
+}
+function navRefreshRun_(action, btnId, noteId, label) {
+  const btn = document.getElementById(btnId), note = document.getElementById(noteId);
+  if (btn) btn.disabled = true;
+  note.style.color = 'var(--muted)'; note.textContent = '⏳ ' + label + '...';
+  jsonpRequest(TRADING_ADDTRADE_URL, { key: TRADING_SECRET_KEY, action: action }, function (err, d) {
+    if (btn) btn.disabled = false;
+    if (err || !d || d.success === false) { note.style.color = 'var(--danger)'; note.textContent = 'Lỗi: ' + (err ? err.message : (d && (d.error || d.loi)) || 'không rõ'); return; }
+    const s = navRefreshSummary_(d);
+    note.style.color = s.warn ? 'var(--danger)' : 'var(--moss)';
+    note.textContent = '✅ ' + new Date().toLocaleTimeString('vi-VN') + ' — ' + s.text + (s.warn ? ' · ⚠ ' + s.warn : '');
+    if (typeof loadTrading === 'function') loadTrading();
+  });
+}
+function triggerStocksRefresh() { navRefreshRun_('refreshStocks', 'btn-update-price', 'price-update-status', 'Đang lấy giá cổ phiếu, VIC, VHM, ETF, VNI'); }
+function triggerFundNav() { navRefreshRun_('refreshFunds', 'btn-fund-nav', 'price-update-status', 'Đang lấy NAV các quỹ từ fmarket'); }
 
 
 // ======================================================================
