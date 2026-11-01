@@ -642,7 +642,7 @@
 
         </div><!-- /#trd-money-widgets -->
         <div id="trd-price-bar" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;">
-          <label style="font-size:.85rem;color:var(--muted);" title="Để trống = giá trong phiên. Điền cả hai ngày = tính chênh lệch giữa hai phiên cho Fund stock list">Phiên trước:
+          <label style="font-size:.85rem;color:var(--muted);" title="Để trống = giá trong phiên. Chỉ điền Phiên hiện tại = ghi bù giá chốt của phiên đó vào NAV daily (quên bấm sau 15h05). Điền cả hai ngày = tính chênh lệch giữa hai phiên cho Fund stock list">Phiên trước:
             <input type="date" id="price-date-prev" style="
               padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;
               background:var(--card-bg);color:var(--fg);margin-left:4px;
@@ -2736,7 +2736,7 @@ async function triggerPriceUpdate(){
 
   // Mở tab mới để chạy Apps Script (tránh CORS)
   const mode = isHistorical ? '(lịch sử)' : '(realtime)';
-  if (!isHistorical) { triggerStocksRefresh(); return; }
+  if (!isHistorical) { triggerStocksRefresh(dateCurr && !datePrev ? dateCurr : ''); return; }
   window.open(url, '_blank');
 
   btn.disabled = true;
@@ -3572,7 +3572,7 @@ function renderVonPhanBo(){
 const SNX = {
   FUNDS: ['DCDS', 'VESAF', 'VCBF-BCF', 'VMEEF'],
   LABEL: { 'DCDS': 'DCDS', 'VESAF': 'VESAF', 'VCBF-BCF': 'BCF', 'VMEEF': 'VMEEF' },
-  PEERS: ['SSISCA', 'VEOF', 'MAGEF', 'TCEF'],     // quỹ đối chiếu (NAV, quy ước d-1 như 4 quỹ core)
+  PEERS: ['SSISCA', 'VEOF', 'MAGEF', 'BVFED'],     // quỹ đối chiếu (NAV, quy ước d-1 như 4 quỹ core)
   ETFS: ['FUEVFVND', 'E1VFVN30'],                 // ETF: giá sàn cùng ngày, không theo quy ước d-1
   STOCKS: ['VIC', 'VHM'],                         // cổ phiếu họ Vin: giá sàn cùng ngày như ETF
   SEED: {
@@ -4243,7 +4243,7 @@ function snxHealthHtml(M, H) {
     + '<div style="overflow-x:auto"><table style="width:100%;min-width:900px;border-collapse:collapse;font-size:13px"><thead><tr style="color:#4E5863;font-size:11px;text-transform:uppercase;letter-spacing:0.03em">'
     + '<th style="padding:8px 10px;border-bottom:1px solid #DAD8D1;text-align:left">Quỹ</th>' + th('Số phiên') + th('Beta') + th('Beta 60 phiên') + th('Tương quan') + th('R²') + th('Sai số ngày') + th('Vol 20 phiên / toàn kỳ') + th('Phiên cuối (return, z)') + th('Từ đáy core') + th('Trạng thái') + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
     + outHtml
-    + '<div style="font-size:12px;color:#4E5863">VNI cùng kỳ từ đáy core: ' + p2(H.vniSinceBot) + '. Cột VNI, ETF và cổ phiếu Vin là giá cùng ngày của dòng. NAV quỹ mở ở dòng ngày d là NAV phiên d−1, nên được so với VNI của phiên ghi ở cột "Phiên VNI ghép"; ETF và cổ phiếu so với VNI cùng dòng. z là độ lệch của phiên so với đường hồi quy chia cho sai số; |z| &gt; 3,5 ở 5 phiên gần nhất bị gắn cờ "NAV bất thường" và cảnh báo ở đầu trang. Quỹ đối chiếu, ETF và cổ phiếu Vin (SSISCA, VEOF, MAGEF, TCEF, FUEVFVND, E1VFVN30, VIC, VHM) cần có số liệu trong NAV daily mới hiện; ô trống không bị tính là 0. Kết quả chỉ để rà lỗi nhập NAV và theo dõi quỹ lệch nhịp, không phải tín hiệu hành động.</div></div>';
+    + '<div style="font-size:12px;color:#4E5863">VNI cùng kỳ từ đáy core: ' + p2(H.vniSinceBot) + '. Cột VNI, ETF và cổ phiếu Vin là giá cùng ngày của dòng. NAV quỹ mở ở dòng ngày d là NAV phiên d−1, nên được so với VNI của phiên ghi ở cột "Phiên VNI ghép"; ETF và cổ phiếu so với VNI cùng dòng. z là độ lệch của phiên so với đường hồi quy chia cho sai số; |z| &gt; 3,5 ở 5 phiên gần nhất bị gắn cờ "NAV bất thường" và cảnh báo ở đầu trang. Quỹ đối chiếu, ETF và cổ phiếu Vin (SSISCA, VEOF, MAGEF, BVFED, FUEVFVND, E1VFVN30, VIC, VHM) cần có số liệu trong NAV daily mới hiện; ô trống không bị tính là 0. Kết quả chỉ để rà lỗi nhập NAV và theo dõi quỹ lệch nhịp, không phải tín hiệu hành động.</div></div>';
 }
 
 // ---- Form ghi NAV ngày vào tab NAV daily (đặt ở tab Chứng chỉ quỹ, không phải tab Cảm biến) ----
@@ -4274,7 +4274,7 @@ function renderNavForm() {
     + f('navDCDS', 'DCDS') + f('navBCF', 'VCBF-BCF') + f('navVMEEF', 'VMEEF') + f('navVESAF', 'VESAF') + '</div>'
     + (extras.length ? '<div class="exec-form-row">' + extras.map((m, i) => f('navX' + i, m + ' (quỹ TP)')).join('') + '</div>' : '')
     + '<div style="font-size:12px;color:var(--muted);margin:6px 0">Quỹ đối chiếu, ETF, VNI (không bắt buộc):</div>'
-    + '<div class="exec-form-row">' + f('navSSISCA', 'SSISCA') + f('navVEOF', 'VEOF') + f('navMAGEF', 'MAGEF') + f('navTCEF', 'TCEF') + f('navFUEVFVND', 'FUEVFVND') + f('navE1VFVN30', 'E1VFVN30') + f('navVIC', 'VIC') + f('navVHM', 'VHM') + f('navVNI', 'VNI cùng ngày') + '</div>'
+    + '<div class="exec-form-row">' + f('navSSISCA', 'SSISCA') + f('navVEOF', 'VEOF') + f('navMAGEF', 'MAGEF') + f('navBVFED', 'BVFED') + f('navFUEVFVND', 'FUEVFVND') + f('navE1VFVN30', 'E1VFVN30') + f('navVIC', 'VIC') + f('navVHM', 'VHM') + f('navVNI', 'VNI cùng ngày') + '</div>'
     + '<label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0"><input type="checkbox" id="navChinhThuc" checked> NAV chính thức (ghi Y)</label>'
     + '<button class="exec-btn-save" id="navSaveBtn" onclick="navSave()">Ghi NAV</button><div class="exec-save-note" id="navSaveNote"></div></details>';
 }
@@ -4318,7 +4318,7 @@ function navSave() {
   const params = {
     key: TRADING_SECRET_KEY, action: 'addNav', ngay: g('navNgay'), chinhThuc: document.getElementById('navChinhThuc').checked ? 'Y' : '',
     dcds: num(g('navDCDS'), 'DCDS'), bcf: num(g('navBCF'), 'VCBF-BCF'), vmeef: num(g('navVMEEF'), 'VMEEF'), vesaf: num(g('navVESAF'), 'VESAF'),
-    ssisca: num(g('navSSISCA'), 'SSISCA'), veof: num(g('navVEOF'), 'VEOF'), magef: num(g('navMAGEF'), 'MAGEF'), tcef: num(g('navTCEF'), 'TCEF'),
+    ssisca: num(g('navSSISCA'), 'SSISCA'), veof: num(g('navVEOF'), 'VEOF'), magef: num(g('navMAGEF'), 'MAGEF'), bvfed: num(g('navBVFED'), 'BVFED'),
     fuevfvnd: num(g('navFUEVFVND'), 'FUEVFVND'), e1vfvn30: num(g('navE1VFVN30'), 'E1VFVN30'), vni: num(g('navVNI'), 'VNI')
   };
   const ex = {};
@@ -4326,7 +4326,7 @@ function navSave() {
   ['VIC', 'VHM'].forEach(m => { const v = num(g('nav' + m), m); if (v !== '') ex[m] = v; });
   if (Object.keys(ex).length) params.extra = JSON.stringify(ex);
   if (!params.ngay) { note.style.color = 'var(--danger)'; note.textContent = 'Thiếu ngày.'; return; }
-  const any = ['dcds', 'bcf', 'vmeef', 'vesaf', 'ssisca', 'veof', 'magef', 'tcef', 'fuevfvnd', 'e1vfvn30', 'vni'].some(k => params[k] !== '') || params.extra;
+  const any = ['dcds', 'bcf', 'vmeef', 'vesaf', 'ssisca', 'veof', 'magef', 'bvfed', 'fuevfvnd', 'e1vfvn30', 'vni'].some(k => params[k] !== '') || params.extra;
   if (!any) { note.style.color = 'var(--danger)'; note.textContent = 'Chưa nhập giá trị nào.'; return; }
   const sig = JSON.stringify(params);
   if (warns.length && window._navForceSig !== sig) {
@@ -4472,27 +4472,31 @@ function navRefreshSummary_(d) {
   const kv = o => Object.keys(o || {}).map(k => k + '=' + fmtNum(o[k])).join(', ');
   const parts = [];
   if (d.daGhi && Object.keys(d.daGhi).length) parts.push('Đã ghi ' + d.ngay + ': ' + kv(d.daGhi));
+  if (d.suaLoi && d.suaLoi.length) parts.push('Đã sửa ô sai: ' + d.suaLoi.join('; '));
   if (d.chuaMoi && d.chuaMoi.length) parts.push('Chưa có NAV mới: ' + d.chuaMoi.join(', '));
   if (d.giuNguyen && d.giuNguyen.length) parts.push('Không đổi: ' + d.giuNguyen.join(', '));
   if (d.thieu && d.thieu.length) parts.push('Không có dữ liệu: ' + d.thieu.join(', '));
+  if (d.proxy) parts.unshift(d.proxy);
   if (d.navDaily) parts.unshift('NAV daily: ' + d.navDaily);
   if (!parts.length) parts.push('Không có gì để ghi');
   return { text: parts.join(' · '), warn: (d.canhBao || []).join(' · ') };
 }
-function navRefreshRun_(action, btnId, noteId, label) {
+function navRefreshRun_(action, btnId, noteId, label, extra) {
   const btn = document.getElementById(btnId), note = document.getElementById(noteId);
   if (btn) btn.disabled = true;
   note.style.color = 'var(--muted)'; note.textContent = '⏳ ' + label + '...';
-  jsonpRequest(TRADING_ADDTRADE_URL, { key: TRADING_SECRET_KEY, action: action }, function (err, d) {
+  const prm = Object.assign({ key: TRADING_SECRET_KEY, action: action }, extra || {});
+  jsonpRequest(TRADING_ADDTRADE_URL, prm, function (err, d) {
     if (btn) btn.disabled = false;
     if (err || !d || d.success === false) { note.style.color = 'var(--danger)'; note.textContent = 'Lỗi: ' + (err ? err.message : (d && (d.error || d.loi)) || 'không rõ'); return; }
+    if (d.ngay === undefined) { note.style.color = 'var(--danger)'; note.textContent = 'Apps Script đang chạy bản CŨ (không có lệnh ' + action + '). Phản hồi nhận được: ' + JSON.stringify(d).slice(0, 160) + ' — cần Deploy → Manage deployments → Edit → New version.'; return; }
     const s = navRefreshSummary_(d);
     note.style.color = s.warn ? 'var(--danger)' : 'var(--moss)';
     note.textContent = '✅ ' + new Date().toLocaleTimeString('vi-VN') + ' — ' + s.text + (s.warn ? ' · ⚠ ' + s.warn : '');
     if (typeof loadTrading === 'function') loadTrading();
   });
 }
-function triggerStocksRefresh() { navRefreshRun_('refreshStocks', 'btn-update-price', 'price-update-status', 'Đang lấy giá cổ phiếu, VIC, VHM, ETF, VNI'); }
+function triggerStocksRefresh(ngay) { navRefreshRun_('refreshStocks', 'btn-update-price', 'price-update-status', ngay ? 'Đang ghi bù giá chốt phiên ' + ngay : 'Đang lấy giá cổ phiếu, VIC, VHM, ETF, VNI', ngay ? { ngay: ngay } : null); }
 function triggerFundNav() { navRefreshRun_('refreshFunds', 'btn-fund-nav', 'price-update-status', 'Đang lấy NAV các quỹ từ fmarket'); }
 
 
