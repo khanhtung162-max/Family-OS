@@ -432,6 +432,19 @@
   .exec-btn-save{width:100%;background:var(--moss);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;}
   .exec-btn-save:disabled{opacity:.5;cursor:not-allowed;}
   .exec-save-note{text-align:center;font-size:11px;color:var(--muted);margin-top:8px;min-height:14px;}
+  .cq-box{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:4px 0 14px;display:flex;flex-direction:column;gap:7px;}
+  .cq-cap{font-size:11.5px;color:var(--muted);letter-spacing:.04em;margin:2px 0 8px;}
+  .cq-box .cq-cap{margin:0;}
+  .cq-r{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;}
+  .cq-r b{text-align:right;}
+  .cq-warn{background:#fbefe6;color:#7a3418;border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.4;}
+  .cq-card2{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--paper);}
+  .cq-card2.late{border-color:#c9a27a;}
+  .cq-tag{font-size:11.5px;padding:3px 9px;border-radius:999px;background:#e8eef6;color:#1f3552;white-space:nowrap;}
+  .cq-tag.late{background:#fbefe6;color:#7a3418;}
+  .cq-g3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;font-size:13.5px;padding:3px 0;}
+  .cq-g3.head{font-size:11.5px;color:var(--muted);}
+  .cq-g3 .num{text-align:right;font-variant-numeric:tabular-nums;}
   .exec-toggle-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
   .exec-toggle-row .exec-toggle-btn{min-width:70px;}
   .exec-toggle-btn{flex:1;text-align:center;font-size:12px;padding:8px 4px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--muted);cursor:pointer;font-weight:600;white-space:nowrap;}
@@ -687,7 +700,7 @@
 
             <div class="exec-toggle-row">
               <button class="exec-toggle-btn on" id="nhAssetCP" onclick="nhanhSetAsset('CP')">Cổ phiếu lẻ</button>
-              <button class="exec-toggle-btn" id="nhAssetCCQ" onclick="nhanhSetAsset('CCQ')">CCQ/ETF</button>
+              <button class="exec-toggle-btn" id="nhAssetCCQ" onclick="nhanhSetAsset('CCQ')">ETF</button>
             </div>
 
             <div class="exec-toggle-row" id="nhLoaiRow">
@@ -700,7 +713,6 @@
             <div class="trd-nhanh-field" id="nhLoaiHinhRow" style="display:none;">
               <label>Loại hình</label>
               <select id="nhLoaiHinh" class="trd-nhanh-input">
-                <option value="CCQ">Quỹ mở (CCQ)</option>
                 <option value="ETF">ETF</option>
               </select>
             </div>
@@ -925,49 +937,77 @@
 
             <div id="trd-navform-root"></div>
 
-            <div class="exec-form-card">
-              <h3>+ Giao dịch chứng chỉ quỹ</h3>
-
-              <div class="exec-toggle-row">
-                <button class="exec-toggle-btn on" id="qmToggleMua" onclick="qmSetLoai('Mua')">Mua</button>
-                <button class="exec-toggle-btn" id="qmToggleBan" onclick="qmSetLoai('Bán')">Bán</button>
-                <button class="exec-toggle-btn" id="qmToggleYTien" onclick="qmSetLoai('Yield tiền')">Cổ tức tiền (CCQ)</button>
+            <div class="exec-form-card" id="cq-card">
+              <h3>Giao dịch chứng chỉ quỹ (CCQ)</h3>
+              <div class="exec-toggle-row" id="cq-tabs">
+                <button class="exec-toggle-btn on" data-t="mua" onclick="cqTab('mua')">Mua</button>
+                <button class="exec-toggle-btn" data-t="ban" onclick="cqTab('ban')">Bán / Chuyển đổi</button>
+                <button class="exec-toggle-btn" data-t="cho" id="cq-tab-cho" onclick="cqTab('cho')">Đang xử lý</button>
+                <button class="exec-toggle-btn" data-t="cd" onclick="cqTab('cd')">Cổ tức</button>
               </div>
 
-              <div class="exec-form-row">
-                <div class="exec-form-field"><label>Ngày thực hiện</label><input type="date" id="qmNgay"></div>
-                <div class="exec-form-field">
-                  <label>Loại hình</label>
-                  <select id="qmLoaiHinh">
-                    <option value="CCQ">Quỹ mở (CCQ)</option>
-                    <option value="ETF">ETF</option>
-                  </select>
+              <!-- MUA -->
+              <div id="cq-p-mua">
+                <div class="exec-form-row">
+                  <div class="exec-form-field"><label>Ngày khớp lệnh</label><input type="date" id="cqMuaNgay"></div>
+                  <div class="exec-form-field"><label>Nền tảng</label><input type="text" id="cqMuaNen" list="cq-dl-nen" placeholder="Fmarket"></div>
                 </div>
+                <div class="exec-form-row">
+                  <div class="exec-form-field"><label>Quỹ</label><input type="text" id="cqMuaMa" list="cq-dl-quy" placeholder="VMEEF" style="text-transform:uppercase;"></div>
+                  <div class="exec-form-field"><label>Số tiền mua (đ)</label><input type="number" id="cqMuaTien" step="1" placeholder="1000000"></div>
+                </div>
+                <div class="exec-form-row">
+                  <div class="exec-form-field"><label>Nguồn tiền</label>
+                    <select id="cqMuaNguon"><option value="Ipower">Ipower (tự ghi Rút)</option><option value="khac">Nguồn khác (không ghi Ipower)</option></select></div>
+                  <div class="exec-form-field" style="flex:2;"><label>Ghi chú</label><input type="text" id="cqMuaNote"></div>
+                </div>
+                <div class="cq-box" id="cq-mua-prev"></div>
+                <button class="exec-btn-save" onclick="cqMuaSave()">Lưu giao dịch</button>
+                <div class="exec-save-note" id="cqMuaNote"></div>
               </div>
 
-              <div class="exec-form-row" id="qmTradeRow">
-                <div class="exec-form-field"><label>Mã quỹ</label><input type="text" id="qmMa" placeholder="VD: DCDS" style="text-transform:uppercase;"></div>
-                <div class="exec-form-field"><label>Giá NAV (đ/CCQ)</label><input type="number" id="qmGia" step="0.01" placeholder="38500"></div>
-                <div class="exec-form-field"><label>Khối lượng</label><input type="number" id="qmSL" step="0.01" placeholder="1000"></div>
-              </div>
-              <div class="exec-form-row" id="qmYieldRow" style="display:none;">
-                <div class="exec-form-field"><label>Mã quỹ</label><input type="text" id="qmMaYield" placeholder="VD: DCDS" style="text-transform:uppercase;"></div>
-                <div class="exec-form-field"><label>Tỉ lệ cổ tức (%)</label><input type="number" id="qmTiLeYield" step="0.1" placeholder="10"></div>
+              <!-- BÁN / CHUYỂN ĐỔI -->
+              <div id="cq-p-ban" style="display:none;">
+                <div class="exec-toggle-row">
+                  <button class="exec-toggle-btn on" id="cqModeBan" onclick="cqMode('ban')">Bán, tiền về Ipower</button>
+                  <button class="exec-toggle-btn" id="cqModeCD" onclick="cqMode('chuyen')">Chuyển đổi sang quỹ</button>
+                </div>
+                <div class="cq-cap">BÊN BÁN</div>
+                <div class="exec-form-row">
+                  <div class="exec-form-field"><label>Ngày khớp bán</label><input type="date" id="cqBanNgay"></div>
+                  <div class="exec-form-field"><label>Nền tảng</label><input type="text" id="cqBanNen" list="cq-dl-nen" placeholder="Fmarket"></div>
+                </div>
+                <div class="exec-form-row">
+                  <div class="exec-form-field"><label>Quỹ bán</label><input type="text" id="cqBanMa" list="cq-dl-quy" style="text-transform:uppercase;"></div>
+                  <div class="exec-form-field"><label>Số CCQ bán</label><input type="number" id="cqBanSl" step="0.01"></div>
+                  <div class="exec-form-field"><label>NAV bán</label><input type="number" id="cqBanNav" step="0.01"></div>
+                </div>
+                <div id="cq-ban-mua" style="display:none;">
+                  <div class="cq-cap">BÊN MUA · QUỸ MỤC TIÊU</div>
+                  <div class="exec-form-row">
+                    <div class="exec-form-field"><label>Quỹ mục tiêu</label><input type="text" id="cqBanDich" list="cq-dl-quy" style="text-transform:uppercase;"></div>
+                  </div>
+                  <div class="why" style="margin:-4px 0 12px;text-align:left;max-width:none;">NAV mua và CCQ nhận chưa có lúc này. Khi CCQ về, vào Đang xử lý nhập ngày về và NAV mua (cuối ngày CCQ về): app tạo lô mới ở quỹ đích, ngày về là ngày bắt đầu đếm.</div>
+                </div>
+                <div class="exec-form-row">
+                  <div class="exec-form-field"><label>Phí gõ đè (%, để trống = tự tra biểu phí)</label><input type="number" id="cqBanPhi" step="0.01"></div>
+                  <div class="exec-form-field" style="flex:2;"><label>Ghi chú</label><input type="text" id="cqBanNote"></div>
+                </div>
+                <div class="cq-box" id="cq-ban-prev"></div>
+                <button class="exec-btn-save" onclick="cqBanSave()">Lưu giao dịch</button>
+                <div class="exec-save-note" id="cqBanNote2"></div>
               </div>
 
-              <div class="exec-form-row" id="qmPhiBanRow" style="display:none;">
-                <div class="exec-form-field"><label>Phí bán trước hạn (%)</label><input type="number" id="qmPhiBan" step="0.01" placeholder="0"></div>
-              </div>
+              <!-- ĐANG XỬ LÝ -->
+              <div id="cq-p-cho" style="display:none;"><div id="cq-cho-list"></div></div>
 
-              <div class="exec-von-row" id="qmVonRow"><span id="qmVonLabel">Vốn (chưa phí)</span><b id="qmVonPreview">—</b></div>
+              <!-- CỔ TỨC -->
+              <div id="cq-p-cd" style="display:none;"><div class="why" style="text-align:left;max-width:none;">Cổ tức CCQ chưa hỗ trợ trong tab CCQ. Sẽ làm sau.</div></div>
 
-              <div class="exec-form-row">
-                <div class="exec-form-field" style="flex:2;"><label>Note (tuỳ chọn)</label><input type="text" id="qmNote" placeholder="Ghi chú nhanh..."></div>
-              </div>
-
-              <button class="exec-btn-save" id="qmSaveBtn" onclick="qmSaveOrder()">Lưu giao dịch</button>
-              <div class="exec-save-note" id="qmSaveNote"></div>
+              <datalist id="cq-dl-nen"></datalist>
+              <datalist id="cq-dl-quy"></datalist>
             </div>
+            <div id="cq-summary"></div>
 
             <div class="trd-cards" id="trd-quymo-summary"></div>
             <div class="trd-table" id="trd-quymo-table"></div>
@@ -1108,7 +1148,8 @@ const TRADING_CSV_BY_NHA = {
     ipower:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=885075156",
     danhMucQuy: "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531559558",
     onhand:     "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=1531442378",
-    navDaily:   "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=2100291625"
+    navDaily:   "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=2100291625",
+    ccq:        "https://docs.google.com/spreadsheets/d/1UgSEDDlMipp4a2T5bKD66tvx0AwlfNMOST34LlKF2ck/export?format=csv&gid=610279804"
   }
 };
 const MF_CSV = {
@@ -1355,6 +1396,8 @@ async function loadAll(){
 // ============================================================
 const VN_MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
 function parseTradingDate(str){
+  const dm = String(str || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dm) return new Date(+dm[3], +dm[2] - 1, +dm[1]);
   const m = String(str || '').trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/);
   if (!m) return new Date(NaN);
   const day = +m[1], mon = VN_MONTHS[m[2]], yRaw = +m[3];
@@ -2576,7 +2619,7 @@ function nhanhSaveOrder(){
   const tiLeYield = (parseFloat(document.getElementById('nhTiLeYield').value) || 0) / 100;
   const phiBan = (parseFloat(document.getElementById('nhPhiBan').value) || 0) / 100;
   const ngay = document.getElementById('nhNgay').value || '';
-  const loaiHinh = document.getElementById('nhLoaiHinh') ? document.getElementById('nhLoaiHinh').value : 'CCQ';
+  const loaiHinh = document.getElementById('nhLoaiHinh') ? document.getElementById('nhLoaiHinh').value : 'ETF';
   const noteEl = document.getElementById('nhSaveNote');
   const btn = document.getElementById('nhSaveBtn');
 
@@ -2614,7 +2657,7 @@ function nhanhSaveOrder(){
   } : {
     key: TRADING_SECRET_KEY,
     action: 'addTrade',
-    loaiTaiSan: isYield ? 'CCQ' : loaiHinh,
+    loaiTaiSan: loaiHinh,
     ma: ma,
     loaiGiaoDich: nhLoai,
     ngay: ngay,
@@ -2659,13 +2702,15 @@ async function loadTrading(){
 
   const content = document.getElementById('trd-content');
   try {
-    const [onhandRaw, dmqRaw, inoutRows, ipowerRows, navRows] = await Promise.all([
+    const [onhandRaw, dmqRaw, inoutRows, ipowerRows, navRows, ccqRaw] = await Promise.all([
       fetchCSVRaw(csvSet.onhand),
       fetchCSVRaw(csvSet.danhMucQuy),
       fetchCSV(csvSet.inout),
       fetchCSV(csvSet.ipower),
-      csvSet.navDaily ? fetchCSV(csvSet.navDaily).catch(() => []) : Promise.resolve([])
+      csvSet.navDaily ? fetchCSV(csvSet.navDaily).catch(() => []) : Promise.resolve([]),
+      csvSet.ccq ? fetchCSVRaw(csvSet.ccq).catch(() => []) : Promise.resolve([])
     ]);
+    CCQ_LOTS = cqParseLots(ccqRaw);
     NAVDAILY = navRows || [];
 
     // Onhand: dòng 0 là banner gộp ô ("On-hand stock" + 3 số tổng), header thật ở dòng 1
@@ -2681,6 +2726,7 @@ async function loadTrading(){
     navApplyToOnhand();   // giá CCQ core lấy từ NAV daily, không đọc cột giá Onhand
     INOUT = inoutRows;
     IPOWER = ipowerRows;
+    if (typeof cqFillLists === 'function' && document.getElementById('cq-dl-quy')) cqFillLists();
 
     // Danh mục quỹ: dòng 0-2 là NAV proxy / NAV hiện tại / NAV kỳ vọng, header thật ở dòng 3
     const fundHeader = dmqRaw[3] || [];
@@ -3061,7 +3107,8 @@ const TAX_YIELD_TIEN = 0.05; // 5% thuế cổ tức tiền mặt
 
 // Gọi Apps Script qua JSONP (script tag) — tránh lỗi CORS của fetch() thẳng
 function jsonpRequest(url, params, callback){
-  const cbName = 'jsonp_cb_' + Date.now();
+  window.__jsonpSeq = (window.__jsonpSeq || 0) + 1;
+  const cbName = 'jsonp_cb_' + Date.now() + '_' + window.__jsonpSeq;
   params.callback = cbName;
   const qs = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
   window[cbName] = function(data){
@@ -3356,134 +3403,217 @@ function execSaveOrder(){
   });
 }
 
-// ---- Quỹ mở (CCQ/ETF) — form "+ Giao dịch" Mua/Bán ----
-let qmLoai = 'Mua';
-
-function qmSetLoai(v){
-  qmLoai = v;
-  const isYield = (v === 'Yield tiền');
-  document.getElementById('qmToggleMua').classList.toggle('on', v === 'Mua');
-  document.getElementById('qmToggleBan').classList.toggle('on', v === 'Bán');
-  document.getElementById('qmToggleYTien').classList.toggle('on', isYield);
-  document.getElementById('qmPhiBanRow').style.display = (v === 'Bán') ? '' : 'none';
-  document.getElementById('qmTradeRow').style.display = isYield ? 'none' : '';
-  document.getElementById('qmYieldRow').style.display = isYield ? '' : 'none';
-  document.getElementById('qmVonRow').style.display = isYield ? 'none' : '';
-
-  const loaiHinhEl = document.getElementById('qmLoaiHinh');
-  if (isYield){
-    loaiHinhEl.value = 'CCQ'; // ETF không chia cổ tức tiền — khoá về CCQ (Quỹ mở)
-    loaiHinhEl.disabled = true;
-  } else {
-    loaiHinhEl.disabled = false;
-  }
-
-  document.getElementById('qmVonLabel').textContent = (v === 'Bán') ? 'Tiền nhận (đã trừ phí bán trước hạn)' : 'Vốn (chưa phí)';
-  qmUpdatePreview();
-}
-
-function qmUpdatePreview(){
-  const giaEl = document.getElementById('qmGia'), slEl = document.getElementById('qmSL');
-  if (!giaEl || !slEl) return;
-  const gia = parseFloat(giaEl.value) || 0;
-  const sl  = parseFloat(slEl.value) || 0;
-  const phiBan = (parseFloat(document.getElementById('qmPhiBan').value) || 0) / 100;
-  let tien;
-  if (qmLoai === 'Bán'){
-    tien = gia * sl * (1 - phiBan);
-  } else {
-    tien = gia * sl;
-  }
-  document.getElementById('qmVonPreview').textContent =
-    tien ? Math.round(tien).toLocaleString('vi-VN') + ' đ' : '—';
-}
-document.addEventListener('DOMContentLoaded', ()=>{
-  ['qmGia','qmSL','qmPhiBan'].forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', qmUpdatePreview);
-  });
-  const dEl = document.getElementById('qmNgay');
-  if (dEl) dEl.value = new Date().toISOString().slice(0,10);
-});
-
-function qmSaveOrder(){
-  const isYield = (qmLoai === 'Yield tiền');
-  const ma  = isYield
-    ? (document.getElementById('qmMaYield').value || '').trim().toUpperCase()
-    : (document.getElementById('qmMa').value || '').trim().toUpperCase();
-  const gia = parseFloat(document.getElementById('qmGia').value) || 0;
-  const sl  = parseFloat(document.getElementById('qmSL').value) || 0;
-  const tiLeYield = (parseFloat(document.getElementById('qmTiLeYield').value) || 0) / 100; // nhập %, gửi dạng thập phân
-  const phiBan = (parseFloat(document.getElementById('qmPhiBan').value) || 0) / 100;
-  const ngay = document.getElementById('qmNgay').value || '';
-  const loaiHinh = document.getElementById('qmLoaiHinh').value || 'CCQ';
-  const note = document.getElementById('qmNote').value || '';
-  const noteEl = document.getElementById('qmSaveNote');
-  const btn = document.getElementById('qmSaveBtn');
-
-  if (!ma){
-    noteEl.textContent = 'Thiếu Mã quỹ.';
-    noteEl.style.color = 'var(--danger)';
-    return;
-  }
-  if (isYield && !tiLeYield){
-    noteEl.textContent = 'Thiếu Tỉ lệ cổ tức.';
-    noteEl.style.color = 'var(--danger)';
-    return;
-  }
-  if (!isYield && (!gia || !sl)){
-    noteEl.textContent = 'Thiếu Giá NAV / Khối lượng.';
-    noteEl.style.color = 'var(--danger)';
-    return;
-  }
-
-  btn.disabled = true;
-  noteEl.style.color = 'var(--muted)';
-  noteEl.textContent = 'Đang lưu...';
-
-  jsonpRequest(TRADING_ADDTRADE_URL, {
-    key: TRADING_SECRET_KEY,
-    action: 'addTrade',
-    loaiTaiSan: isYield ? 'CCQ' : loaiHinh,
-    ma: ma,
-    loaiGiaoDich: qmLoai,
-    ngay: ngay,
-    soLuong: sl,
-    gia: gia,
-    phi: (qmLoai === 'Bán') ? phiBan : 0,
-    thue: 0,
-    tiLeYield: tiLeYield,
-    clWtrend: '',
-    clMacdVol: '',
-    clEntry: '',
-    camXuc: '',
-    note: note,
-    nguonTien: 'Ipower'
-  }, function(err, data){
-    btn.disabled = false;
-    if (err || !data || !data.success){
-      noteEl.style.color = 'var(--danger)';
-      noteEl.textContent = 'Lỗi: ' + (err ? err.message : (data && data.error) || 'không rõ');
-      return;
-    }
-    noteEl.style.color = 'var(--moss)';
-    noteEl.textContent = 'Đã lưu dòng ' + data.row + (data.ipowerRow ? ' + tự nối Ipower dòng ' + data.ipowerRow : '') + '. Đang tải lại...';
-    document.getElementById('qmMa').value = '';
-    document.getElementById('qmMaYield').value = '';
-    document.getElementById('qmTiLeYield').value = '';
-    document.getElementById('qmGia').value = '';
-    document.getElementById('qmSL').value = '';
-    document.getElementById('qmPhiBan').value = '';
-    document.getElementById('qmNote').value = '';
-    document.getElementById('qmNgay').value = new Date().toISOString().slice(0,10);
-    qmUpdatePreview();
-    if (typeof loadTrading === 'function') loadTrading();
+// ---- CCQ: ghi vào tab CCQ qua Apps Script (ccqBuy / ccqSell / ccqPending / ccqConfirm / ccqSummary) ----
+let CCQ_LOTS = [];
+let cqTabNow = 'mua', cqModeNow = 'ban', cqPrevTimer = null;
+const cq$ = id => document.getElementById(id);
+const cqNum = id => { const v = parseFloat(cq$(id).value); return isNaN(v) ? 0 : v; };
+const cqVnd = n => Math.round(n || 0).toLocaleString('vi-VN');
+const cqToday = () => new Date().toISOString().slice(0, 10);
+const cqDmy = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+function cqCall(action, params, cb){
+  jsonpRequest(TRADING_ADDTRADE_URL, Object.assign({ key: TRADING_SECRET_KEY, action: action }, params), function(err, data){
+    if (err || !data || !data.success) cb(new Error(err ? err.message : (data && data.error) || 'không rõ'), data);
+    else cb(null, data);
   });
 }
+// đọc tab CCQ (CSV thô, cột A..N theo vị trí; dòng sheet = chỉ số + 1)
+function cqParseLots(raw){
+  const out = [];
+  (raw || []).forEach((r, i) => {
+    if (i === 0 || !String(r[0] || '').trim()) return;
+    const pct = s => { const v = parseVNNumber(s); return isNaN(v) ? 0 : v / 100; };
+    const n = s => { const v = parseVNNumber(s); return isNaN(v) ? 0 : v; };
+    out.push({ row: i + 1, ma: String(r[0]).trim().toUpperCase(), nen: String(r[1] || '').trim(), ngayMua: String(r[2] || '').trim(),
+      sl: n(r[3]), gia: n(r[4]), cat: String(r[5] || '').trim(), giaCat: n(r[6]), xong: String(r[7] || '').trim(),
+      dich: String(r[8] || '').trim(), phi: pct(r[10]), thue: pct(r[11]), ghiChu: String(r[13] || '').trim() });
+  });
+  return out;
+}
+function cqNextBiz(d, n){ const x = new Date(d); let k = n || 1; while (k > 0){ x.setDate(x.getDate() + 1); if (x.getDay() !== 0 && x.getDay() !== 6) k--; } return x; }
+const cqIso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+function cqInit(){
+  ['cqMuaNgay', 'cqBanNgay'].forEach(id => { const e = cq$(id); if (e && !e.value) e.value = cqToday(); });
+  ['cqMuaTien', 'cqMuaNgay'].forEach(id => cq$(id) && cq$(id).addEventListener('input', cqMuaPrev));
+  ['cqBanNgay', 'cqBanNen', 'cqBanMa', 'cqBanSl', 'cqBanNav', 'cqBanDich', 'cqBanPhi'].forEach(id => cq$(id) && cq$(id).addEventListener('input', cqBanPrevSoon));
+  cqMuaPrev(); cqRefresh();
+}
+function cqFillLists(){
+  const nen = {}, quy = {};
+  ['TCBS', 'Fmarket'].forEach(x => nen[x] = 1);
+  CCQ_LOTS.forEach(l => { if (l.nen) nen[l.nen] = 1; quy[l.ma] = 1; });
+  (ONHAND || []).forEach(r => { if (r['Loại hình'] === 'CCQ' && r['Mã']) quy[r['Mã']] = 1; });
+  cq$('cq-dl-nen').innerHTML = Object.keys(nen).map(x => '<option value="' + x + '">').join('');
+  cq$('cq-dl-quy').innerHTML = Object.keys(quy).sort().map(x => '<option value="' + x + '">').join('');
+}
+function cqTab(t){
+  cqTabNow = t;
+  document.querySelectorAll('#cq-tabs .exec-toggle-btn').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  ['mua', 'ban', 'cho', 'cd'].forEach(x => cq$('cq-p-' + x).style.display = (x === t) ? '' : 'none');
+  if (t === 'cho') cqLoadPending();
+}
+function cqMode(m){
+  cqModeNow = m;
+  cq$('cqModeBan').classList.toggle('on', m === 'ban');
+  cq$('cqModeCD').classList.toggle('on', m === 'chuyen');
+  cq$('cq-ban-mua').style.display = (m === 'chuyen') ? '' : 'none';
+  cqBanPrevSoon();
+}
+// ---------- MUA ----------
+function cqMuaPrev(){
+  const tien = cqNum('cqMuaTien'), ngayV = cq$('cqMuaNgay').value;
+  const d = ngayV ? new Date(ngayV) : new Date(), ve = cqNextBiz(d, 1);
+  cq$('cq-mua-prev').innerHTML = '<div class="cq-cap">XEM TRƯỚC · LỆNH MUA</div>'
+    + '<div class="cq-r"><span>Ipower bị trừ</span><b>' + (tien ? cqVnd(tien) + ' đ · ngày ' + cqDmy(d) : '—') + '</b></div>'
+    + '<div class="cq-r"><span>CCQ về dự kiến (d+1)</span><b>' + cqDmy(ve) + '</b></div>'
+    + '<div class="cq-r"><span>NAV mua và CCQ nhận</span><b>biết khi CCQ về, điền ở Đang xử lý</b></div>'
+    + '<div class="cq-r"><span>Ngày bắt đầu đếm</span><b>ngày CCQ về</b></div>';
+}
+function cqMuaSave(){
+  const note = cq$('cqMuaNote'), ma = cq$('cqMuaMa').value.trim().toUpperCase(), nen = cq$('cqMuaNen').value.trim(), tien = cqNum('cqMuaTien');
+  const bad = m => { note.style.color = 'var(--danger)'; note.textContent = m; };
+  if (!ma) return bad('Thiếu quỹ.');
+  if (!nen) return bad('Thiếu nền tảng.');
+  if (!(tien > 0)) return bad('Thiếu số tiền mua.');
+  note.style.color = 'var(--muted)'; note.textContent = 'Đang lưu...';
+  cqCall('ccqBuy', { ngay: cq$('cqMuaNgay').value, ma: ma, nenTang: nen, soTien: tien, nguon: cq$('cqMuaNguon').value, note: cq$('cqMuaNote').value }, function(err, d){
+    if (err) return bad('Lỗi: ' + err.message);
+    note.style.color = 'var(--moss)';
+    note.textContent = 'Đã ghi lệnh mua (dòng ' + d.row + '), CCQ về dự kiến ' + d.veDuKien.split('-').reverse().join('/') + '.' + (d.ipowerRow ? ' Ipower dòng ' + d.ipowerRow + ' đã trừ.' : '') + ' Đang tải lại...';
+    ['cqMuaTien', 'cqMuaNote'].forEach(id => { cq$(id).value = ''; });
+    cqMuaPrev(); cqReloadAll();
+  });
+}
+// ---------- BÁN / CHUYỂN ĐỔI ----------
+function cqBanParams(preview){
+  const p = { ngay: cq$('cqBanNgay').value, ma: cq$('cqBanMa').value.trim().toUpperCase(), nenTang: cq$('cqBanNen').value.trim(), soLuong: cqNum('cqBanSl'), giaCat: cqNum('cqBanNav'),
+    loai: cqModeNow, note: cq$('cqBanNote').value };
+  const phi = cq$('cqBanPhi').value; if (phi !== '') p.phi = (parseFloat(phi) || 0) / 100;
+  if (cqModeNow === 'chuyen') {
+    p.quyMucTieu = cq$('cqBanDich').value.trim().toUpperCase();
+  }
+  if (preview) p.preview = '1';
+  return p;
+}
+function cqBanPrevSoon(){ clearTimeout(cqPrevTimer); cqPrevTimer = setTimeout(cqBanPrev, 450); }
+function cqBanPrev(){
+  const box = cq$('cq-ban-prev'), p = cqBanParams(true);
+  if (!p.ma || !p.nenTang || !(p.soLuong > 0) || !(p.giaCat > 0)) { box.innerHTML = '<div class="cq-cap">XEM TRƯỚC · FIFO THEO NỀN TẢNG</div><div class="cq-r"><span>Nhập quỹ, nền tảng, số CCQ và NAV bán để xem trước.</span></div>'; return; }
+  box.innerHTML = '<div class="cq-cap">XEM TRƯỚC · FIFO THEO NỀN TẢNG</div><div class="cq-r"><span>Đang tính...</span></div>';
+  cqCall('ccqSell', p, function(err, d){
+    if (err && !(d && d.plan)) { box.innerHTML = '<div class="cq-cap">XEM TRƯỚC</div><div class="cq-warn">' + err.message + '</div>'; return; }
+    const v = d.plan, chuyen = cqModeNow === 'chuyen';
+    box.innerHTML = '<div class="cq-cap">XEM TRƯỚC · FIFO THEO NỀN TẢNG</div>'
+      + (err ? '<div class="cq-warn">' + err.message + '</div>' : '')
+      + '<div class="cq-r"><span>' + (v.chuyenHet ? (chuyen ? 'Chuyển hết' : 'Bán hết') : (chuyen ? 'Chuyển' : 'Bán')) + '</span><b>' + v.soLo + ' lô</b></div>'
+      + '<div class="cq-r"><span>Lô giữ ngắn nhất</span><b>' + v.thangToiThieu + ' tháng</b></div>'
+      + '<div class="cq-r"><span>Lô lẻ</span><b>' + (v.loLe ? v.loLe + ' lô (tách dòng, giữ ngày mua và giá vốn)' : 'không có') + '</b></div>'
+      + '<div class="cq-r" style="border-top:1px dashed var(--line);padding-top:8px;"><span>Giá trị bán</span><span>' + cqVnd(v.gross) + '</span></div>'
+      + '<div class="cq-r"><span>' + (chuyen ? 'Phí chuyển đổi' : 'Phí bán') + (v.coBieuPhi ? ' (tra biểu theo thời gian giữ)' : ' (chưa có trong biểu, tính 0)') + '</span><span>− ' + cqVnd(v.phi) + '</span></div>'
+      + '<div class="cq-r"><span>Thuế 0,1% (giữ dưới 24 tháng)</span><span>− ' + cqVnd(v.thue) + '</span></div>'
+      + '<div class="cq-r"><b>' + (chuyen ? 'Tiền sang mua' : 'Tiền về Ipower (dự kiến)') + '</b><b>' + cqVnd(v.tong) + '</b></div>'
+      + '<div class="cq-r"><span>Lãi/lỗ so với giá vốn</span><span>' + cqVnd(v.laiLo) + '</span></div>'
+      + (chuyen ? '<div class="cq-r"><span>Lô mới ' + (p.quyMucTieu || '') + '</span><span>tạo khi CCQ về: xác nhận ở Đang xử lý</span></div>' : '<div class="cq-r"><span>Ipower</span><span>ghi Nạp khi xác nhận tiền về</span></div>');
+  });
+}
+function cqBanSave(){
+  const note = cq$('cqBanNote2'), p = cqBanParams(false);
+  const bad = m => { note.style.color = 'var(--danger)'; note.textContent = m; };
+  if (!p.ma || !p.nenTang) return bad('Thiếu quỹ hoặc nền tảng.');
+  if (!(p.soLuong > 0) || !(p.giaCat > 0)) return bad('Thiếu số CCQ hoặc NAV bán.');
+  if (cqModeNow === 'chuyen' && !p.quyMucTieu) return bad('Thiếu quỹ mục tiêu.');
+  note.style.color = 'var(--muted)'; note.textContent = 'Đang lưu...';
+  cqCall('ccqSell', p, function(err, d){
+    if (err) return bad('Lỗi: ' + err.message);
+    note.style.color = 'var(--moss)';
+    note.textContent = 'Đã lưu ' + d.rows.length + ' lô. Lệnh nằm ở Đang xử lý. Đang tải lại...';
+    ['cqBanSl', 'cqBanNav', 'cqBanPhi', 'cqBanNote'].forEach(id => { cq$(id).value = ''; });
+    cqBanPrev(); cqReloadAll();
+  });
+}
+// ---------- ĐANG XỬ LÝ ----------
+let CQ_PENDING = [];
+function cqLoadPending(){
+  cq$('cq-cho-list').innerHTML = '<div class="why" style="text-align:left;max-width:none;">Đang tải...</div>';
+  cqCall('ccqPending', {}, function(err, d){
+    if (err) { cq$('cq-cho-list').innerHTML = '<div class="cq-warn">' + err.message + '</div>'; return; }
+    CQ_PENDING = d.items || [];
+    cqRenderPending();
+  });
+}
+function cqRenderPending(){
+  const tab = cq$('cq-tab-cho'); tab.textContent = 'Đang xử lý' + (CQ_PENDING.length ? ' · ' + CQ_PENDING.length : '');
+  if (!CQ_PENDING.length) { cq$('cq-cho-list').innerHTML = '<div class="why" style="text-align:left;max-width:none;">Không có lệnh nào đang chờ.</div>'; return; }
+  cq$('cq-cho-list').innerHTML = CQ_PENDING.map((it, i) => {
+    const ban = it.loai === 'Bán về Ipower', mua = it.loai === 'Mua';
+    const tieu = mua ? 'Mua ' + it.ma : (ban ? 'Bán ' + it.ma + ' → Ipower' : it.ma + ' → ' + it.dich);
+    const late = it.soNgayCho >= 5;
+    const tag = '<span class="cq-tag' + (late ? ' late' : '') + '">Đã chờ ' + it.soNgayCho + ' ngày</span>';
+    const f = ban
+      ? '<div class="exec-form-field"><label>Số tiền về</label><input type="number" id="cqCho' + i + 'T" value="' + it.tien + '"></div>'
+      : '<div class="exec-form-field"><label>Số tiền</label><input type="text" value="' + cqVnd(it.tien) + '" readonly></div><div class="exec-form-field"><label>NAV mua (cuối ngày CCQ về)</label><input type="number" id="cqCho' + i + 'N2" step="0.01" oninput="cqChoTinh(' + i + ',\'n\')"></div><div class="exec-form-field"><label>CCQ nhận (tự tính)</label><input type="number" id="cqCho' + i + 'S" step="0.01" oninput="cqChoTinh(' + i + ',\'s\')"></div>';
+    return '<div class="cq-card2' + (late ? ' late' : '') + '"><div class="cq-r"><b>' + tieu + '</b>' + tag + '</div>'
+      + '<div class="why" style="text-align:left;max-width:none;margin-bottom:8px;">' + it.nen + ' · ' + (mua ? 'khớp ngày ' : 'lệnh ngày ') + it.ngay + (mua ? ' · Ipower đã trừ' : '') + '</div>'
+      + '<div class="exec-form-row">' + f + '<div class="exec-form-field"><label>Ngày về' + (mua ? ' (dự kiến d+1)' : '') + '</label><input type="date" id="cqCho' + i + 'D" value="' + (mua && it.veDuKien ? it.veDuKien : '') + '"></div></div>'
+      + '<button class="exec-btn-save" onclick="cqConfirm(' + i + ')">Xác nhận</button><div class="exec-save-note" id="cqCho' + i + 'N"></div></div>';
+  }).join('');
+}
+function cqChoTinh(i, tu){   // NAV <-> CCQ nhận: tiền = NAV × CCQ
+  const t = CQ_PENDING[i].tien, nEl = cq$('cqCho' + i + 'N2'), sEl = cq$('cqCho' + i + 'S');
+  if (tu === 'n') { const n = parseFloat(nEl.value) || 0; sEl.value = (n > 0 && t > 0) ? (t / n).toFixed(2) : ''; }
+  else { const s2 = parseFloat(sEl.value) || 0; nEl.value = (s2 > 0 && t > 0) ? (t / s2).toFixed(2) : ''; }
+}
+function cqConfirm(i){
+  const it = CQ_PENDING[i], note = cq$('cqCho' + i + 'N'), d = cq$('cqCho' + i + 'D').value;
+  const bad = m => { note.style.color = 'var(--danger)'; note.textContent = m; };
+  if (!d) return bad('Thiếu ngày về.');
+  const p = { rows: it.rows.join(','), ngayVe: d };
+  if (it.loai === 'Bán về Ipower') { const t = cqNum('cqCho' + i + 'T'); if (!(t > 0)) return bad('Thiếu số tiền về.'); p.soTien = t; }
+  else {
+    const n = cqNum('cqCho' + i + 'N2'), s = cqNum('cqCho' + i + 'S');
+    if (!(n > 0) && !(s > 0)) return bad('Thiếu NAV mua (hoặc CCQ nhận).');
+    if (n > 0) p.navMua = n;
+    if (s > 0 && !(n > 0)) p.soCCQNhan = s;
+  }
+  note.style.color = 'var(--muted)'; note.textContent = 'Đang lưu...';
+  cqCall('ccqConfirm', p, function(err, r){
+    if (err) return bad('Lỗi: ' + err.message);
+    note.style.color = 'var(--moss)';
+    note.textContent = r.ipowerRow ? 'Đã ghi Ipower dòng ' + r.ipowerRow + '.' : (r.nav ? 'Đã hoàn tất lô, NAV mua ' + cqVnd(r.nav) + '. Ngày về là ngày bắt đầu đếm.' : 'Đã tạo lô. Ngày về là ngày bắt đầu đếm.');
+    cqLoadPending(); cqReloadAll();
+  });
+}
+// ---------- TỔNG HỢP ----------
+function cqRefresh(){
+  cqCall('ccqSummary', {}, function(err, d){
+    const el = cq$('cq-summary');
+    if (err) { el.innerHTML = ''; return; }
+    const names = Object.keys(d.nenTang || {});
+    if (!names.length) { el.innerHTML = ''; return; }
+    let tong = 0, chuyen = 0, ip = 0, mua = 0;
+    const cards = names.map(n => {
+      const e = d.nenTang[n], q = e.quy; let gt = 0, cd = 0;
+      const rows = Object.keys(q).map(m => { gt += q[m].giaTri; cd += q[m].choChuyenDoi; ip += q[m].choIpower; mua += q[m].choMua; chuyen += q[m].choChuyenDoi;
+        return '<div class="cq-g3"><span>' + m + '</span><span class="num">' + cqVnd(q[m].giaTri) + '</span><span class="num">' + cqVnd(q[m].choChuyenDoi) + '</span></div>'; }).join('');
+      tong += gt;
+      return '<div class="exec-form-card"><div class="cq-r"><b>' + n + '</b><span class="why">' + e.soLo + ' lô mở</span></div>'
+        + '<div class="cq-g3 head"><span>Quỹ</span><span class="num">Giá trị</span><span class="num">Chờ chuyển đổi</span></div>' + rows
+        + '<div class="cq-g3" style="border-top:1px solid var(--line);padding-top:8px;font-weight:600;"><span>Cộng</span><span class="num">' + cqVnd(gt) + '</span><span class="num">' + cqVnd(cd) + '</span></div></div>';
+    }).join('');
+    el.innerHTML = '<div class="exec-form-card"><h3>Tổng hợp CCQ · tất cả nền tảng</h3>'
+      + '<div class="cq-r"><span>Giá trị đang giữ</span><b>' + cqVnd(tong) + ' đ</b></div>'
+      + '<div class="cq-r"><span>Tiền chờ chuyển đổi</span><b>' + cqVnd(chuyen) + ' đ</b></div>'
+      + '<div class="cq-r"><span>Tiền bán chờ về Ipower</span><b>' + cqVnd(ip) + ' đ</b></div>'
+      + (mua ? '<div class="cq-r"><span>Tiền mua chờ CCQ về</span><b>' + cqVnd(mua) + ' đ</b></div>' : '') + '</div>' + cards;
+  });
+}
+function cqReloadAll(){ if (typeof loadTrading === 'function') loadTrading(); cqRefresh(); }
+document.addEventListener('DOMContentLoaded', function(){ if (cq$('cq-card')) cqInit(); });
 
 // Result — lãi/lỗ đã tất toán (từ In-out, dòng "Bán") + cổ tức thực nhận sau thuế (từ dòng "Yield tiền")
 function renderResult(){
-  const sells = INOUT.filter(r => r['Loại giao dịch'] === 'Bán');
+  const sellsCcq = CCQ_LOTS.filter(l => l.cat).map(l => ({ 'Ngày': l.cat, 'Mã': l.ma, 'Lãi/lỗ': String(Math.round(l.sl * (l.giaCat * (1 - l.phi - l.thue) - l.gia))).replace('.', ',') }));
+  const sells = INOUT.filter(r => r['Loại giao dịch'] === 'Bán').concat(sellsCcq);
   const yields = INOUT.filter(r => r['Loại giao dịch'] === 'Yield tiền');
 
   let tongLaiLoTatToan = 0;
@@ -3700,6 +3830,11 @@ function snxHoldings(inout, onhand, dates) {
     const d = snxDate(r['Ngày']); if (!d) return;
     let q = parseVNNumber(r['Số lượng']); if (isNaN(q)) q = parseVNNumber(r['Khối lượng']); if (isNaN(q) || q <= 0) return;
     trades.push({ d, f, q: t === 'Mua' ? q : -q });
+  });
+  (CCQ_LOTS || []).forEach(l => {
+    if (SNX.FUNDS.indexOf(l.ma) < 0 || !(l.sl > 0)) return;
+    const d1 = snxDate(l.ngayMua); if (d1) trades.push({ d: d1, f: l.ma, q: l.sl });
+    const d2 = snxDate(l.cat); if (d2) trades.push({ d: d2, f: l.ma, q: -l.sl });
   });
   trades.sort((a, b) => a.d - b.d);
   const cur = {}; SNX.FUNDS.forEach(f => { cur[f] = 0; });
