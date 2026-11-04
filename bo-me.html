@@ -198,7 +198,7 @@
   /* ===== Gap ===== */
   .trd-main.trd-mode-tong #trd-panel-gap{display:none !important;}
   .gap-chart{background:var(--paper-raised);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;}
-  .gap-axis{position:relative;height:16px;margin:0 70px 4px 64px;font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .gap-axis{position:relative;height:16px;margin:0 92px 4px 64px;font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
   .gap-axis span{position:absolute;transform:translateX(-50%);}
   .gap-row{display:flex;align-items:center;gap:8px;margin:6px 0;}
   .gap-row.core{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);}
@@ -208,7 +208,7 @@
   .gap-bar{position:absolute;top:4px;height:14px;border-radius:2px;opacity:.85;}
   .gap-mk{position:absolute;top:0;bottom:0;width:2px;background:#2b5fd9;z-index:3;}
   .gap-mk i{position:absolute;top:-1px;left:3px;font-size:9px;font-style:normal;font-weight:700;color:#2b5fd9;}
-  .gap-val{width:62px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;}
+  .gap-val{width:84px;white-space:nowrap;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;}
   .gap-note{font-size:11.5px;color:var(--muted);margin:8px 0;line-height:1.5;}
   .gap-tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
   .gap-tbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);text-align:right;padding:8px 10px;background:var(--paper);white-space:nowrap;}
@@ -444,6 +444,9 @@
   .cq-tag.late{background:#fbefe6;color:#7a3418;}
   .cq-g3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:8px;font-size:13.5px;padding:3px 0;}
   .cq-g3.head{font-size:11.5px;color:var(--muted);}
+  .cq-g4{display:grid;grid-template-columns:1.1fr 1fr 1fr .9fr .7fr 1fr;gap:8px;font-size:13px;padding:3px 0;}
+  .cq-g4.head{font-size:11.5px;color:var(--muted);}
+  .cq-g4 .num{text-align:right;font-variant-numeric:tabular-nums;}
   .cq-g3 .num{text-align:right;font-variant-numeric:tabular-nums;}
   .exec-toggle-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
   .exec-toggle-row .exec-toggle-btn{min-width:70px;}
@@ -1020,7 +1023,7 @@
           <section class="trd-section">
             <div class="sec-head">
               <h2>Gap — hòa vốn ở đâu</h2>
-              <div class="why">Gap = giá vốn bình quân ÷ NAV hiện tại − 1 = % NAV cần tăng để hòa vốn. Core tính theo Σ vốn ÷ Σ giá trị.</div>
+              <div class="why">Thanh vẽ lãi/lỗ = giá trị ÷ vốn − 1 (đỏ bên trái = lỗ, xanh bên phải = lãi). Gap = giá vốn bình quân ÷ NAV hiện tại − 1 = % NAV cần tăng để hòa vốn; các ngưỡng của hệ vẫn tính theo gap. Core tính theo Σ vốn ÷ Σ giá trị.</div>
             </div>
             <div id="trd-gap-root"></div>
           </section>
@@ -3593,12 +3596,13 @@ function cqRefresh(){
     let tong = 0, chuyen = 0, ip = 0, mua = 0;
     const cards = names.map(n => {
       const e = d.nenTang[n], q = e.quy; let gt = 0, cd = 0;
-      const rows = Object.keys(q).map(m => { gt += q[m].giaTri; cd += q[m].choChuyenDoi; ip += q[m].choIpower; mua += q[m].choMua; chuyen += q[m].choChuyenDoi;
-        return '<div class="cq-g3"><span>' + m + '</span><span class="num">' + cqVnd(q[m].giaTri) + '</span><span class="num">' + cqVnd(q[m].choChuyenDoi) + '</span></div>'; }).join('');
+      let gv = 0, lo = 0, mx = 0;
+      const rows = Object.keys(q).map(m => { gt += q[m].giaTri; gv += q[m].giaVon || 0; lo += q[m].soLo || 0; mx = Math.max(mx, q[m].lauNhatThang || 0); cd += q[m].choChuyenDoi; ip += q[m].choIpower; mua += q[m].choMua; chuyen += q[m].choChuyenDoi;
+        return '<div class="cq-g4"><span>' + m + '</span><span class="num">' + cqVnd(q[m].giaVon || 0) + '</span><span class="num">' + cqVnd(q[m].giaTri) + '</span><span class="num">' + (q[m].soLo ? (q[m].lauNhatThang > 0 ? q[m].lauNhatThang + ' tháng' : q[m].lauNhatNgay + ' ngày') : '—') + '</span><span class="num">' + (q[m].soLo || 0) + '</span><span class="num">' + cqVnd(q[m].choChuyenDoi) + '</span></div>'; }).join('');
       tong += gt;
       return '<div class="exec-form-card"><div class="cq-r"><b>' + n + '</b><span class="why">' + e.soLo + ' lô mở</span></div>'
-        + '<div class="cq-g3 head"><span>Quỹ</span><span class="num">Giá trị</span><span class="num">Chờ chuyển đổi</span></div>' + rows
-        + '<div class="cq-g3" style="border-top:1px solid var(--line);padding-top:8px;font-weight:600;"><span>Cộng</span><span class="num">' + cqVnd(gt) + '</span><span class="num">' + cqVnd(cd) + '</span></div></div>';
+        + '<div class="cq-g4 head"><span>Quỹ</span><span class="num">Giá vốn</span><span class="num">Giá trị</span><span class="num">Giữ lâu nhất</span><span class="num">Số lô mở</span><span class="num">Chờ chuyển đổi</span></div>' + rows
+        + '<div class="cq-g4" style="border-top:1px solid var(--line);padding-top:8px;font-weight:600;"><span>Cộng</span><span class="num">' + cqVnd(gv) + '</span><span class="num">' + cqVnd(gt) + '</span><span class="num">' + (mx > 0 ? mx + ' tháng' : '—') + '</span><span class="num">' + lo + '</span><span class="num">' + cqVnd(cd) + '</span></div></div>';
     }).join('');
     el.innerHTML = '<div class="exec-form-card"><h3>Tổng hợp CCQ · tất cả nền tảng</h3>'
       + '<div class="cq-r"><span>Giá trị đang giữ</span><b>' + cqVnd(tong) + ' đ</b></div>'
@@ -4117,7 +4121,11 @@ function snxSlider(M) {
   const C = SNX_C;
   const sw = c => 'display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;background:' + c;
   const zoneNow = M.NOW <= M.B5 ? 'vùng xả tụ + DCA (app quỹ)' : (M.NOW < M.C1 ? 'vùng DCA (Fmarket)' : 'vùng chốt lãi');
-  let h = '<div style="position:relative;height:236px;margin:0 48px">';
+  const gC = (typeof M.gap === 'number' && !isNaN(M.gap)) ? M.gap : NaN;
+  const NC = isNaN(gC) ? null : M.NOW * (1 + gC);   // NAV core = mức NAV thực mà tại đó giá trị core = vốn
+  const pNC = NC == null ? null : Math.max(0, Math.min(100, pos(NC))).toFixed(2);
+  const CNC = '#7A4B00';
+  let h = '<div style="position:relative;height:' + (NC == null ? 236 : 312) + 'px;margin:0 48px">';
   h += '<div style="' + zb + 'left:0;border-radius:10px 0 0 10px;background:' + C.CT + ';color:#FFFFFF;width:' + pos(M.B5).toFixed(2) + '%">XẢ TỤ + DCA · app quỹ</div>';
   h += '<div style="' + zb + 'left:' + pos(M.B5).toFixed(2) + '%;width:' + (pos(M.C1) - pos(M.B5)).toFixed(2) + '%;background:#DAD8D1;color:#4E5863">VÙNG DCA · Fmarket</div>';
   h += '<div style="' + zb + 'border-radius:0 10px 10px 0;background:' + C.CL + ';color:#1B1F23;left:' + pos(M.C1).toFixed(2) + '%;width:' + (100 - pos(M.C1)).toFixed(2) + '%">VÙNG CHỐT LÃI</div>';
@@ -4140,12 +4148,21 @@ function snxSlider(M) {
   h += arrow(snxPc(M.fromPeak) + ' so với đỉnh', pN + '%', (100 - pos(M.NOW)).toFixed(2) + '%', C.CA, '100%');
   h += '<div style="position:absolute;top:142px;left:' + pN + '%;width:2px;height:58px;margin-left:-1px;background:#1B1F23"></div>';
   h += '<div style="position:absolute;top:132px;left:' + pN + '%;margin-left:-7px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:10px solid #1B1F23"></div>';
-  h += '<div style="position:absolute;top:200px;left:' + pN + '%;transform:translateX(-50%);background:#1B1F23;color:#FFFFFF;padding:4px 10px;border-radius:6px;' + SNX_MONO + 'font-size:13px;font-weight:500;white-space:nowrap">NAV core ' + snxFmt(M.NOW) + '</div>';
+  h += '<div style="position:absolute;top:200px;left:' + pN + '%;transform:translateX(-50%);background:#1B1F23;color:#FFFFFF;padding:4px 10px;border-radius:6px;' + SNX_MONO + 'font-size:13px;font-weight:500;white-space:nowrap">NAV thực ' + snxFmt(M.NOW) + '</div>';
+  if (NC != null) {
+    const wPx = 'width:' + Math.max(0, parseFloat(pNC) - parseFloat(pN)).toFixed(2) + '%';
+    h += '<div style="position:absolute;top:132px;left:' + pNC + '%;height:140px;border-left:2px dashed ' + CNC + '"></div>';
+    h += '<div style="position:absolute;top:250px;left:' + pN + '%;' + wPx + ';height:0;border-top:2px solid ' + CNC + '"></div>';
+    h += '<div style="position:absolute;top:243px;left:' + pN + '%;height:16px;border-left:2px solid ' + CNC + '"></div>';
+    h += '<div style="position:absolute;top:258px;left:' + pN + '%;' + wPx + ';text-align:center;font-size:13px;font-weight:600;white-space:nowrap;color:' + CNC + '">cần ' + snxPc2(gC) + ' để hòa vốn (gap)</div>';
+    h += '<div style="position:absolute;top:276px;left:' + pNC + '%;transform:translateX(-50%);background:#FFF1D6;color:' + CNC + ';border:1.5px solid ' + CNC + ';padding:4px 10px;border-radius:6px;' + SNX_MONO + 'font-size:13px;font-weight:500;white-space:nowrap">NAV core (hòa vốn) ' + snxFmt(NC) + '</div>';
+  }
   h += '</div>';
   const legend = [
     [C.CT, 'Vùng xả tụ + DCA: đáy tới B5 (≤ ' + snxFmt(M.B5) + '). DCA chạy song song, mua trên app quỹ từ 01/11/26 (TCBS dừng mua)'],
     ['#DAD8D1', 'Vùng DCA, mua trên Fmarket: B5 tới C1, hết tụ (' + snxFmt(M.B5) + ' – ' + snxFmt(M.C1) + ')'],
     [C.CL, 'Vùng chốt lãi: từ C1 (≥ ' + snxFmt(M.C1) + '), không mua. Nạp tụ: chuyển đổi sang TP trên app quỹ và Fmarket, tại nơi giữ lô']];
+  if (NC != null) legend.push([CNC, 'NAV thực = giá trị thị trường của core hôm nay. NAV core (hòa vốn) = NAV thực × (1 + gap) = mức NAV thực mà tại đó giá trị core bằng vốn; trái mốc này là lỗ, phải mốc này là lãi']);
   return '<div style="' + SNX_CARD.replace('padding:20px', 'padding:20px 28px 16px') + '">'
     + snxCardHead('Vị trí NAV core giữa đáy và đỉnh', 'Thanh trượt từ đáy (min) tới đỉnh (max)') + h
     + '<div style="display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:#1B1F23">' + legend.map(g => '<span><span style="' + sw(g[0]) + '"></span>' + g[1] + '</span>').join('') + '</div>'
@@ -4712,6 +4729,7 @@ function gapCalc(funds, scen){
   });
   return { per, core: { von: sV, val: sM, gap: sV / sM - 1 }, tien };
 }
+function gapPL(g){ return 1 / (1 + g) - 1; }   // lãi/lỗ tạm tính = giá trị / vốn − 1
 function gapPct(x){ return (x >= 0 ? '+' : '') + (x * 100).toFixed(2) + '%'; }
 function gapCol(x){ return x > 0.0005 ? '#c0392b' : (x < -0.0005 ? '#1e8e5a' : '#8a8f98'); }
 
@@ -4741,36 +4759,36 @@ function renderGap(){
   const rows = base.per.map(p => ({ ma: p.ma, gap: p.gap, sc: scs.map(c => c.per.find(x => x.ma === p.ma).gap) }))
     .concat([{ ma: 'CORE', gap: base.core.gap, sc: scs.map(c => c.core.gap), core: true }]);
   let mx = 0.05;
-  rows.forEach(r => [r.gap].concat(r.sc).forEach(g => { mx = Math.max(mx, Math.abs(g)); }));
+  rows.forEach(r => [r.gap].concat(r.sc).forEach(g => { mx = Math.max(mx, Math.abs(gapPL(g))); }));
   mx *= 1.15;
-  const pos = g => 50 + (g / mx) * 50;
+  const pos = g => 50 + (gapPL(g) / mx) * 50;   // g = gap (biến điều khiển); trục vẽ lãi/lỗ: lỗ bên trái, lãi bên phải
   const tick = [-mx, -mx/2, 0, mx/2, mx];
   const chart = `
     <div class="gap-chart">
-      <div class="gap-axis">${tick.map(t => `<span style="left:${pos(t)}%">${t === 0 ? 'NAV' : gapPct(t)}</span>`).join('')}</div>
+      <div class="gap-axis">${tick.map(t => `<span style="left:${50 + (t / mx) * 50}%">${t === 0 ? 'Hòa vốn' : gapPct(t)}</span>`).join('')}</div>
       ${rows.map(r => `
         <div class="gap-row${r.core ? ' core' : ''}">
           <div class="gap-name">${r.ma}</div>
           <div class="gap-track">
             <div class="gap-zero"></div>
             <div class="gap-bar" style="left:${Math.min(50, pos(r.gap))}%;width:${Math.abs(pos(r.gap) - 50)}%;background:${gapCol(r.gap)};"></div>
-            ${r.sc.map((g, i) => `<div class="gap-mk" title="Kịch bản ${GAP_SCEN[i].name}: ${gapPct(g)}" style="left:${pos(g)}%;"><i>${GAP_SCEN[i].name}</i></div>`).join('')}
+            ${r.sc.map((g, i) => `<div class="gap-mk" title="Kịch bản ${GAP_SCEN[i].name}: lãi/lỗ ${gapPct(gapPL(g))} · gap ${gapPct(g)}" style="left:${pos(g)}%;"><i>${GAP_SCEN[i].name}</i></div>`).join('')}
           </div>
-          <div class="gap-val" style="color:${gapCol(r.gap)};">${gapPct(r.gap)}</div>
+          <div class="gap-val" style="color:${gapCol(r.gap)};">${gapPct(gapPL(r.gap))}<div class="sm" style="font-weight:400;">gap ${gapPct(r.gap)}</div></div>
         </div>`).join('')}
-      <div class="gap-note">Đường giữa = NAV hiện tại (0%). Thanh đỏ bên phải = giá vốn cao hơn NAV (NAV phải tăng đúng % đó mới hòa vốn); thanh xanh bên trái = đã có lãi trên giá. Chữ cái = vị trí sau kịch bản mua.</div>
+      <div class="gap-note">Đường giữa = hòa vốn (giá trị = vốn). Thanh đỏ bên trái = đang lỗ; thanh xanh bên phải = đang lãi. Số lớn = lãi/lỗ = giá trị ÷ vốn − 1; số nhỏ = gap = vốn ÷ giá trị − 1 (% NAV cần tăng để hòa vốn, biến dùng cho các ngưỡng 8%/10%). Chữ cái = vị trí sau kịch bản mua.</div>
     </div>`;
 
   // ---- Bảng hiện tại
   const tbl = `
     <div class="trd-table"><div style="overflow-x:auto;"><table class="gap-tbl">
-      <thead><tr><th>Quỹ</th><th>CCQ</th><th>Giá vốn BQ</th><th>NAV</th><th>Vốn</th><th>Giá trị</th><th>Gap (cần tăng)</th><th>Mục tiêu 2026</th><th>Còn thiếu</th></tr></thead>
+      <thead><tr><th>Quỹ</th><th>CCQ</th><th>Giá vốn BQ</th><th>NAV</th><th>Vốn</th><th>Giá trị</th><th>Lãi/lỗ</th><th>Gap (cần tăng)</th><th>Mục tiêu 2026</th><th>Còn thiếu</th></tr></thead>
       <tbody>
       ${base.per.map((p, i) => { const f = funds[i]; const thieu = isNaN(f.muctieu) ? NaN : f.muctieu - p.val;
         return `<tr><td><b>${p.ma}</b></td><td>${fmtNum(p.qty)}</td><td>${fmtNum(p.cost)}</td><td>${fmtNum(f.nav)}</td><td>${fmtVND(p.von)}</td><td>${fmtVND(p.val)}</td>
-        <td style="color:${gapCol(p.gap)};font-weight:700;">${gapPct(p.gap)}</td><td>${isNaN(f.muctieu) ? '—' : fmtVND(f.muctieu)}</td><td>${isNaN(thieu) ? '—' : (thieu > 0 ? fmtVND(thieu) : 'đủ')}</td></tr>`; }).join('')}
+        <td style="color:${gapCol(p.gap)};font-weight:700;">${gapPct(gapPL(p.gap))}</td><td style="color:${gapCol(p.gap)};font-weight:700;">${gapPct(p.gap)}</td><td>${isNaN(f.muctieu) ? '—' : fmtVND(f.muctieu)}</td><td>${isNaN(thieu) ? '—' : (thieu > 0 ? fmtVND(thieu) : 'đủ')}</td></tr>`; }).join('')}
       <tr class="gap-core"><td><b>CORE</b></td><td>—</td><td>—</td><td>—</td><td>${fmtVND(base.core.von)}</td><td>${fmtVND(base.core.val)}</td>
-        <td style="color:${gapCol(base.core.gap)};font-weight:700;">${gapPct(base.core.gap)}</td><td>—</td><td>—</td></tr>
+        <td style="color:${gapCol(base.core.gap)};font-weight:700;">${gapPct(gapPL(base.core.gap))}</td><td style="color:${gapCol(base.core.gap)};font-weight:700;">${gapPct(base.core.gap)}</td><td>—</td><td>—</td></tr>
       </tbody></table></div></div>`;
 
   // ---- Mô phỏng
