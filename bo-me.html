@@ -1031,9 +1031,7 @@
         </div>
 
         <!-- Cảm biến NAV core + sức khỏe quỹ (nguồn: tab NAV daily) -->
-        <!-- CP yield — nội dung do cp-yield.js vẽ -->
         <div class="trd-subpanel" id="trd-panel-cpyield"></div>
-
         <div class="trd-subpanel" id="trd-panel-camben">
           <section class="trd-section">
             <div id="trd-camben-root"></div>
@@ -6496,57 +6494,58 @@ function aiExportCSV(){
 </script>
 <script>
 // ============================================================================
-// cp-yield.js — tab "CP yield" trong Trading OS (bo-me.html)
+// Tab "CP yield" trong Trading OS (bo-me.html) — giao diện theo đúng mockup v4: 4 màn
+//   1. Danh sách   2. Chi tiết mã (có nút quay lại)   3. Bảng dữ liệu   4. Tham số quy tắc
 // Cần các biến/hàm toàn cục của bo-me.html: ONHAND, INOUT, parseVNNumber, jsonpRequest,
-// TRADING_ADDTRADE_URL, TRADING_SECRET_KEY. Apps Script cần đã có action getYield / saveYieldCfg (cp-yield.gs).
-// Nguyên tắc hiển thị: chỉ số + ngưỡng + công thức, KHÔNG đèn, KHÔNG điểm tổng hợp, KHÔNG đạt/không đạt.
+// TRADING_ADDTRADE_URL, TRADING_SECRET_KEY. Apps Script cần action getYield / saveYieldCfg.
+// Nguyên tắc: chỉ số + ngưỡng + công thức; KHÔNG đèn, KHÔNG điểm tổng hợp, KHÔNG đạt/không đạt.
 // ============================================================================
 (function (root) {
   'use strict';
 
-  // ---------- tham số mặc định (sửa được trong app, lưu vào tab "CP yield cfg") ----------
-  var DEFAULT_PARAMS = {
-    target: 10,    // yield ròng mục tiêu (%)
-    tax: 5,        // thuế cổ tức tiền mặt (%)
-    stress: 20,    // DPS giảm giả định (%)
-    mos: 25,       // biên an toàn Graham thường (%)
-    mosHigh: 33,   // biên an toàn cao (%)
-    pepb: 22.5,    // trần P/E x P/B (hệ số Graham)
-    pe: 8.5,       // P/E cho doanh nghiệp không tăng trưởng
-    cr: 1.5,       // thanh toán hiện hành tối thiểu (lần)
-    fcfMax: 100,   // cổ tức / FCF tổng tối đa (%)
-    ipower: null   // lãi Ipower (%/năm) — để trống nếu chưa muốn hiện mốc so sánh
-  };
+  // ---------- tham số mặc định (sửa được ở màn Tham số, lưu vào tab "CP yield cfg") ----------
+  var DEFAULT_PARAMS = { target: 10, tax: 5, stress: 20, mos: 25, mosHigh: 33, pepb: 22.5, pe: 8.5, cr: 1.5, fcfMax: 100, ipower: null };
+  // [khóa, nhãn, đơn vị, giải thích nguồn gốc] — đúng thứ tự và lời của mockup màn Tham số
   var PARAM_DEFS = [
-    ['target', 'Yield ròng mục tiêu', '%', 'Mốc iPower cộng thêm phần bù rủi ro cổ phiếu.'],
-    ['tax', 'Thuế cổ tức tiền mặt', '%', 'Thuế thu nhập cá nhân khấu trừ tại nguồn.'],
-    ['stress', 'DPS giảm giả định (mặc định)', '%', 'Ghi đè riêng cho từng mã ở màn chi tiết.'],
-    ['mos', 'Biên an toàn Graham thường', '%', 'Biên tối thiểu so với giá trị nội tại thấp hơn.'],
-    ['mosHigh', 'Biên an toàn cao', '%', 'Mốc dành cho mã có chất lượng quản trị cần chiết khấu thêm.'],
-    ['pepb', 'Trần P/E × P/B', '', 'Hệ số trong công thức số Graham: √(22,5 × EPS × BVPS).'],
-    ['pe', 'P/E không tăng trưởng', '', 'Giá trị nội tại = 8,5 × EPS, tương ứng lợi suất lợi nhuận 11,8%.'],
-    ['cr', 'Thanh toán hiện hành tối thiểu', 'lần', 'Tài sản ngắn hạn ÷ nợ ngắn hạn.'],
-    ['fcfMax', 'Cổ tức / FCF tổng tối đa', '%', 'Trên mức này, cổ tức chi vượt tiền thực nhận trong năm.'],
-    ['ipower', 'Lãi iPower (mốc so sánh)', '%/năm', 'Để trống nếu chưa dùng.']
+    ['target', 'Mục tiêu yield ròng', '%', 'Lãi iPower khoảng 5-6% cộng phần bù rủi ro cổ phiếu 4-5 điểm.'],
+    ['tax', 'Thuế cổ tức tiền mặt', '%', 'Thuế TNCN trên cổ tức tiền mặt của cá nhân. Thực nhận = gộp × 0,95.'],
+    ['stress', 'Stress DPS mặc định', '%', 'Mức sàn khi mã chưa có lịch sử đủ. Mã đã nhập dữ liệu dùng mức giảm xấu nhất của chính nó (bảng dưới), không thấp hơn mức này. Nhập số dương: 20 nghĩa là DPS giảm 20%.'],
+    ['mos', 'Biên Graham, mức thường', '%', 'Quy ước của Graham: mua thấp hơn giá trị nội tại tối thiểu một phần tư.'],
+    ['mosHigh', 'Biên Graham, mức cao', '%', 'Dùng cho mã rủi ro cao hơn, ví dụ báo cáo có ý kiến ngoại trừ hoặc phụ thuộc đối tác.'],
+    ['pepb', 'Ngưỡng P/E × P/B', '', 'Ngưỡng của Graham theo thị trường Mỹ. Với Việt Nam là mức lỏng, chỉ để loại mã quá đắt.'],
+    ['pe', 'P/E không tăng trưởng', '', 'Hệ số Graham, tương ứng lợi suất lợi nhuận 11,8% (1 chia 8,5).'],
+    ['iv', 'Giá trị nội tại dùng để tính biên', '', 'Lấy cách thấp hơn trong hai cách (8,5 × EPS và Graham number) cho thận trọng. Cách còn lại chỉ hiện để tham khảo.'],
+    ['cr', 'Thanh toán hiện hành, tối thiểu', 'lần', 'Tài sản ngắn hạn ÷ nợ ngắn hạn, tính bằng lần. Dưới 1 là chưa đủ trả nợ ngắn hạn, chọn 1,5 làm đệm; chưa hiệu chỉnh theo ngành.'],
+    ['fcfMax', 'Cổ tức/FCF tổng, ngưỡng tối đa', '%', 'Trên mức này, cổ tức chi vượt dòng tiền thực nhận, phải lấy từ tiền tích lũy hoặc vay. Xem thêm trung bình 3 năm.'],
+    ['ipower', 'Lãi iPower, mốc so sánh', '%/năm', 'Nhập tay, để trống nếu chưa dùng. Hiện ở dòng "Lãi iPower" trong khối kết quả của bạn.']
   ];
   var DEFAULT_TICKERS = {
     VEA: {
+      desc: 'Công ty nắm giữ (liên doanh ô tô, xe máy)',
       pending: { dps: 5240, ex: '13/11/2026', verified: false },
-      note: 'Cổ tức đến từ lợi nhuận các liên doanh chia về.\nBáo cáo kiểm toán có ý kiến ngoại trừ 2021–2025.\nCổ tức năm 2026 do ĐHCĐ 2027 quyết định.'
+      note: 'Nguồn DPS: lợi nhuận và cổ tức từ các liên doanh ô tô, xe máy. VEA chi gần hết số nhận về, nên DPS đi theo kết quả liên doanh.\nKiểm toán: báo cáo có ý kiến ngoại trừ từ 2021 đến 2025.\nQuyết định chia: DPS FY2026 do đại hội cổ đông 2027 quyết, chưa có thông tin.'
+    },
+    QNS: {
+      desc: 'Doanh nghiệp sản xuất (sữa đậu nành, đường)',
+      dataNotes: [
+        'Tiền và đầu tư NH Q3: nhập 8.926,1, có thể là 8.926,2 theo BCTC.',
+        'VCSH Q3: nhập 10.785,4, có thể là 10.785,5.',
+        'Cột quý: LNST 6T (951,55 hay 957,55) và khấu hao Q1, 6T (221,09 và 363,51 có thể là 121,09 và 263,51).'
+      ]
     }
   };
 
-  var CPY = { loaded: false, loading: false, err: '', data: {}, order: [], periods: [], prices: {}, priceErr: '',
-              cfg: null, seg: 'held', open: null, showParams: false, showRaw: {} };
+  var CPY = { loaded: false, loading: false, err: '', data: {}, order: [], periods: [], prices: {}, priceErr: '', time: null,
+              cfg: null, seg: 'target', view: { name: 'list', ma: null }, dataMode: 'year' };
 
   // ---------- tiện ích ----------
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function isNum(x) { return typeof x === 'number' && isFinite(x); }
   function fmt(n, d) { return isNum(n) ? n.toLocaleString('vi-VN', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }) : '—'; }
   function pct(x, d) { return isNum(x) ? (x * 100).toLocaleString('vi-VN', { minimumFractionDigits: d == null ? 1 : d, maximumFractionDigits: d == null ? 1 : d }) + '%' : '—'; }
+  function r100(x) { return isNum(x) ? Math.round(x / 100) * 100 : null; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function num(v) { var n = parseVNNumber(v); return isNaN(n) ? null : n; }
-
   function mergedCfg(c) {
     var base = { params: clone(DEFAULT_PARAMS), tickers: clone(DEFAULT_TICKERS) };
     if (c && c.params) Object.keys(c.params).forEach(function (k) { base.params[k] = c.params[k]; });
@@ -6576,9 +6575,7 @@ function aiExportCSV(){
     var P = ctx.cfg.params, tc = ctx.cfg.tickers[ma] || {};
     var ann = annualIdx(ctx.periods), lat = latestIdx(ctx.periods);
     var tax = P.tax / 100, target = P.target / 100;
-    var stressPct = (tc.stress != null && tc.stress !== '' && isNum(+tc.stress)) ? +tc.stress : P.stress;
-    var stress = stressPct / 100;
-    var r = { ma: ma, stressPct: stressPct, ann: ann, periods: ctx.periods, missing: [] };
+    var r = { ma: ma, ann: ann, periods: ctx.periods, missing: [] };
 
     var rowDps = findRow(t, ['DPS cash', 'DPS']), rowEps = findRow(t, ['EPS']), rowSh = findRow(t, ['Số CP']),
         rowVcsh = findRow(t, ['VCSH']), rowFcf = findRow(t, ['FCF tổng']), rowNet = findRow(t, ['Tiền ròng']),
@@ -6591,72 +6588,74 @@ function aiExportCSV(){
     r.pendingNet = r.pending ? r.pending.dps * (1 - tax) : 0;
     r.effPrice = isNum(r.price) ? r.price - r.pendingNet : null;
 
-    // EPS trung bình 5 năm (cần tối thiểu 3 năm)
     var es = ann.map(function (i) { return rowEps ? rowEps[i] : null; }).filter(isNum);
     r.eps5 = es.length >= 3 ? es.reduce(function (a, b) { return a + b; }, 0) / es.length : null;
     r.epsN = es.length;
 
     var sh = lastOf(rowSh, lat), vc = lastOf(rowVcsh, lat);
     r.shares = sh ? sh.v : null; r.vcsh = vc ? vc.v : null; r.vcshPeriod = vc ? ctx.periods[vc.i] : null;
-    r.bvps = (r.shares > 0 && isNum(r.vcsh)) ? r.vcsh / r.shares * 1000 : null;     // tỷ đồng / triệu CP × 1000 = đồng/CP
+    r.bvps = (r.shares > 0 && isNum(r.vcsh)) ? r.vcsh / r.shares * 1000 : null;
 
-    // giá trị nội tại Graham: lấy mức THẤP HƠN của hai cách
     r.graham = (r.eps5 > 0 && r.bvps > 0) ? Math.sqrt(P.pepb * r.eps5 * r.bvps) : null;
     r.noGrowth = r.eps5 > 0 ? P.pe * r.eps5 : null;
     var cand = [r.graham, r.noGrowth].filter(isNum);
     r.iv = cand.length ? Math.min.apply(null, cand) : null;
+    r.ivIsNoGrowth = isNum(r.iv) && r.iv === r.noGrowth;
     r.mos = (isNum(r.iv) && isNum(r.effPrice)) ? 1 - r.effPrice / r.iv : null;
     r.zone = function (m) { return isNum(r.iv) ? { ex: r.iv * (1 - m / 100), cum: r.iv * (1 - m / 100) + r.pendingNet } : null; };
 
-    // định giá theo giá đã trừ cổ tức sắp nhận (giá bạn thực sự trả cho cổ phiếu sau khi nhận tiền)
     r.pe = (r.eps5 > 0 && isNum(r.effPrice)) ? r.effPrice / r.eps5 : null;
     r.pb = (r.bvps > 0 && isNum(r.effPrice)) ? r.effPrice / r.bvps : null;
     r.pepbVal = (isNum(r.pe) && isNum(r.pb)) ? r.pe * r.pb : null;
 
-    // yield
+    // chuỗi lợi nhuận → tiền thực → cổ tức
+    r.series = ann.map(function (i) {
+      var dps = rowDps ? rowDps[i] : null, eps = rowEps ? rowEps[i] : null, fcf = rowFcf ? rowFcf[i] : null;
+      return { year: ctx.periods[i], eps: eps, dps: dps,
+        payout: (isNum(dps) && eps > 0) ? dps / eps : null,
+        fcfRatio: (isNum(dps) && r.shares > 0 && fcf > 0) ? dps * r.shares / fcf / 1000 : null };
+    });
+    var prev = null, prevYear = null; r.worst = null;
+    r.series.forEach(function (s) {
+      s.yoy = (isNum(s.dps) && isNum(prev) && prev > 0) ? s.dps / prev - 1 : null;
+      if (isNum(s.yoy) && (!r.worst || s.yoy < r.worst.pct)) r.worst = { pct: s.yoy, from: prevYear, to: s.year, dpsFrom: prev, dpsTo: s.dps };
+      if (isNum(s.dps)) { prev = s.dps; prevYear = s.year; }
+    });
+    r.worstYoy = r.worst ? r.worst.pct : null;
+    var lastS = r.series.slice().reverse().filter(function (s) { return isNum(s.fcfRatio); })[0];
+    r.fcfRatio = lastS ? lastS.fcfRatio : null; r.fcfYear = lastS ? lastS.year : null;
+
+    // stress áp dụng: ghi đè riêng > mức giảm xấu nhất của chính mã (không thấp hơn mặc định)
+    var worstDrop = (r.worst && r.worst.pct < 0) ? -r.worst.pct * 100 : 0;
+    r.stressAuto = Math.max(P.stress, worstDrop);
+    r.stressOverride = (tc.stress != null && tc.stress !== '' && isNum(+tc.stress)) ? +tc.stress : null;
+    r.stressPct = r.stressOverride != null ? r.stressOverride : r.stressAuto;
+    var stress = r.stressPct / 100;
+
     r.yGross = (r.dps > 0 && r.price > 0) ? r.dps / r.price : null;
     r.yNet = isNum(r.yGross) ? r.yGross * (1 - tax) : null;
     r.yStress = (r.dps > 0 && r.price > 0) ? r.dps * (1 - stress) * (1 - tax) / r.price : null;
     r.ceiling = (r.dps > 0 && target > 0) ? r.dps * (1 - stress) * (1 - tax) / target : null;
 
-    // chuỗi lợi nhuận → tiền thực → cổ tức
-    r.series = ann.map(function (i) {
-      var dps = rowDps ? rowDps[i] : null, eps = rowEps ? rowEps[i] : null, fcf = rowFcf ? rowFcf[i] : null;
-      return {
-        year: ctx.periods[i], eps: eps, dps: dps,
-        payout: (isNum(dps) && eps > 0) ? dps / eps : null,
-        fcfRatio: (isNum(dps) && r.shares > 0 && fcf > 0) ? dps * r.shares / fcf / 1000 : null
-      };
-    });
-    var dpsYoy = [], prev = null;
-    r.series.forEach(function (s) {
-      dpsYoy.push((isNum(s.dps) && isNum(prev) && prev > 0) ? s.dps / prev - 1 : null);
-      if (isNum(s.dps)) prev = s.dps;
-    });
-    r.series.forEach(function (s, i) { s.yoy = dpsYoy[i]; });
-    var ys = dpsYoy.filter(isNum); r.worstYoy = ys.length ? Math.min.apply(null, ys) : null;
-    var lastS = r.series.slice().reverse().filter(function (s) { return isNum(s.fcfRatio); })[0];
-    r.fcfRatio = lastS ? lastS.fcfRatio : null; r.fcfYear = lastS ? lastS.year : null;
-
-    // sức khỏe bảng cân đối
     var nr = lastOf(rowNet, lat), db = lastOf(rowDebt, lat), ca = lastOf(rowCash, lat), cr = lastOf(rowCr, lat);
     r.net = nr ? nr.v : null; r.debt = db ? db.v : null; r.cash = ca ? ca.v : null; r.cr = cr ? cr.v : null;
-    r.crPeriod = cr ? ctx.periods[cr.i] : null; r.balPeriod = ca ? ctx.periods[ca.i] : null;
+    r.crPeriod = cr ? ctx.periods[cr.i] : null;
+    var crAnn = lastOf(rowCr, ann); r.crAnn = crAnn ? crAnn.v : null; r.crAnnYear = crAnn ? ctx.periods[crAnn.i] : null;
     r.netPerShare = (isNum(r.net) && r.shares > 0) ? (r.net - (r.pending ? r.pending.dps * r.shares / 1000 : 0)) / r.shares * 1000 : null;
 
     if (!isNum(r.dps)) r.missing.push('DPS');
-    if (!isNum(r.eps5)) r.missing.push('EPS 3 năm trở lên');
+    if (!isNum(r.eps5)) r.missing.push('EPS từ 3 năm trở lên');
     if (!isNum(r.bvps)) r.missing.push('VCSH và số CP');
     if (!isNum(r.price)) r.missing.push('giá');
     r.ready = r.missing.length === 0;
     return r;
   }
 
-  // Vị thế và kết quả thực từ Onhand + In-out (đọc, không tính lại sổ của bạn)
   function parseDMY(s) {
     var m = String(s || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
   }
+  // Vị thế và kết quả thực từ Onhand + In-out (chỉ đọc)
   function holding(ma, onhand, inout, now) {
     var row = (onhand || []).filter(function (r) { return String(r['Mã'] || '').trim().toUpperCase() === ma && (r['Loại hình'] === 'CP' || !r['Loại hình']); })[0];
     var qty = row ? num(row['Số lượng đang giữ']) : null;
@@ -6674,11 +6673,32 @@ function aiExportCSV(){
         divAll += v; if (dt && dt >= from) div12 += v;
       }
     });
-    // vốn đã đầu tư = tổng tiền mua − phần vốn gốc đã bán ra; KHÔNG trừ cổ tức (khác cách sổ In-out giảm vốn gốc)
+    // vốn đã đầu tư = tiền mua − vốn gốc đã bán; KHÔNG trừ cổ tức (In-out giảm vốn gốc khi nhận cổ tức)
     var invested = buy - sellCost;
     if (!(invested > 0) && isNum(avg)) invested = qty * avg;
-    return { held: true, qty: qty, avg: avg, invested: invested, div12: div12, divAll: divAll,
-             yReal: invested > 0 ? div12 / invested : null };
+    return { held: true, qty: qty, avg: avg, invested: invested, div12: div12, divAll: divAll, yReal: invested > 0 ? div12 / invested : null };
+  }
+
+  // kiểm tra dữ liệu: công thức EBITDA, FCF tổng theo từng kỳ
+  function checks(ma, ctx) {
+    var t = ctx.data[ma]; if (!t) return [];
+    var out = [];
+    function chk(name, rowRes, parts) {
+      var res = findRow(t, [rowRes]); var ps = parts.map(function (p) { return findRow(t, [p.n]); });
+      if (!res || ps.some(function (x) { return !x; })) return;
+      var n = 0, bad = [];
+      ctx.periods.forEach(function (p, i) {
+        var vals = ps.map(function (x, k) { return x[i]; });
+        if (!isNum(res[i]) || vals.some(function (v) { return !isNum(v); })) return;
+        n++;
+        var sum = 0; vals.forEach(function (v, k) { sum += parts[k].s * v; });
+        if (Math.abs(sum - res[i]) > 0.06) bad.push(p);
+      });
+      if (n) out.push({ ok: !bad.length, text: name + (bad.length ? ': lệch ở ' + bad.join(', ') + '.' : ', đúng ở ' + n + ' kỳ.') });
+    }
+    chk('EBITDA = EBIT + khấu hao', 'EBITDA', [{ n: 'EBIT', s: 1 }, { n: 'Khấu hao', s: 1 }]);
+    chk('FCF tổng = CFO + lãi đầu tư và cổ tức − Capex', 'FCF tổng', [{ n: 'CFO', s: 1 }, { n: 'Lãi đầu tư và cổ tức', s: 1 }, { n: 'Capex', s: -1 }]);
+    return out;
   }
 
   // ---------- tải dữ liệu ----------
@@ -6691,259 +6711,359 @@ function aiExportCSV(){
       if (err || !d || !d.success) { CPY.err = (d && d.error) || (err && err.message) || 'Không tải được'; render(); return; }
       CPY.loaded = true; CPY.data = d.data || {}; CPY.order = d.order || Object.keys(CPY.data);
       CPY.periods = d.periods || []; CPY.prices = d.prices || {}; CPY.priceErr = d.priceErr || '';
+      CPY.time = d.time ? new Date(d.time) : new Date();
       CPY.cfg = mergedCfg(d.cfg);
       render();
     });
   }
   function save(msgId) {
-    var raw = JSON.stringify(CPY.cfg);
-    var el = document.getElementById(msgId || 'cpy-savemsg');
-    if (raw.length > 5500) { if (el) el.textContent = 'Cấu hình dài ' + raw.length + ' ký tự, vượt giới hạn gửi qua đường dẫn (khoảng 5.500). Rút gọn ghi chú.'; return; }
+    var raw = JSON.stringify(CPY.cfg), el = document.getElementById(msgId);
+    if (raw.length > 5500) { if (el) el.textContent = 'Cấu hình dài ' + raw.length + ' ký tự, vượt giới hạn gửi (khoảng 5.500). Rút gọn ghi chú.'; return; }
     if (el) el.textContent = 'Đang lưu…';
     jsonpRequest(TRADING_ADDTRADE_URL, { key: TRADING_SECRET_KEY, action: 'saveYieldCfg', cfg: raw }, function (err, d) {
       if (el) el.textContent = (!err && d && d.success) ? 'Đã lưu ' + new Date().toLocaleTimeString('vi-VN') : 'Lỗi lưu: ' + ((d && d.error) || (err && err.message) || '');
     });
   }
 
-  // ---------- giao diện ----------
-  function ensureStyle() {
-    if (document.getElementById('cpy-style')) return;
-    var s = document.createElement('style'); s.id = 'cpy-style';
-    s.textContent = [
-      '.cpy-seg{display:flex;gap:6px;margin:0 0 12px}',
-      '.cpy-seg button{flex:1;min-height:40px;border:1px solid var(--line,#d9d6cc);background:#fff;border-radius:8px;font-size:14px;cursor:pointer}',
-      '.cpy-seg button.on{background:#1f2a37;color:#fff;border-color:#1f2a37}',
-      '.cpy-rule{font-size:12px;color:var(--muted,#667);margin:0 0 12px;line-height:1.5}',
-      '.cpy-card{background:#fff;border:1px solid var(--line,#e6e3da);border-radius:12px;padding:14px;margin-bottom:12px}',
-      '.cpy-head{display:flex;justify-content:space-between;align-items:baseline;cursor:pointer;gap:8px}',
-      '.cpy-ma{font-size:18px;font-weight:700}.cpy-price{font-size:15px;font-weight:600}',
-      '.cpy-sub{font-size:12px;color:var(--muted,#667)}',
-      '.cpy-big{display:flex;gap:16px;flex-wrap:wrap;margin:10px 0 6px}',
-      '.cpy-big div{min-width:90px}.cpy-big b{display:block;font-size:17px}.cpy-big span{font-size:11px;color:var(--muted,#667)}',
-      '.cpy-line{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:7px 0;border-top:1px solid #f0eee7}',
-      '.cpy-line .k{color:var(--muted,#667)}.cpy-line .v{text-align:right}',
-      '.cpy-h{font-size:12px;font-weight:600;color:var(--muted,#667);margin:16px 0 6px;letter-spacing:.02em}',
-      '.cpy-note{font-size:12px;color:var(--muted,#667);line-height:1.5;margin:6px 0}',
-      '.cpy-grid{display:grid;gap:0;font-size:12px;font-variant-numeric:tabular-nums}',
-      '.cpy-grid>div{min-height:30px;display:flex;align-items:center;justify-content:flex-end;border-bottom:1px solid #f0eee7;padding:0 4px}',
-      '.cpy-grid>div.l{justify-content:flex-start;color:var(--muted,#667)}',
-      '.cpy-bar{height:12px;background:#ece9df;border-radius:6px;position:relative;margin:10px 0 4px}',
-      '.cpy-bar i{position:absolute;top:0;bottom:0;border-radius:6px}',
-      '.cpy-bar em{position:absolute;top:-4px;width:2px;height:20px;background:#000}',
-      '.cpy-card input[type=text],.cpy-card textarea{width:100%;box-sizing:border-box;border:1px solid #d5d1c6;border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}',
-      '.cpy-card textarea{min-height:92px}',
-      '.cpy-card button.cpy-btn{min-height:40px;padding:0 14px;border:1px solid #1f2a37;background:#1f2a37;color:#fff;border-radius:8px;font-size:14px;cursor:pointer}',
-      '.cpy-card button.cpy-btn.ghost{background:#fff;color:#1f2a37}',
-      '.cpy-par{display:grid;grid-template-columns:1fr 84px;gap:8px 10px;align-items:center;font-size:13px}',
-      '.cpy-par small{display:block;color:var(--muted,#667);font-size:11px;line-height:1.4}',
-      '.cpy-ph{font-style:italic;color:var(--muted,#667)}'
-    ].join('\n');
-    document.head.appendChild(s);
+  // ---------- khối giao diện dùng chung (đúng kiểu mockup) ----------
+  var C = { ink: '#1B1F23', mute: '#5F6670', line: '#E6E3DA', line2: '#F0EEE7', bg: '#FAFAF7', chip: '#EFEDE6' };
+  function wrap(inner, maxw) {
+    return '<div style="max-width:' + (maxw || 438) + 'px;margin:0 auto;box-sizing:border-box;background:' + C.bg + ';font-family:\'Inter\',sans-serif;color:' + C.ink + ';padding:24px 16px;display:flex;flex-direction:column;gap:16px">' + inner + '</div>';
   }
+  function card(inner, gap, radius) {
+    return '<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:' + (radius || 14) + 'px;padding:16px;display:flex;flex-direction:column;gap:' + (gap || 12) + 'px">' + inner + '</div>';
+  }
+  function cap(t, extra) { return '<div style="font-size:12px;font-weight:600;color:' + C.mute + (extra || '') + '">' + t + '</div>'; }
+  function note(t) { return '<div style="font-size:12px;color:' + C.mute + ';line-height:1.5">' + t + '</div>'; }
+  function lineRow(k, v, minH, border) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:' + (minH || 32) + 'px;font-size:13px' + (border ? ';border-bottom:1px solid ' + C.line2 : '') + '"><span style="color:' + C.mute + '">' + k + '</span><span style="text-align:right">' + v + '</span></div>';
+  }
+  function thr(val, thrText) { return '<b style="font-weight:700">' + val + '</b><span style="color:' + C.mute + '"> · ' + thrText + '</span>'; }
+  function badge(t) { return '<span style="font-size:11px;font-weight:600;background:' + C.chip + ';border-radius:6px;padding:2px 8px">' + t + '</span>'; }
+  function btn(label, onclick, primary, extra) {
+    return '<button onclick="' + onclick + '" style="flex:1;min-height:48px;border:1px solid ' + (primary ? C.ink : C.line) + ';background:' + (primary ? C.ink : '#fff') + ';color:' + (primary ? '#fff' : C.ink) + ';border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit' + (extra || '') + '">' + label + '</button>';
+  }
+  function back(label, onclick) {
+    return '<button onclick="' + onclick + '" style="align-self:flex-start;min-height:44px;border:0;background:transparent;color:' + C.mute + ';font-size:14px;font-weight:500;padding:0;cursor:pointer;font-family:inherit">&larr; ' + label + '</button>';
+  }
+  function inputStyle(w) { return 'width:' + w + 'px;min-height:44px;box-sizing:border-box;border:1px solid #D5D1C6;border-radius:8px;padding:0 10px;font-size:15px;text-align:right;font-family:inherit'; }
+  function ensureFont() {
+    if (document.getElementById('cpy-font')) return;
+    var l = document.createElement('link'); l.id = 'cpy-font'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+    document.head.appendChild(l);
+  }
+  function dmy(d) { return d ? ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear() : ''; }
 
   function ctxNow() {
     var cfg = CPY.cfg || mergedCfg(null);
-    return {
-      data: CPY.data, periods: CPY.periods, cfg: cfg,
+    return { data: CPY.data, periods: CPY.periods, cfg: cfg,
       price: function (ma) {
         if (isNum(CPY.prices[ma])) return CPY.prices[ma];
         var row = (typeof ONHAND !== 'undefined' ? ONHAND : []).filter(function (r) { return String(r['Mã'] || '').trim().toUpperCase() === ma; })[0];
         var p = row ? num(row['Giá hiện tại']) : null; return p > 0 ? p : null;
-      }
-    };
+      } };
   }
-
-  function line(k, v) { return '<div class="cpy-line"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'; }
-
-  function cardHtml(ma, c, h, P) {
-    var open = CPY.open === ma;
-    var head = '<div class="cpy-head" onclick="cpyToggle(\'' + ma + '\')"><span class="cpy-ma">' + esc(ma) + '</span><span class="cpy-price">' + (isNum(c.price) ? fmt(c.price) + ' đ' : '<span class="cpy-ph">chưa có giá</span>') + '</span></div>';
-    var body = '';
-    if (!c.ready) {
-      body = '<div class="cpy-sub" style="margin-top:6px">Chưa đủ dữ liệu để tính: thiếu ' + esc(c.missing.join(', ')) + '. Nhập BCTC vào tab "CP yield" rồi bấm Tải lại.</div>';
-    } else {
-      body += '<div class="cpy-big"><div><b>' + pct(c.yGross) + '</b><span>Yield gộp (DPS ' + fmt(c.dps) + ' ÷ giá)</span></div>'
-           + '<div><b>' + pct(c.yNet) + '</b><span>Yield ròng sau thuế ' + P.tax + '%</span></div>'
-           + '<div><b>' + fmt(c.ceiling) + ' đ</b><span>Giá trần để đạt ' + P.target + '% ròng, DPS −' + c.stressPct + '%</span></div></div>';
-      body += line('Yield ròng sau stress DPS −' + c.stressPct + '%', '<b>' + pct(c.yStress) + '</b> · mục tiêu ≥ ' + P.target + '%');
-      body += line('Biên Graham' + (c.pending ? ' (giá đã trừ cổ tức sắp nhận)' : ''), '<b>' + pct(c.mos, 0) + '</b> · mức ≥ ' + P.mos + '%');
-      body += line('Cổ tức / FCF tổng ' + esc(c.fcfYear || ''), '<b>' + pct(c.fcfRatio) + '</b> · mức < ' + P.fcfMax + '%');
-    }
-    body += h.held
-      ? '<div class="cpy-line"><span class="k">Đang nắm ' + fmt(h.qty) + ' CP</span><span class="v">Yield thực <b>' + pct(h.yReal) + '</b></span></div>'
-      : '';
-    return '<div class="cpy-card">' + head + body + (open ? detailHtml(ma, c, h, P) : '') + '</div>';
-  }
-
-  function detailHtml(ma, c, h, P) {
-    var tc = CPY.cfg.tickers[ma] || {};
-    var o = '<div style="margin-top:6px">';
-
-    // 1) Kết quả của bạn
-    o += '<div class="cpy-h">KẾT QUẢ CỦA BẠN · TỪ ONHAND VÀ IN-OUT</div>';
-    if (h.held) {
-      o += line('Số cổ phiếu đang nắm', fmt(h.qty))
-         + line('Giá vốn bình quân (Onhand)', fmt(h.avg) + ' đ')
-         + line('Vốn đã đầu tư (tiền mua − vốn gốc đã bán)', fmt(h.invested) + ' đ')
-         + line('Cổ tức thực nhận 12 tháng, sau thuế', fmt(h.div12) + ' đ')
-         + line('Yield thực trên vốn đã đầu tư', '<b>' + pct(h.yReal) + '</b>')
-         + line('Yield ròng nếu mua ở giá hiện tại', '<b>' + pct(c.yNet) + '</b>')
-         + line('Lãi iPower (mốc so sánh)', isNum(P.ipower) ? P.ipower + '%/năm' : '<span class="cpy-ph">chưa nhập ở Tham số</span>');
-      o += '<div class="cpy-note">Yield thực = cổ tức thực nhận 12 tháng ÷ vốn đã đầu tư. Vốn đã đầu tư không trừ cổ tức, nên khác giá vốn Onhand vì In-out giảm vốn gốc khi nhận cổ tức.</div>';
-    } else {
-      o += '<div class="cpy-note">Chưa nắm mã này. Yield ròng nếu mua ở giá hiện tại: <b>' + pct(c.yNet) + '</b>.</div>';
-    }
-    if (!c.ready) return o + '</div>';
-
-    // 2) Giá so với vùng Graham
-    var z33 = c.zone(P.mosHigh), z25 = c.zone(P.mos);
-    o += '<div class="cpy-h">GIÁ HIỆN TẠI SO VỚI VÙNG GRAHAM</div>';
-    var lo = c.iv * 0.5, hi = c.iv * 1.15, W = hi - lo;
-    var pos = function (x) { return Math.max(0, Math.min(100, (x - lo) / W * 100)); };
-    o += '<div class="cpy-bar"><i style="left:0;width:' + pos(z33.cum) + '%;background:#2f6f4e"></i><i style="left:' + pos(z33.cum) + '%;width:' + (pos(z25.cum) - pos(z33.cum)) + '%;background:#9cc3a8"></i><em style="left:' + pos(c.price) + '%"></em></div>';
-    o += '<div class="cpy-note">Xanh đậm: giá ≤ ' + fmt(z33.cum) + ' đ (biên ≥ ' + P.mosHigh + '%). Xanh nhạt: đến ' + fmt(z25.cum) + ' đ (biên ≥ ' + P.mos + '%). Vạch đen: giá hiện tại ' + fmt(c.price) + ' đ.'
-         + (c.pending ? ' Vùng giá tính theo giá còn cổ tức; sau ngày giao dịch không hưởng quyền trừ ' + fmt(c.pendingNet) + ' đ (cổ tức ' + fmt(c.pending.dps) + ' đ sau thuế ' + P.tax + '%).' : '') + '</div>';
-    o += line('Giá trị nội tại (mức thấp hơn của hai cách)', '<b>' + fmt(c.iv) + ' đ</b>')
-       + line('√(' + P.pepb + ' × EPS TB5 × BVPS)', fmt(c.graham) + ' đ')
-       + line(P.pe + ' × EPS TB5', fmt(c.noGrowth) + ' đ');
-
-    // 3) Định giá
-    o += '<div class="cpy-h">ĐỊNH GIÁ</div>'
-       + line('EPS trung bình ' + c.epsN + ' năm', fmt(c.eps5) + ' đ')
-       + line('BVPS (VCSH ' + esc(c.vcshPeriod) + ' ÷ số CP)', fmt(c.bvps) + ' đ')
-       + line('P/E (theo EPS TB5)', fmt(c.pe, 1))
-       + line('P/B', fmt(c.pb, 2))
-       + line('P/E × P/B', fmt(c.pepbVal, 1) + ' · ngưỡng ≤ ' + P.pepb)
-       + line('Tiền ròng / cổ phiếu' + (c.pending ? ' (đã trừ cổ tức sắp trả)' : ''), fmt(c.netPerShare) + ' đ');
-    o += '<div class="cpy-note">P/E, P/B tính theo giá đã trừ cổ tức sắp nhận. VCSH gồm cả lợi ích cổ đông không kiểm soát nên BVPS có thể hơi cao.</div>';
-
-    // 4) Từ lợi nhuận đến cổ tức
-    o += '<div class="cpy-h">TỪ LỢI NHUẬN ĐẾN CỔ TỨC</div>';
-    o += '<div class="cpy-note">Chuỗi: lợi nhuận (EPS) → tiền thực nhận (FCF tổng) → cổ tức (DPS). Payout = DPS ÷ EPS. Cổ tức/FCF tổng = phần tiền thực nhận đem chia.</div>';
-    var cols = c.series.length + 1;
-    o += '<div class="cpy-grid" style="grid-template-columns:70px repeat(' + c.series.length + ',1fr)"><div class="l"></div>'
-       + c.series.map(function (s) { return '<div class="l" style="justify-content:flex-end">' + esc(s.year) + '</div>'; }).join('')
-       + '<div class="l">EPS</div>' + c.series.map(function (s) { return '<div>' + fmt(s.eps) + '</div>'; }).join('')
-       + '<div class="l">DPS</div>' + c.series.map(function (s) { return '<div><b>' + fmt(s.dps) + '</b></div>'; }).join('')
-       + '<div class="l">DPS so năm trước</div>' + c.series.map(function (s) { return '<div>' + (isNum(s.yoy) ? (s.yoy >= 0 ? '+' : '') + pct(s.yoy) : '—') + '</div>'; }).join('')
-       + '<div class="l">Payout</div>' + c.series.map(function (s) { return '<div>' + pct(s.payout) + '</div>'; }).join('')
-       + '<div class="l">Cổ tức/FCF</div>' + c.series.map(function (s) { return '<div>' + pct(s.fcfRatio) + '</div>'; }).join('')
-       + '</div>';
-    o += '<div class="cpy-note">Payout hoặc Cổ tức/FCF trên 100% nghĩa là năm đó chi cổ tức nhiều hơn lợi nhuận (hoặc tiền thực) tạo ra. Mức tham khảo: dưới ' + P.fcfMax + '%. Lần giảm DPS sâu nhất trong chuỗi: ' + (isNum(c.worstYoy) ? pct(c.worstYoy) : '—') + ' (stress đang áp dụng: −' + c.stressPct + '%).</div>';
-
-    // 5) Bảng cân đối
-    o += '<div class="cpy-h">NỢ VÀ THANH KHOẢN</div>'
-       + line('Nợ vay (' + esc(c.balPeriod || '') + ')', fmt(c.debt, 1) + ' tỷ')
-       + line('Tiền và đầu tư ngắn hạn', fmt(c.cash, 1) + ' tỷ')
-       + line('Thanh toán hiện hành (' + esc(c.crPeriod || '') + ')', fmt(c.cr, 2) + ' lần · mức ≥ ' + P.cr + ' lần');
-    o += '<div class="cpy-note">Thanh toán hiện hành = tài sản ngắn hạn ÷ nợ ngắn hạn.</div>';
-
-    // 6) Cổ tức sắp nhận + stress riêng
-    o += '<div class="cpy-h">LỊCH VÀ THIẾT LẬP RIÊNG CỦA MÃ</div>';
-    var pd = tc.pending || {};
-    o += '<div class="cpy-par">'
-       + '<div>Cổ tức sắp nhận (đ/CP, gộp)<small>Để trống khi không có đợt nào chờ ngày giao dịch không hưởng quyền.</small></div><input type="text" id="cpy-pd-' + ma + '" value="' + esc(pd.dps || '') + '">'
-       + '<div>Ngày giao dịch không hưởng quyền</div><input type="text" id="cpy-px-' + ma + '" value="' + esc(pd.ex || '') + '" placeholder="dd/mm/yyyy">'
-       + '<div>Đã đối chiếu thông báo của công ty<small>Tick sau khi kiểm tra trên HNX/HOSE.</small></div><input type="checkbox" id="cpy-pv-' + ma + '"' + (pd.verified ? ' checked' : '') + ' style="width:22px;height:22px">'
-       + '<div>Stress DPS riêng (%)<small>Để trống dùng mặc định ' + P.stress + '%.</small></div><input type="text" id="cpy-st-' + ma + '" value="' + esc(tc.stress == null ? '' : tc.stress) + '">'
-       + '</div>';
-    if (c.pending && !c.pending.verified) o += '<div class="cpy-note"><b>Chưa xác minh</b> mức ' + fmt(c.pending.dps) + ' đ và ngày ' + esc(c.pending.ex) + '. Mọi con số "giá đã trừ cổ tức" phụ thuộc hai dữ kiện này.</div>';
-
-    // 7) Ghi chú tay
-    o += '<div class="cpy-h">PHÍA TRƯỚC · NGUỒN TẠO CỔ TỨC (GHI TAY)</div>'
-       + '<textarea id="cpy-nt-' + ma + '" placeholder="Cổ tức đến từ đâu, ai quyết định mức chia, kiểm toán, phụ thuộc đối tác…">' + esc(tc.note || '') + '</textarea>';
-    o += '<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="cpy-btn" onclick="cpySaveTicker(\'' + ma + '\')">Lưu mã ' + esc(ma) + '</button><span class="cpy-sub" id="cpy-savemsg-' + ma + '"></span></div>';
-
-    // 8) Dữ liệu gốc
-    o += '<div class="cpy-h" style="cursor:pointer" onclick="cpyToggleRaw(\'' + ma + '\')">BẢNG DỮ LIỆU GỐC ' + (CPY.showRaw[ma] ? '▾' : '▸') + '</div>';
-    if (CPY.showRaw[ma]) o += rawTable(ma);
-    o += '<div class="cpy-note">Đây là số liệu tham khảo từ báo cáo của công ty, không phải khuyến nghị mua bán.</div>';
-    return o + '</div>';
-  }
-
-  function rawTable(ma) {
-    var t = CPY.data[ma]; if (!t) return '';
-    var per = CPY.periods;
-    var o = '<div style="overflow-x:auto"><div class="cpy-grid" style="grid-template-columns:160px 46px repeat(' + per.length + ',78px);min-width:' + (160 + 46 + per.length * 78) + 'px"><div class="l">Chỉ tiêu</div><div class="l">Bảng</div>'
-          + per.map(function (p) { return '<div class="l" style="justify-content:flex-end">' + esc(p) + '</div>'; }).join('');
-    t.labels.forEach(function (lb) {
-      o += '<div class="l" style="color:inherit">' + esc(lb) + '</div><div class="l">' + esc((t.meta[lb] || {}).bang || '') + '</div>'
-         + t.rows[lb].map(function (v) { return '<div>' + (isNum(v) ? (Math.abs(v) < 5 && lb.toLowerCase().indexOf('payout') >= 0 ? pct(v) : fmt(v, Math.abs(v) >= 1000 ? 0 : 2)) : '') + '</div>'; }).join('');
+  function allInfos() {
+    var ctx = ctxNow(), now = new Date();
+    return CPY.order.map(function (ma) {
+      return { ma: ma, c: calc(ma, ctx), h: holding(ma, typeof ONHAND !== 'undefined' ? ONHAND : [], typeof INOUT !== 'undefined' ? INOUT : [], now) };
     });
-    return o + '</div></div>';
   }
 
-  function paramsHtml() {
-    var P = CPY.cfg.params;
-    var o = '<div class="cpy-card"><div class="cpy-head" onclick="cpyToggleParams()"><span class="cpy-ma" style="font-size:15px">Tham số quy tắc ' + (CPY.showParams ? '▾' : '▸') + '</span><span class="cpy-sub">sửa được</span></div>';
-    if (CPY.showParams) {
-      o += '<div class="cpy-note">Đổi số rồi bấm Lưu: mọi mã tính lại theo. Lưu vào tab "CP yield cfg" trong sheet, các thiết bị khác thấy cùng giá trị.</div><div class="cpy-par">';
-      PARAM_DEFS.forEach(function (d) {
-        o += '<div>' + esc(d[1]) + (d[2] ? ' (' + esc(d[2]) + ')' : '') + '<small>' + esc(d[3]) + '</small></div><input type="text" inputmode="decimal" id="cpy-p-' + d[0] + '" value="' + (P[d[0]] == null ? '' : String(P[d[0]]).replace('.', ',')) + '">';
+  // ---------- MÀN 1: DANH SÁCH ----------
+  function viewList() {
+    var P = CPY.cfg.params, infos = allInfos(), seg = CPY.seg;
+    var shown = infos.filter(function (x) { return seg === 'all' || (seg === 'held' ? x.h.held : !x.h.held); });
+    var ready = shown.filter(function (x) { return x.c && x.c.ready; }), wait = shown.filter(function (x) { return !(x.c && x.c.ready); });
+    var o = '<div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:26px;font-weight:700">CP yield</h1><div style="font-size:12px;color:' + C.mute + '">Giá cập nhật ' + dmy(CPY.time) + ' · lấy từ VPS' + (CPY.priceErr ? ' · <b>giá lỗi: ' + esc(CPY.priceErr) + '</b>' : '') + '</div></div>';
+    o += '<div style="display:flex;gap:8px">' + [['target', 'Mục tiêu'], ['held', 'Đang nắm'], ['all', 'Tất cả']].map(function (s) {
+      var on = seg === s[0];
+      return '<button onclick="cpySeg(\'' + s[0] + '\')" style="flex:1;min-height:44px;border:1px solid ' + (on ? C.ink : C.line) + ';background:' + (on ? C.ink : '#fff') + ';color:' + (on ? '#fff' : C.ink) + ';border-radius:10px;font-size:14px;font-weight:' + (on ? 600 : 500) + ';cursor:pointer;font-family:inherit">' + s[1] + '</button>';
+    }).join('') + '</div>';
+    o += '<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">' + cap('QUY TẮC ĐANG ÁP DỤNG') + '<div style="font-size:13px;line-height:1.5">Yield ròng mục tiêu ' + P.target + '% · DPS stress −' + P.stress + '% · biên Graham tối thiểu ' + P.mos + '%</div></div>';
+    ready.forEach(function (x) { o += listCard(x, P); });
+    if (!ready.length && !wait.length) o += note('Không có mã nào trong nhóm này.');
+    if (wait.length) {
+      o += '<div style="font-size:12px;font-weight:600;color:' + C.mute + ';padding-top:4px">CHƯA CÓ ĐỊNH GIÁ</div><div style="display:flex;flex-direction:column;gap:8px">';
+      wait.forEach(function (x) {
+        var why = (x.c && x.c.rowsFilled === 0) || !x.c ? 'Chờ BCTC' : (x.c.missing.length && !(x.c.missing.length === 1 && x.c.missing[0] === 'giá') ? (hasAnyData(x.ma) ? 'Đã nhập BCTC, chưa tính định giá' : 'Chờ BCTC') : 'Chưa có giá');
+        o += '<div onclick="cpyGo(\'detail\',\'' + x.ma + '\')" style="background:#fff;border:1px solid ' + C.line + ';border-radius:12px;padding:0 14px;min-height:52px;display:flex;justify-content:space-between;align-items:center;cursor:pointer"><span style="font-size:15px;font-weight:600">' + esc(x.ma) + '</span><span style="font-size:12px;color:' + C.mute + '">' + why + '</span></div>';
       });
-      o += '</div><div style="display:flex;gap:8px;align-items:center;margin-top:12px"><button class="cpy-btn" onclick="cpySaveParams()">Lưu</button><button class="cpy-btn ghost" onclick="cpyResetParams()">Khôi phục mặc định</button><span class="cpy-sub" id="cpy-savemsg"></span></div>';
+      o += '</div>';
     }
+    o += '<div style="display:flex;gap:8px">' + btn('Tham số quy tắc', 'cpyGo(\'params\')', false) + btn('Tải lại', 'cpyReload()', false) + '</div>';
+    o += note('Bảng nghiên cứu và theo dõi cá nhân, không phải khuyến nghị mua bán. Mỗi chỉ số đi kèm ngưỡng của quy tắc để tự đối chiếu.');
+    return wrap(o);
+  }
+  function hasAnyData(ma) {
+    var t = CPY.data[ma]; if (!t) return false;
+    return Object.keys(t.rows).some(function (k) { return t.rows[k].some(isNum); });
+  }
+  function listCard(x, P) {
+    var c = x.c, h = x.h, tc = CPY.cfg.tickers[x.ma] || {};
+    var o = '<div onclick="cpyGo(\'detail\',\'' + x.ma + '\')" style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:12px;cursor:pointer">';
+    o += '<div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px;font-weight:700">' + esc(x.ma) + '</span>' + badge(h.held ? 'Đang nắm' : 'Mục tiêu') + '</div>'
+       + (tc.desc ? '<div style="font-size:12px;color:' + C.mute + '">' + esc(tc.desc) + '</div>' : '') + '</div>'
+       + '<div style="text-align:right"><div style="font-size:20px;font-weight:700">' + fmt(c.price) + '</div><div style="font-size:11px;color:' + C.mute + '">' + (c.pending ? 'giá có cổ tức' : 'giá thị trường') + '</div></div></div>';
+    o += '<div style="display:flex;gap:0">' + [['Yield gộp', pct(c.yGross)], ['Yield ròng', pct(c.yNet)], ['Giá trần (stress)', fmt(r100(c.ceiling))]].map(function (a) {
+      return '<div style="flex:1;display:flex;flex-direction:column;gap:2px"><div style="font-size:11px;color:' + C.mute + '">' + a[0] + '</div><div style="font-size:16px;font-weight:600">' + a[1] + '</div></div>';
+    }).join('') + '</div>';
+    o += '<div style="display:flex;flex-direction:column;border-top:1px solid ' + C.line2 + ';padding-top:6px">'
+       + lineRow('Yield ròng sau stress', thr(pct(c.yStress), 'ngưỡng ≥ ' + P.target + '%'), 30)
+       + lineRow('Biên Graham', thr(pct(c.mos, 0), 'ngưỡng ≥ ' + P.mos + '%'), 30)
+       + lineRow('Cổ tức/FCF tổng ' + esc(c.fcfYear || ''), thr(pct(c.fcfRatio), 'ngưỡng &lt; ' + P.fcfMax + '%'), 30) + '</div>';
+    o += '<div style="display:flex;justify-content:space-between;border-top:1px solid ' + C.line2 + ';padding-top:8px;font-size:12px;color:' + C.mute + (h.held ? '' : ';font-style:italic') + '">'
+       + (h.held ? '<span>Đang nắm: ' + fmt(h.qty) + ' CP</span><span>Yield thực: <b>' + pct(h.yReal) + '</b></span>' : '<span>Chưa nắm</span><span>Yield thực: —</span>') + '</div>';
     return o + '</div>';
+  }
+
+  // ---------- MÀN 2: CHI TIẾT ----------
+  function viewDetail(ma) {
+    var ctx = ctxNow(), P = ctx.cfg.params, tc = ctx.cfg.tickers[ma] || {}, c = calc(ma, ctx);
+    var h = holding(ma, typeof ONHAND !== 'undefined' ? ONHAND : [], typeof INOUT !== 'undefined' ? INOUT : [], new Date());
+    var o = back('CP yield', 'cpyGo(\'list\')');
+    o += '<div style="display:flex;justify-content:space-between;align-items:flex-end"><div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;align-items:center;gap:8px"><h1 style="margin:0;font-size:28px;font-weight:700">' + esc(ma) + '</h1>' + badge(h.held ? 'Đang nắm' : 'Mục tiêu') + '</div>'
+       + (tc.desc ? '<div style="font-size:12px;color:' + C.mute + '">' + esc(tc.desc) + '</div>' : '') + '</div>'
+       + '<div style="text-align:right"><div style="font-size:24px;font-weight:700">' + fmt(c.price) + '</div><div style="font-size:11px;color:' + C.mute + '">' + (c.pending ? 'giá có cổ tức' : 'giá thị trường') + ' · ' + dmy(CPY.time) + '</div></div></div>';
+
+    var ph = '<span style="color:' + C.mute + ';font-style:italic">—</span>';
+    // Kết quả của bạn
+    o += card(cap('KẾT QUẢ CỦA BẠN · ĐỌC TỪ ONHAND VÀ IN-OUT')
+      + '<div style="display:flex;flex-direction:column">'
+      + lineRow('Số cổ phiếu đang nắm', h.held ? fmt(h.qty) : ph, 34, true)
+      + lineRow('Giá vốn bình quân', h.held ? fmt(h.avg) + ' đ' : ph, 34, true)
+      + lineRow('Vốn đã đầu tư', h.held ? fmt(h.invested) + ' đ' : ph, 34, true)
+      + lineRow('Cổ tức thực nhận 12 tháng (sau thuế)', h.held ? fmt(h.div12) + ' đ' : ph, 34, true)
+      + lineRow('Yield thực trên giá vốn', h.held ? '<b>' + pct(h.yReal) + '</b>' : ph, 34, true)
+      + lineRow('Yield ròng nếu mua ở giá hiện tại', '<b style="font-weight:700">' + pct(c.yNet) + '</b>', 34, true)
+      + lineRow('Lãi iPower hiện tại (mốc so sánh)', isNum(P.ipower) ? P.ipower + '% một năm' : ph, 34, false)
+      + '</div>'
+      + note('Yield thực trên giá vốn = cổ tức thực nhận 12 tháng ÷ vốn đã đầu tư: cho biết bạn đã kiếm được bao nhiêu trên vốn của mình. Vốn đã đầu tư = tiền mua trừ vốn gốc đã bán, không trừ cổ tức. Yield nếu mua ở giá hiện tại cho biết sẽ kiếm bao nhiêu nếu mua hôm nay. Chưa nắm mã này thì các dòng nắm giữ để trống.'), 10);
+
+    if (!c.ready) {
+      o += card(cap('CHƯA ĐỦ DỮ LIỆU') + note('Thiếu: ' + esc(c.missing.join(', ')) + '. Nhập BCTC vào tab "CP yield" rồi bấm Tải lại ở màn danh sách.'));
+      o += '<div style="display:flex;gap:8px">' + btn('Mở bảng dữ liệu', 'cpyGo(\'data\',\'' + ma + '\')', true) + btn('Sửa ghi chú', 'cpyGo(\'edit\',\'' + ma + '\')', false) + '</div>';
+      return wrap(o);
+    }
+
+    // Giá so với vùng Graham
+    var z33 = c.zone(P.mosHigh), z25 = c.zone(P.mos);
+    var lo = Math.floor(Math.min(z33.cum * 0.82, c.price * 0.9) / 1000) * 1000, hi = Math.ceil(Math.max(c.price, z25.cum) * 1.35 / 1000) * 1000, W = hi - lo;
+    var pos = function (v) { return Math.max(0, Math.min(100, (v - lo) / W * 100)); };
+    var p33 = pos(z33.cum), p25 = pos(z25.cum), pp = pos(c.price);
+    var other = c.ivIsNoGrowth ? ('Tham khảo: Graham number ' + fmt(r100(c.graham)) + '.') : ('Tham khảo: ' + P.pe + ' × EPS = ' + fmt(r100(c.noGrowth)) + '.');
+    var ivTxt = c.ivIsNoGrowth ? (fmt(r100(c.iv)) + ' (' + P.pe + ' × EPS ' + fmt(c.eps5) + ', lấy cách thấp hơn)') : (fmt(r100(c.iv)) + ' (Graham number, lấy cách thấp hơn)');
+    o += card(cap('GIÁ HIỆN TẠI SO VỚI VÙNG GRAHAM')
+      + '<div style="position:relative;height:56px"><div style="position:absolute;left:0;right:0;top:24px;height:12px;background:' + C.chip + ';border-radius:6px"></div>'
+      + '<div style="position:absolute;left:0;width:' + p33 + '%;top:24px;height:12px;background:#3F5B73;border-radius:6px 0 0 6px"></div>'
+      + '<div style="position:absolute;left:' + p33 + '%;width:' + Math.max(0, p25 - p33) + '%;top:24px;height:12px;background:#9DB2C4"></div>'
+      + '<div style="position:absolute;left:' + pp + '%;top:14px;width:2px;height:32px;background:' + C.ink + '"></div>'
+      + '<div style="position:absolute;left:' + pp + '%;top:0;transform:translateX(-50%);font-size:12px;font-weight:700">' + fmt(c.price) + '</div>'
+      + '<div style="position:absolute;left:0;top:40px;font-size:11px;color:' + C.mute + '">' + fmt(lo) + '</div><div style="position:absolute;right:0;top:40px;font-size:11px;color:' + C.mute + '">' + fmt(hi) + '</div></div>'
+      + '<div style="display:flex;flex-direction:column;gap:6px;font-size:13px">'
+      + '<div style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;background:#3F5B73;border-radius:3px;display:inline-block"></span><span>Biên ≥ ' + P.mosHigh + '%: giá từ ' + fmt(r100(z33.cum)) + ' trở xuống</span></div>'
+      + '<div style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;background:#9DB2C4;border-radius:3px;display:inline-block"></span><span>Biên ≥ ' + P.mos + '%: giá từ ' + fmt(r100(z25.cum)) + ' trở xuống</span></div></div>'
+      + note('Giá trị nội tại dùng để tính: ' + ivTxt + '. ' + other + (c.pending ? ' Mốc giá đã cộng khoảng ' + fmt(r100(c.pendingNet)) + ' cổ tức để so với giá có cổ tức. Sau GDKHQ, giá quy đổi tương đương khoảng ' + fmt(r100(c.effPrice)) + '.' : ''))
+      + '<div style="display:flex;flex-direction:column;border-top:1px solid ' + C.line2 + ';padding-top:6px">'
+      + lineRow('Yield ròng', thr(pct(c.yNet), 'ngưỡng ≥ ' + P.target + '%'))
+      + lineRow('Yield ròng sau stress −' + fmt(c.stressPct, c.stressPct % 1 ? 1 : 0) + '%', thr(pct(c.yStress), 'ngưỡng ≥ ' + P.target + '%'))
+      + lineRow('Biên Graham hiện tại', thr(pct(c.mos, 0), 'ngưỡng ≥ ' + P.mos + '%'))
+      + lineRow('Giá trần theo yield (stress)', thr(fmt(r100(c.ceiling)), 'giá hiện tại ' + fmt(c.price)))
+      + '</div>');
+
+    // Định giá
+    var cellV = function (k, v) { return '<div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:' + C.mute + '">' + k + '</span><span style="font-size:17px;font-weight:600">' + v + '</span></div>'; };
+    o += card(cap('ĐỊNH GIÁ') + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 16px">'
+      + cellV('EPS trung bình ' + c.epsN + ' năm', fmt(c.eps5)) + cellV('BVPS', fmt(c.bvps))
+      + cellV('P/E', fmt(c.pe, 1)) + cellV('P/B', fmt(c.pb, 2))
+      + cellV('P/E × P/B · ngưỡng ≤ ' + String(P.pepb).replace('.', ','), fmt(c.pepbVal, 1))
+      + cellV('Tiền ròng mỗi cổ phiếu', isNum(c.netPerShare) ? 'khoảng ' + fmt(r100(c.netPerShare)) : '—') + '</div>'
+      + note('P/E và P/B tính trên giá ' + (c.pending ? 'quy đổi sau GDKHQ (khoảng ' + fmt(r100(c.effPrice)) + ')' : 'thị trường') + '. VCSH gồm cả lợi ích cổ đông không kiểm soát nên BVPS hơi cao.' + (c.pending ? ' Tiền ròng đã trừ cổ tức sắp trả.' : '')));
+
+    // Từ lợi nhuận đến cổ tức
+    var n = c.series.length, G = 'display:flex;align-items:center;justify-content:flex-end;font-weight:600;min-height:32px';
+    var grid = '<div style="display:grid;grid-template-columns:62px repeat(' + n + ',1fr);gap:0;font-size:12px;font-variant-numeric:tabular-nums"><div style="min-height:30px;border-bottom:1px solid ' + C.line + '"></div>'
+      + c.series.map(function (s) { return '<div style="min-height:30px;display:flex;align-items:center;justify-content:flex-end;color:' + C.mute + ';border-bottom:1px solid ' + C.line + '">' + esc(s.year) + '</div>'; }).join('');
+    [['EPS', function (s) { return fmt(s.eps); }, true], ['DPS', function (s) { return fmt(s.dps); }, true], ['Payout', function (s) { return pct(s.payout); }, false]].forEach(function (rw) {
+      grid += '<div style="min-height:32px;display:flex;align-items:center;color:' + C.mute + (rw[2] ? ';border-bottom:1px solid ' + C.line2 : '') + '">' + rw[0] + '</div>'
+        + c.series.map(function (s) { return '<div style="' + G + (rw[2] ? ';border-bottom:1px solid ' + C.line2 : '') + '">' + rw[1](s) + '</div>'; }).join('');
+    });
+    grid += '</div>';
+    var over = c.series.filter(function (s) { return isNum(s.payout) && s.payout > 1; }).map(function (s) { return s.year; });
+    var bars = c.series.map(function (s) {
+      var hgt = isNum(s.fcfRatio) ? Math.max(4, Math.min(130, s.fcfRatio * 100 * 0.913)) : 0;
+      return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:12px;font-weight:600">' + (isNum(s.fcfRatio) ? fmt(s.fcfRatio * 100, 1) : '—') + '</span><div style="width:40px;height:' + hgt + 'px;background:' + C.mute + ';border-radius:4px 4px 0 0"></div><span style="font-size:11px;color:' + C.mute + '">' + esc(s.year) + '</span></div>';
+    }).join('');
+    o += card(cap('HIỆN TẠI · TỪ LỢI NHUẬN ĐẾN CỔ TỨC')
+      + note('Chuỗi: lợi nhuận (EPS) → tiền thực nhận (FCF tổng) → cổ tức (DPS). Payout = DPS ÷ EPS, đo phần lợi nhuận kế toán đem chia. Cổ tức/FCF tổng đo phần tiền thực nhận đem chia.')
+      + grid
+      + note((over.length ? 'Payout trên 100% (' + over.join(', ') + ') nghĩa là cổ tức chi vượt lợi nhuận kế toán của năm đó. ' : '') + 'Ngưỡng tham khảo: dưới 100%.')
+      + cap('CỔ TỨC / FCF TỔNG (%)', ';padding-top:6px')
+      + '<div style="display:flex;align-items:flex-end;justify-content:space-between;height:150px;padding:0 8px">' + bars + '</div>'
+      + note('Ngưỡng: dưới ' + P.fcfMax + '%, tức cổ tức chi không vượt dòng tiền thực nhận. FCF tổng = CFO + lãi đầu tư và cổ tức − Capex. Với công ty nắm giữ, cổ tức nhận từ liên doanh nằm trong dòng tiền đầu tư nên phải tính vào.')
+      + '<div style="display:flex;flex-direction:column;border-top:1px solid ' + C.line2 + ';padding-top:6px">'
+      + lineRow('Nợ vay', thr(fmt(c.debt) + ' tỷ', 'tiền và đầu tư NH ' + fmt(c.cash) + ' tỷ'))
+      + lineRow('Thanh toán hiện hành', thr(fmt(c.cr, 2) + ' lần', 'ngưỡng ≥ ' + String(P.cr).replace('.', ',') + ' lần')) + '</div>'
+      + note('Thanh toán hiện hành = tài sản ngắn hạn ÷ nợ ngắn hạn, tính bằng lần: ' + fmt(c.cr, 2) + ' nghĩa là tài sản ngắn hạn gấp ' + fmt(c.cr, 2) + ' lần nợ ngắn hạn (kỳ ' + esc(c.crPeriod || '') + ').' + (isNum(c.crAnn) ? ' Năm ' + esc(c.crAnnYear) + ': ' + fmt(c.crAnn, 2) + ' lần.' : '')), 14);
+
+    // Lịch và lịch sử cổ tức
+    var hist = c.series.map(function (s) {
+      return '<div style="display:flex;flex-direction:column;gap:2px;align-items:center"><span style="font-size:11px;color:' + C.mute + '">' + esc(s.year) + '</span><span style="font-size:14px;font-weight:600">' + fmt(s.dps) + '</span><span style="font-size:12px;font-weight:600;color:' + C.mute + '">' + (isNum(s.yoy) ? (s.yoy >= 0 ? '+' : '−') + pct(Math.abs(s.yoy)) : '—') + '</span></div>';
+    }).join('');
+    var gd = c.pending
+      ? '<div style="display:flex;justify-content:space-between;align-items:center;background:' + C.bg + ';border-radius:10px;padding:10px 12px"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:' + C.mute + '">Ngày GDKHQ</span><span style="font-size:15px;font-weight:600">' + (esc(c.pending.ex) || '—') + '</span></div><span style="font-size:12px;font-weight:600;color:' + C.mute + ';background:' + C.chip + ';border-radius:999px;padding:4px 10px">' + (c.pending.verified ? 'Đã xác minh' : 'Chưa xác minh') + '</span></div>'
+      : '<div style="background:' + C.bg + ';border-radius:10px;padding:10px 12px;font-size:12px;color:' + C.mute + '">Chưa có đợt chia nào chờ ngày GDKHQ. Khi công ty công bố, nhập ở "Sửa ghi chú".</div>';
+    o += card(cap('LỊCH VÀ LỊCH SỬ CỔ TỨC')
+      + '<div style="display:flex;justify-content:space-between;align-items:center"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:' + C.mute + '">DPS gần nhất (gộp)</span><span style="font-size:17px;font-weight:600">' + fmt(c.pending ? c.pending.dps : c.dps) + '</span></div><div style="display:flex;flex-direction:column;gap:2px;text-align:right"><span style="font-size:11px;color:' + C.mute + '">Thực nhận sau thuế ' + P.tax + '%</span><span style="font-size:17px;font-weight:600">' + fmt(c.pending ? c.pendingNet : c.dps * (1 - P.tax / 100)) + '</span></div></div>'
+      + gd
+      + '<div style="display:flex;justify-content:space-between;border-top:1px solid ' + C.line2 + ';padding-top:12px">' + hist + '</div>'
+      + note('Mỗi cột: năm, DPS (đồng), và % thay đổi so với năm trước.' + (c.worst ? ' Giảm mạnh nhất: ' + (c.worst.pct < 0 ? '−' : '+') + pct(Math.abs(c.worst.pct)) + ' (từ ' + fmt(c.worst.dpsFrom) + ' năm ' + esc(c.worst.from) + ' xuống ' + fmt(c.worst.dpsTo) + ' năm ' + esc(c.worst.to) + '). Mức này dùng làm cơ sở cho stress của mã.' : '')), 12);
+
+    // Phía trước · nguồn tạo cổ tức
+    var lines = String(tc.note || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var boxes = lines.length ? lines.map(function (l) {
+      var m = l.match(/^([^:]{1,30}):\s*(.*)$/);
+      return '<div style="background:' + C.bg + ';border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5">' + (m ? '<b style="font-weight:600">' + esc(m[1]) + ':</b> ' + esc(m[2]) : esc(l)) + '</div>';
+    }).join('') : '<div style="background:' + C.bg + ';border-radius:10px;padding:10px 12px;font-size:13px;color:' + C.mute + '">Chưa có ghi chú. Bấm "Sửa ghi chú" để ghi nguồn tạo cổ tức của mã này.</div>';
+    o += card(cap('PHÍA TRƯỚC · NGUỒN TẠO CỔ TỨC') + note('Ghi tay, không phải số tính tự động. Đây là phần quyết định cổ tức có còn không, mà chỉ số lịch sử không trả lời được.') + boxes, 10);
+
+    o += '<div style="display:flex;gap:8px">' + btn('Mở bảng dữ liệu', 'cpyGo(\'data\',\'' + ma + '\')', true) + btn('Sửa ghi chú', 'cpyGo(\'edit\',\'' + ma + '\')', false) + '</div>';
+    o += note('Bảng nghiên cứu và theo dõi cá nhân, không phải khuyến nghị mua bán.');
+    return wrap(o);
+  }
+
+  // ---------- MÀN 3: BẢNG DỮ LIỆU ----------
+  function viewData(ma) {
+    var t = CPY.data[ma], ctx = ctxNow(), per = CPY.periods;
+    if (!t) return wrap(back('CP yield', 'cpyGo(\'list\')') + note('Không có dữ liệu của ' + esc(ma)), 1100);
+    var ann = annualIdx(per), qs = [], latestQ = null;
+    per.forEach(function (p, i) { if (/^2026 Q\d$/.test(p)) qs.push(i); });
+    qs.forEach(function (i) { if (t.labels.some(function (lb) { return isNum(t.rows[lb][i]); })) latestQ = i; });
+    var cols = CPY.dataMode === 'year' ? ann.concat(latestQ != null ? [latestQ] : []) : qs;
+    var colName = function (i) { var p = per[i]; var m = p.match(/^2026 Q(\d)$/); return m ? 'Q' + m[1] + '/2026' : p; };
+    var lastLabel = latestQ != null ? colName(latestQ) : (ann.length ? per[ann[ann.length - 1]] : '');
+    var firstYear = ann.length ? per[ann[0]] : '';
+    var inputs = ['DPS cash', 'EPS'];
+    var tableRows = t.labels.map(function (lb) {
+      var m = t.meta[lb] || {}, isF = !m.bang && !m.tm && inputs.indexOf(lb) < 0 && !/^(LNST|Số CP)/i.test(lb) && !/^(CFO|Capex|Lãi|Tiền\/|Nợ|Khấu|EBIT$|Doanh|VCSH|Phải|Tồn|Tài sản|Nợ ngắn)/i.test(lb);
+      var kind = /payout|cổ tức\/fcf/i.test(lb) ? 'pct' : (/^Số CP/i.test(lb) ? 'd3' : (/^(DPS|EPS)/i.test(lb) ? 'd0' : 'd2'));
+      var cells = cols.map(function (i) {
+        var v = t.rows[lb][i];
+        if (!isNum(v)) return '<td></td>';
+        var txt = kind === 'pct' ? pct(v) : kind === 'd0' ? fmt(v) : kind === 'd3' ? fmt(v, 3) : fmt(v, 2);
+        return '<td>' + txt + '</td>';
+      }).join('');
+      return '<tr' + (isF ? ' class="f"' : '') + '><td class="l">' + esc(lb) + (isF ? ' (f)' : '') + '</td><td class="s">' + esc(m.bang || '') + '</td><td class="s">' + esc(m.tm || '') + '</td>' + cells + '</tr>';
+    }).join('');
+    var css = '<style>.cpyt{border-collapse:collapse;width:100%;font-size:13px}.cpyt th{font-size:11px;font-weight:600;color:' + C.mute + ';text-align:right;padding:0 8px;height:40px;border-bottom:1px solid ' + C.line + ';white-space:nowrap}.cpyt th.l{text-align:left}.cpyt td{padding:0 8px;height:34px;border-bottom:1px solid ' + C.line2 + ';text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.cpyt td.l{text-align:left;font-weight:500}.cpyt td.s{text-align:center;font-size:11px;color:' + C.mute + '}.cpyt tr.f td{background:#F4F2EC}</style>';
+    var tog = function (k, label) { var on = CPY.dataMode === k; return '<button onclick="cpyDataMode(\'' + k + '\')" style="min-height:44px;padding:0 18px;border:1px solid ' + (on ? C.ink : C.line) + ';background:' + (on ? C.ink : '#fff') + ';color:' + (on ? '#fff' : C.ink) + ';border-radius:10px;font-size:14px;font-weight:' + (on ? 600 : 500) + ';cursor:pointer;font-family:inherit">' + label + '</button>'; };
+    var o = back(esc(ma), 'cpyGo(\'detail\',\'' + ma + '\')') + css;
+    o += '<div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:10px"><div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1 style="margin:0;font-size:26px;font-weight:700">' + esc(ma) + ' · Bảng dữ liệu</h1><span style="font-size:12px;font-weight:600;color:#0B6B4F;background:#E4F2EC;border-radius:999px;padding:4px 10px">Đã nhập ' + esc(firstYear) + ' đến ' + esc(lastLabel) + '</span></div>'
+       + '<div style="font-size:13px;color:' + C.mute + '">Đơn vị: tỷ đồng, trừ DPS, EPS (đồng) và số cổ phiếu (triệu). Hàng nền xám là công thức. Dữ liệu lấy từ tab "CP yield" của sheet, sửa ở sheet.</div></div><div style="display:flex;gap:8px">' + tog('year', 'Năm') + tog('quarter', 'Quý 2026') + '</div></div>';
+    o += '<div style="display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap"><div style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:8px 12px 12px;flex:1 1 560px;min-width:0;overflow-x:auto;box-sizing:border-box"><table class="cpyt"><thead><tr><th class="l">Chi tiết</th><th>Bảng</th><th>Mã số</th>' + cols.map(function (i) { return '<th>' + esc(colName(i)) + '</th>'; }).join('') + '</tr></thead><tbody>' + tableRows + '</tbody></table></div>';
+    var ck = checks(ma, ctx), tcn = (CPY.cfg.tickers[ma] || {}).dataNotes || [];
+    var badgeO = function (ok) { return '<span style="font-size:11px;font-weight:700;color:' + (ok ? '#0B6B4F;background:#E4F2EC' : '#8A4B08;background:#FBEFD9') + ';border-radius:6px;padding:2px 6px;margin-top:1px">' + (ok ? 'ĐẠT' : 'SOÁT') + '</span>'; };
+    var items = ck.map(function (x) { return { ok: x.ok, text: x.text }; }).concat(tcn.map(function (tx) { return { ok: false, text: tx }; }));
+    o += '<div style="display:flex;flex-direction:column;gap:12px;flex:0 0 286px;max-width:100%">' + card(cap('KIỂM TRA DỮ LIỆU') + (items.length ? items.map(function (x) { return '<div style="display:flex;gap:10px;align-items:flex-start">' + badgeO(x.ok) + '<span style="font-size:13px;line-height:1.45">' + esc(x.text) + '</span></div>'; }).join('') : note('Chưa đủ dữ liệu để kiểm tra công thức.')))
+       + card(cap('GHI CHÚ NHẬP LIỆU') + '<div style="font-size:13px;line-height:1.5">Số thuyết minh và mã lãi vay đổi theo kỳ: 23 cho báo cáo đến 2025, 24 cho báo cáo 2026 theo chế độ kế toán mới. Luôn đối chiếu theo tên dòng.</div><div style="font-size:13px;line-height:1.5">Số cổ phiếu lưu hành lấy từ thuyết minh, đã trừ cổ phiếu quỹ.</div>', 8) + '</div></div>';
+    return wrap(o, 1100);
+  }
+
+  // ---------- MÀN 4: THAM SỐ ----------
+  function viewParams() {
+    var P = CPY.cfg.params, infos = allInfos().filter(function (x) { return x.c && x.c.ready; });
+    var o = back('CP yield', 'cpyGo(\'list\')');
+    o += '<div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:26px;font-weight:700">Tham số quy tắc</h1><div style="font-size:13px;color:' + C.mute + ';line-height:1.5">Sửa một chỗ, mọi mã tính lại. Mỗi tham số ghi rõ nguồn gốc để người xem tự đối chiếu.</div></div>';
+    o += '<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:4px 16px;display:flex;flex-direction:column">' + PARAM_DEFS.map(function (d, k) {
+      var last = k === PARAM_DEFS.length - 1, val = d[0] === 'iv' ? 'Thấp hơn' : (P[d[0]] == null ? '' : String(P[d[0]]).replace('.', ','));
+      var dis = d[0] === 'iv';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:80px;padding:10px 0' + (last ? '' : ';border-bottom:1px solid ' + C.line2) + '"><div style="display:flex;flex-direction:column;gap:3px;flex:1"><label for="cpy-p-' + d[0] + '" style="font-size:14px;font-weight:600">' + esc(d[1]) + '</label><span style="font-size:12px;color:' + C.mute + ';line-height:1.45">' + esc(d[3]) + '</span></div>'
+        + '<div style="display:flex;align-items:center;gap:6px"><input id="cpy-p-' + d[0] + '" type="text" inputmode="decimal" value="' + esc(val) + '"' + (dis ? ' disabled' : '') + ' style="' + inputStyle(dis ? 96 : 64) + (dis ? ';background:#F4F2EC;color:' + C.mute : '') + '"><span style="font-size:13px;color:' + C.mute + ';width:' + (d[2].length > 1 ? 44 : 16) + 'px">' + esc(d[2]) + '</span></div></div>';
+    }).join('') + '</div>';
+    o += card(cap('STRESS THEO TỪNG MÃ') + note('Stress là mức giảm DPS giả định khi tính giá trần. Với mỗi mã, mức này lấy theo năm DPS tụt mạnh nhất so với năm trước trong dữ liệu đã nhập, và không thấp hơn mức mặc định. Ghi đè riêng cho từng mã ở "Sửa ghi chú" của mã đó.')
+      + (infos.length ? infos.map(function (x) {
+        var c = x.c, w = c.worst;
+        return '<div style="display:flex;flex-direction:column;gap:4px;border-top:1px solid ' + C.line2 + ';padding-top:10px;font-size:13px;line-height:1.5"><span style="font-weight:700">' + esc(x.ma) + '</span>'
+          + '<span>' + (w ? 'Giảm mạnh nhất: ' + esc(w.from) + ' → ' + esc(w.to) + ', DPS từ ' + fmt(w.dpsFrom) + ' xuống ' + fmt(w.dpsTo) + ' (' + (w.pct < 0 ? '−' : '+') + pct(Math.abs(w.pct)) + ').' : 'Chưa đủ lịch sử DPS.') + '</span>'
+          + '<span style="color:' + C.mute + '">Stress áp dụng: −' + fmt(c.stressPct, c.stressPct % 1 ? 1 : 0) + '%, ' + (c.stressOverride != null ? 'do bạn ghi đè riêng.' : (c.stressAuto > P.stress ? 'theo mức giảm xấu nhất của mã.' : 'là mức mặc định vì lịch sử nhẹ hơn hoặc bằng.')) + '</span></div>';
+      }).join('') : '<div style="font-size:13px;color:' + C.mute + '">Chưa có mã nào đủ dữ liệu.</div>'), 10);
+    var ex = infos.filter(function (x) { return x.ma === 'VEA'; })[0] || infos[0];
+    if (ex) {
+      var c = ex.c;
+      o += card(cap('VÍ DỤ VỚI ' + esc(ex.ma)) + '<div style="font-size:13px;line-height:1.6">Giá trần = DPS ' + fmt(c.dps) + ' × (1 − ' + fmt(c.stressPct, c.stressPct % 1 ? 1 : 0) + '%) × ' + String(1 - P.tax / 100).replace('.', ',') + ' ÷ ' + P.target + '% = <span style="font-weight:700">' + fmt(r100(c.ceiling)) + '</span></div>'
+        + '<div style="font-size:13px;line-height:1.6">Giá hiện tại ' + fmt(c.price) + ' cho yield ròng <span style="font-weight:700">' + pct(c.yNet) + '</span>, so với ngưỡng ' + P.target + '%.</div>', 8);
+    }
+    o += '<div style="display:flex;gap:8px">' + btn('Lưu', 'cpySaveParams()', true) + btn('Khôi phục mặc định', 'cpyResetParams()', false) + '</div><div id="cpy-savemsg" style="font-size:12px;color:' + C.mute + ';min-height:16px"></div>';
+    return wrap(o);
+  }
+
+  // ---------- MÀN 5: SỬA GHI CHÚ ----------
+  function viewEdit(ma) {
+    var tc = CPY.cfg.tickers[ma] || {}, pd = tc.pending || {}, P = CPY.cfg.params;
+    var lab = function (t, s) { return '<label style="font-size:14px;font-weight:600">' + t + '</label>' + (s ? '<span style="font-size:12px;color:' + C.mute + ';line-height:1.45;margin-top:-4px">' + s + '</span>' : ''); };
+    var tf = 'width:100%;box-sizing:border-box;border:1px solid #D5D1C6;border-radius:8px;padding:10px;font-size:14px;font-family:inherit;';
+    var o = back(esc(ma), 'cpyGo(\'detail\',\'' + ma + '\')');
+    o += '<div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:26px;font-weight:700">' + esc(ma) + ' · Sửa ghi chú</h1><div style="font-size:13px;color:' + C.mute + ';line-height:1.5">Ghi tay: mô tả, nguồn tạo cổ tức, đợt cổ tức sắp nhận, stress riêng. Lưu vào tab "CP yield cfg".</div></div>';
+    o += card(lab('Mô tả ngắn') + '<input id="cpy-ed-desc" type="text" value="' + esc(tc.desc || '') + '" style="' + tf + 'min-height:44px">'
+      + lab('Nguồn tạo cổ tức', 'Mỗi dòng một ý. Viết dạng "Tiêu đề: nội dung" để tiêu đề được in đậm.') + '<textarea id="cpy-ed-note" style="' + tf + 'min-height:150px;line-height:1.5">' + esc(tc.note || '') + '</textarea>', 10);
+    o += card(cap('ĐỢT CỔ TỨC SẮP NHẬN') + note('Điền khi công ty đã công bố nhưng chưa tới ngày GDKHQ. Biên Graham, P/E, P/B sẽ tính theo giá đã trừ cổ tức này. Xóa trống sau khi qua ngày GDKHQ.')
+      + lab('Cổ tức (đồng một cổ phiếu, gộp)') + '<input id="cpy-ed-pd" type="text" inputmode="numeric" value="' + esc(pd.dps || '') + '" style="' + tf + 'min-height:44px">'
+      + lab('Ngày GDKHQ') + '<input id="cpy-ed-px" type="text" value="' + esc(pd.ex || '') + '" placeholder="dd/mm/yyyy" style="' + tf + 'min-height:44px">'
+      + '<label style="display:flex;align-items:center;gap:10px;font-size:14px"><input id="cpy-ed-pv" type="checkbox"' + (pd.verified ? ' checked' : '') + ' style="width:22px;height:22px"> Đã đối chiếu thông báo của công ty (HNX/HOSE)</label>', 10);
+    o += card(cap('STRESS RIÊNG CỦA MÃ') + lab('Mức giảm DPS giả định (%)', 'Để trống để dùng mức tự tính (xấu nhất của chính mã, không thấp hơn mặc định ' + P.stress + '%).') + '<input id="cpy-ed-st" type="text" inputmode="decimal" value="' + esc(tc.stress == null ? '' : tc.stress) + '" style="' + tf + 'min-height:44px">', 10);
+    o += '<div style="display:flex;gap:8px">' + btn('Lưu', 'cpySaveTicker(\'' + ma + '\')', true) + btn('Hủy', 'cpyGo(\'detail\',\'' + ma + '\')', false) + '</div><div id="cpy-savemsg" style="font-size:12px;color:' + C.mute + ';min-height:16px"></div>';
+    return wrap(o);
   }
 
   function render() {
     var el = document.getElementById('trd-panel-cpyield'); if (!el) return;
-    ensureStyle();
-    var head = '<section class="trd-section"><div class="sec-head"><h2>CP yield</h2><div class="why">Nhóm cổ tức giữ không bán theo giá, nuôi dòng tiền cho Core DCA. Chỉ hiện chỉ số, ngưỡng và công thức; không có đèn hay điểm tổng hợp.</div></div>';
-    if (CPY.loading && !CPY.loaded) { el.innerHTML = head + '<div class="cpy-note">Đang tải dữ liệu…</div></section>'; return; }
-    if (CPY.err) { el.innerHTML = head + '<div class="cpy-card"><b>Không tải được CP yield.</b><div class="cpy-note">' + esc(CPY.err) + '. Kiểm tra Apps Script Trading record đã thêm khối cp-yield.gs, thêm 2 dòng vào doGet và deploy bản mới.</div><button class="cpy-btn" onclick="cpyReload()">Thử lại</button></div></section>'; return; }
-    if (!CPY.loaded) { el.innerHTML = head + '<div class="cpy-note">Chưa tải.</div></section>'; return; }
-
-    var ctx = ctxNow(), P = ctx.cfg.params, now = new Date();
-    var infos = CPY.order.map(function (ma) {
-      return { ma: ma, c: calc(ma, ctx), h: holding(ma, typeof ONHAND !== 'undefined' ? ONHAND : [], typeof INOUT !== 'undefined' ? INOUT : [], now) };
-    });
-    var seg = CPY.seg;
-    var list = infos.filter(function (x) { return seg === 'all' || (seg === 'held' ? x.h.held : !x.h.held); });
-
-    var o = head
-      + '<div class="cpy-seg">' + [['held', 'Đang nắm'], ['target', 'Mục tiêu'], ['all', 'Tất cả']].map(function (s) { return '<button class="' + (seg === s[0] ? 'on' : '') + '" onclick="cpySeg(\'' + s[0] + '\')">' + s[1] + '</button>'; }).join('') + '</div>'
-      + '<div class="cpy-rule">Yield ròng mục tiêu ' + P.target + '% · DPS giảm giả định −' + P.stress + '% · biên Graham tối thiểu ' + P.mos + '% · thuế cổ tức ' + P.tax + '%'
-      + (CPY.priceErr ? ' · <b>giá VPS lỗi: ' + esc(CPY.priceErr) + '</b>' : '') + '</div>';
-    if (!list.length) o += '<div class="cpy-note">Không có mã nào trong nhóm này.</div>';
-    list.forEach(function (x) { o += cardHtml(x.ma, x.c, x.h, P); });
-    o += paramsHtml();
-    o += '<div style="display:flex;gap:8px;align-items:center"><button class="cpy-btn ghost" onclick="cpyReload()">Tải lại</button><span class="cpy-sub">Giá lấy từ VPS qua Apps Script; số cổ phiếu và cổ tức thực nhận lấy từ Onhand và In-out.</span></div></section>';
-    el.innerHTML = o;
+    ensureFont();
+    if (CPY.loading && !CPY.loaded) { el.innerHTML = wrap(note('Đang tải dữ liệu CP yield…')); return; }
+    if (CPY.err) { el.innerHTML = wrap('<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:16px"><b>Không tải được CP yield.</b><div style="font-size:12px;color:' + C.mute + ';line-height:1.5;margin:6px 0 10px">' + esc(CPY.err) + '. Kiểm tra Apps Script Trading record đã có khối CP yield (action getYield) và đã Deploy version mới.</div>' + btn('Thử lại', 'cpyReload()', true) + '</div>'); return; }
+    if (!CPY.loaded) { el.innerHTML = wrap(note('Chưa tải.')); return; }
+    var v = CPY.view, html;
+    if (v.name === 'detail' && CPY.data[v.ma]) html = viewDetail(v.ma);
+    else if (v.name === 'data' && CPY.data[v.ma]) html = viewData(v.ma);
+    else if (v.name === 'edit' && CPY.data[v.ma]) html = viewEdit(v.ma);
+    else if (v.name === 'params') html = viewParams();
+    else html = viewList();
+    el.innerHTML = html;
   }
 
-  // ---------- hành động giao diện ----------
-  root.cpyOpen = function () { ensureStyle(); load(false); };
+  // ---------- hành động ----------
+  root.cpyOpen = function () { load(false); };
   root.cpyReload = function () { load(true); };
+  root.cpyGo = function (name, ma) { CPY.view = { name: name, ma: ma || null }; render(); var el = document.getElementById('trd-panel-cpyield'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start' }); };
   root.cpySeg = function (s) { CPY.seg = s; render(); };
-  root.cpyToggle = function (ma) { CPY.open = (CPY.open === ma) ? null : ma; render(); };
-  root.cpyToggleRaw = function (ma) { CPY.showRaw[ma] = !CPY.showRaw[ma]; render(); };
-  root.cpyToggleParams = function () { CPY.showParams = !CPY.showParams; render(); };
+  root.cpyDataMode = function (m) { CPY.dataMode = m; render(); };
   root.cpySaveParams = function () {
     PARAM_DEFS.forEach(function (d) {
+      if (d[0] === 'iv') return;
       var v = document.getElementById('cpy-p-' + d[0]).value.trim();
       if (v === '') { CPY.cfg.params[d[0]] = (d[0] === 'ipower') ? null : DEFAULT_PARAMS[d[0]]; return; }
       var n = parseFloat(v.replace(',', '.'));
-      CPY.cfg.params[d[0]] = isNaN(n) ? DEFAULT_PARAMS[d[0]] : n;
+      CPY.cfg.params[d[0]] = isNaN(n) ? DEFAULT_PARAMS[d[0]] : Math.abs(d[0] === 'stress' ? n : n);
     });
-    save('cpy-savemsg'); render();
+    save('cpy-savemsg');
   };
-  root.cpyResetParams = function () { CPY.cfg.params = clone(DEFAULT_PARAMS); render(); var m = document.getElementById('cpy-savemsg'); if (m) m.textContent = 'Đã khôi phục trên màn hình, bấm Lưu để ghi vào sheet'; };
+  root.cpyResetParams = function () { CPY.cfg.params = clone(DEFAULT_PARAMS); render(); var m = document.getElementById('cpy-savemsg'); if (m) m.textContent = 'Đã khôi phục trên màn hình. Bấm Lưu để ghi vào sheet.'; };
   root.cpySaveTicker = function (ma) {
-    var g = function (id) { var e = document.getElementById(id); return e ? e : null; };
+    var g = function (id) { return document.getElementById(id); };
     var tc = CPY.cfg.tickers[ma] = CPY.cfg.tickers[ma] || {};
-    var dps = parseFloat(String(g('cpy-pd-' + ma).value).replace(/\./g, '').replace(',', '.'));
-    tc.pending = (dps > 0) ? { dps: dps, ex: g('cpy-px-' + ma).value.trim(), verified: g('cpy-pv-' + ma).checked } : null;
-    var st = g('cpy-st-' + ma).value.trim();
+    var dps = parseFloat(String(g('cpy-ed-pd').value).replace(/\./g, '').replace(',', '.'));
+    tc.desc = g('cpy-ed-desc').value.trim();
+    tc.note = g('cpy-ed-note').value;
+    tc.pending = (dps > 0) ? { dps: dps, ex: g('cpy-ed-px').value.trim(), verified: g('cpy-ed-pv').checked } : null;
+    var st = g('cpy-ed-st').value.trim();
     tc.stress = st === '' ? null : parseFloat(st.replace(',', '.'));
-    tc.note = g('cpy-nt-' + ma).value;
-    save('cpy-savemsg-' + ma); render();
+    save('cpy-savemsg');
   };
 
-  // kiểm thử trong Node
-  root.__cpy = { calc: calc, holding: holding, mergedCfg: mergedCfg, DEFAULT_PARAMS: DEFAULT_PARAMS };
+  root.__cpy = { calc: calc, holding: holding, mergedCfg: mergedCfg, checks: checks, DEFAULT_PARAMS: DEFAULT_PARAMS };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.__cpy;
 })(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
+
 </script>
 </body>
 </html>
