@@ -6727,11 +6727,14 @@ function aiExportCSV(){
 
   // ---------- khối giao diện dùng chung (đúng kiểu mockup) ----------
   var C = { ink: '#1B1F23', mute: '#5F6670', line: '#E6E3DA', line2: '#F0EEE7', bg: '#FAFAF7', chip: '#EFEDE6' };
-  function wrap(inner, maxw) {
-    return '<div style="max-width:' + (maxw || 438) + 'px;margin:0 auto;box-sizing:border-box;background:' + C.bg + ';font-family:\'Inter\',sans-serif;color:' + C.ink + ';padding:24px 16px;display:flex;flex-direction:column;gap:16px">' + inner + '</div>';
+  var CSS = '<style>.cpy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:16px;align-items:start}'
+    + '.cpy-masonry{column-width:440px;column-gap:16px}.cpy-masonry>.cpy-card{break-inside:avoid;margin-bottom:16px;display:flex}'
+    + '.cpy-stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px}</style>';
+  function wrap(inner) {
+    return CSS + '<div style="width:100%;box-sizing:border-box;background:' + C.bg + ';font-family:\'Inter\',sans-serif;color:' + C.ink + ';padding:24px 28px;display:flex;flex-direction:column;gap:16px">' + inner + '</div>';
   }
   function card(inner, gap, radius) {
-    return '<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:' + (radius || 14) + 'px;padding:16px;display:flex;flex-direction:column;gap:' + (gap || 12) + 'px">' + inner + '</div>';
+    return '<div class="cpy-card" style="background:#fff;border:1px solid ' + C.line + ';border-radius:' + (radius || 14) + 'px;padding:16px;flex-direction:column;gap:' + (gap || 12) + 'px;display:flex">' + inner + '</div>';
   }
   function cap(t, extra) { return '<div style="font-size:12px;font-weight:600;color:' + C.mute + (extra || '') + '">' + t + '</div>'; }
   function note(t) { return '<div style="font-size:12px;color:' + C.mute + ';line-height:1.5">' + t + '</div>'; }
@@ -6782,10 +6785,10 @@ function aiExportCSV(){
       return '<button onclick="cpySeg(\'' + s[0] + '\')" style="flex:1;min-height:44px;border:1px solid ' + (on ? C.ink : C.line) + ';background:' + (on ? C.ink : '#fff') + ';color:' + (on ? '#fff' : C.ink) + ';border-radius:10px;font-size:14px;font-weight:' + (on ? 600 : 500) + ';cursor:pointer;font-family:inherit">' + s[1] + '</button>';
     }).join('') + '</div>';
     o += '<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px">' + cap('QUY TẮC ĐANG ÁP DỤNG') + '<div style="font-size:13px;line-height:1.5">Yield ròng mục tiêu ' + P.target + '% · DPS stress −' + P.stress + '% · biên Graham tối thiểu ' + P.mos + '%</div></div>';
-    ready.forEach(function (x) { o += listCard(x, P); });
+    if (ready.length) o += '<div class="cpy-grid">' + ready.map(function (x) { return listCard(x, P); }).join('') + '</div>';
     if (!ready.length && !wait.length) o += note('Không có mã nào trong nhóm này.');
     if (wait.length) {
-      o += '<div style="font-size:12px;font-weight:600;color:' + C.mute + ';padding-top:4px">CHƯA CÓ ĐỊNH GIÁ</div><div style="display:flex;flex-direction:column;gap:8px">';
+      o += '<div style="font-size:12px;font-weight:600;color:' + C.mute + ';padding-top:4px">CHƯA CÓ ĐỊNH GIÁ</div><div class="cpy-grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">';
       wait.forEach(function (x) {
         var why = (x.c && x.c.rowsFilled === 0) || !x.c ? 'Chờ BCTC' : (x.c.missing.length && !(x.c.missing.length === 1 && x.c.missing[0] === 'giá') ? (hasAnyData(x.ma) ? 'Đã nhập BCTC, chưa tính định giá' : 'Chờ BCTC') : 'Chưa có giá');
         o += '<div onclick="cpyGo(\'detail\',\'' + x.ma + '\')" style="background:#fff;border:1px solid ' + C.line + ';border-radius:12px;padding:0 14px;min-height:52px;display:flex;justify-content:space-between;align-items:center;cursor:pointer"><span style="font-size:15px;font-weight:600">' + esc(x.ma) + '</span><span style="font-size:12px;color:' + C.mute + '">' + why + '</span></div>';
@@ -6828,6 +6831,7 @@ function aiExportCSV(){
        + '<div style="text-align:right"><div style="font-size:24px;font-weight:700">' + fmt(c.price) + '</div><div style="font-size:11px;color:' + C.mute + '">' + (c.pending ? 'giá có cổ tức' : 'giá thị trường') + ' · ' + dmy(CPY.time) + '</div></div></div>';
 
     var ph = '<span style="color:' + C.mute + ';font-style:italic">—</span>';
+    o += '<div class="cpy-masonry">';
     // Kết quả của bạn
     o += card(cap('KẾT QUẢ CỦA BẠN · ĐỌC TỪ ONHAND VÀ IN-OUT')
       + '<div style="display:flex;flex-direction:column">'
@@ -6843,7 +6847,7 @@ function aiExportCSV(){
 
     if (!c.ready) {
       o += card(cap('CHƯA ĐỦ DỮ LIỆU') + note('Thiếu: ' + esc(c.missing.join(', ')) + '. Nhập BCTC vào tab "CP yield" rồi bấm Tải lại ở màn danh sách.'));
-      o += '<div style="display:flex;gap:8px">' + btn('Mở bảng dữ liệu', 'cpyGo(\'data\',\'' + ma + '\')', true) + btn('Sửa ghi chú', 'cpyGo(\'edit\',\'' + ma + '\')', false) + '</div>';
+      o += '</div><div style="display:flex;gap:8px;max-width:520px">' + btn('Mở bảng dữ liệu', 'cpyGo(\'data\',\'' + ma + '\')', true) + btn('Sửa ghi chú', 'cpyGo(\'edit\',\'' + ma + '\')', false) + '</div>';
       return wrap(o);
     }
 
@@ -6928,7 +6932,7 @@ function aiExportCSV(){
     }).join('') : '<div style="background:' + C.bg + ';border-radius:10px;padding:10px 12px;font-size:13px;color:' + C.mute + '">Chưa có ghi chú. Bấm "Sửa ghi chú" để ghi nguồn tạo cổ tức của mã này.</div>';
     o += card(cap('PHÍA TRƯỚC · NGUỒN TẠO CỔ TỨC') + note('Ghi tay, không phải số tính tự động. Đây là phần quyết định cổ tức có còn không, mà chỉ số lịch sử không trả lời được.') + boxes, 10);
 
-    o += '<div style="display:flex;gap:8px">' + btn('Mở bảng dữ liệu', 'cpyGo(\'data\',\'' + ma + '\')', true) + btn('Sửa ghi chú', 'cpyGo(\'edit\',\'' + ma + '\')', false) + '</div>';
+    o += '</div><div style="display:flex;gap:8px;max-width:520px">' + btn('Mở bảng dữ liệu', 'cpyGo(\'data\',\'' + ma + '\')', true) + btn('Sửa ghi chú', 'cpyGo(\'edit\',\'' + ma + '\')', false) + '</div>';
     o += note('Bảng nghiên cứu và theo dõi cá nhân, không phải khuyến nghị mua bán.');
     return wrap(o);
   }
@@ -6936,7 +6940,7 @@ function aiExportCSV(){
   // ---------- MÀN 3: BẢNG DỮ LIỆU ----------
   function viewData(ma) {
     var t = CPY.data[ma], ctx = ctxNow(), per = CPY.periods;
-    if (!t) return wrap(back('CP yield', 'cpyGo(\'list\')') + note('Không có dữ liệu của ' + esc(ma)), 1100);
+    if (!t) return wrap(back('CP yield', 'cpyGo(\'list\')') + note('Không có dữ liệu của ' + esc(ma)));
     var ann = annualIdx(per), qs = [], latestQ = null;
     per.forEach(function (p, i) { if (/^2026 Q\d$/.test(p)) qs.push(i); });
     qs.forEach(function (i) { if (t.labels.some(function (lb) { return isNum(t.rows[lb][i]); })) latestQ = i; });
@@ -6967,7 +6971,7 @@ function aiExportCSV(){
     var items = ck.map(function (x) { return { ok: x.ok, text: x.text }; }).concat(tcn.map(function (tx) { return { ok: false, text: tx }; }));
     o += '<div style="display:flex;flex-direction:column;gap:12px;flex:0 0 286px;max-width:100%">' + card(cap('KIỂM TRA DỮ LIỆU') + (items.length ? items.map(function (x) { return '<div style="display:flex;gap:10px;align-items:flex-start">' + badgeO(x.ok) + '<span style="font-size:13px;line-height:1.45">' + esc(x.text) + '</span></div>'; }).join('') : note('Chưa đủ dữ liệu để kiểm tra công thức.')))
        + card(cap('GHI CHÚ NHẬP LIỆU') + '<div style="font-size:13px;line-height:1.5">Số thuyết minh và mã lãi vay đổi theo kỳ: 23 cho báo cáo đến 2025, 24 cho báo cáo 2026 theo chế độ kế toán mới. Luôn đối chiếu theo tên dòng.</div><div style="font-size:13px;line-height:1.5">Số cổ phiếu lưu hành lấy từ thuyết minh, đã trừ cổ phiếu quỹ.</div>', 8) + '</div></div>';
-    return wrap(o, 1100);
+    return wrap(o);
   }
 
   // ---------- MÀN 4: THAM SỐ ----------
@@ -6975,7 +6979,7 @@ function aiExportCSV(){
     var P = CPY.cfg.params, infos = allInfos().filter(function (x) { return x.c && x.c.ready; });
     var o = back('CP yield', 'cpyGo(\'list\')');
     o += '<div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:26px;font-weight:700">Tham số quy tắc</h1><div style="font-size:13px;color:' + C.mute + ';line-height:1.5">Sửa một chỗ, mọi mã tính lại. Mỗi tham số ghi rõ nguồn gốc để người xem tự đối chiếu.</div></div>';
-    o += '<div style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:4px 16px;display:flex;flex-direction:column">' + PARAM_DEFS.map(function (d, k) {
+    o += '<div class="cpy-masonry"><div class="cpy-card" style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:4px 16px;flex-direction:column">' + PARAM_DEFS.map(function (d, k) {
       var last = k === PARAM_DEFS.length - 1, val = d[0] === 'iv' ? 'Thấp hơn' : (P[d[0]] == null ? '' : String(P[d[0]]).replace('.', ','));
       var dis = d[0] === 'iv';
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:80px;padding:10px 0' + (last ? '' : ';border-bottom:1px solid ' + C.line2) + '"><div style="display:flex;flex-direction:column;gap:3px;flex:1"><label for="cpy-p-' + d[0] + '" style="font-size:14px;font-weight:600">' + esc(d[1]) + '</label><span style="font-size:12px;color:' + C.mute + ';line-height:1.45">' + esc(d[3]) + '</span></div>'
@@ -6994,7 +6998,7 @@ function aiExportCSV(){
       o += card(cap('VÍ DỤ VỚI ' + esc(ex.ma)) + '<div style="font-size:13px;line-height:1.6">Giá trần = DPS ' + fmt(c.dps) + ' × (1 − ' + fmt(c.stressPct, c.stressPct % 1 ? 1 : 0) + '%) × ' + String(1 - P.tax / 100).replace('.', ',') + ' ÷ ' + P.target + '% = <span style="font-weight:700">' + fmt(r100(c.ceiling)) + '</span></div>'
         + '<div style="font-size:13px;line-height:1.6">Giá hiện tại ' + fmt(c.price) + ' cho yield ròng <span style="font-weight:700">' + pct(c.yNet) + '</span>, so với ngưỡng ' + P.target + '%.</div>', 8);
     }
-    o += '<div style="display:flex;gap:8px">' + btn('Lưu', 'cpySaveParams()', true) + btn('Khôi phục mặc định', 'cpyResetParams()', false) + '</div><div id="cpy-savemsg" style="font-size:12px;color:' + C.mute + ';min-height:16px"></div>';
+    o += '</div><div style="display:flex;gap:8px;max-width:520px">' + btn('Lưu', 'cpySaveParams()', true) + btn('Khôi phục mặc định', 'cpyResetParams()', false) + '</div><div id="cpy-savemsg" style="font-size:12px;color:' + C.mute + ';min-height:16px"></div>';
     return wrap(o);
   }
 
@@ -7005,14 +7009,14 @@ function aiExportCSV(){
     var tf = 'width:100%;box-sizing:border-box;border:1px solid #D5D1C6;border-radius:8px;padding:10px;font-size:14px;font-family:inherit;';
     var o = back(esc(ma), 'cpyGo(\'detail\',\'' + ma + '\')');
     o += '<div style="display:flex;flex-direction:column;gap:4px"><h1 style="margin:0;font-size:26px;font-weight:700">' + esc(ma) + ' · Sửa ghi chú</h1><div style="font-size:13px;color:' + C.mute + ';line-height:1.5">Ghi tay: mô tả, nguồn tạo cổ tức, đợt cổ tức sắp nhận, stress riêng. Lưu vào tab "CP yield cfg".</div></div>';
-    o += card(lab('Mô tả ngắn') + '<input id="cpy-ed-desc" type="text" value="' + esc(tc.desc || '') + '" style="' + tf + 'min-height:44px">'
+    o += '<div class="cpy-masonry">' + card(lab('Mô tả ngắn') + '<input id="cpy-ed-desc" type="text" value="' + esc(tc.desc || '') + '" style="' + tf + 'min-height:44px">'
       + lab('Nguồn tạo cổ tức', 'Mỗi dòng một ý. Viết dạng "Tiêu đề: nội dung" để tiêu đề được in đậm.') + '<textarea id="cpy-ed-note" style="' + tf + 'min-height:150px;line-height:1.5">' + esc(tc.note || '') + '</textarea>', 10);
     o += card(cap('ĐỢT CỔ TỨC SẮP NHẬN') + note('Điền khi công ty đã công bố nhưng chưa tới ngày GDKHQ. Biên Graham, P/E, P/B sẽ tính theo giá đã trừ cổ tức này. Xóa trống sau khi qua ngày GDKHQ.')
       + lab('Cổ tức (đồng một cổ phiếu, gộp)') + '<input id="cpy-ed-pd" type="text" inputmode="numeric" value="' + esc(pd.dps || '') + '" style="' + tf + 'min-height:44px">'
       + lab('Ngày GDKHQ') + '<input id="cpy-ed-px" type="text" value="' + esc(pd.ex || '') + '" placeholder="dd/mm/yyyy" style="' + tf + 'min-height:44px">'
       + '<label style="display:flex;align-items:center;gap:10px;font-size:14px"><input id="cpy-ed-pv" type="checkbox"' + (pd.verified ? ' checked' : '') + ' style="width:22px;height:22px"> Đã đối chiếu thông báo của công ty (HNX/HOSE)</label>', 10);
     o += card(cap('STRESS RIÊNG CỦA MÃ') + lab('Mức giảm DPS giả định (%)', 'Để trống để dùng mức tự tính (xấu nhất của chính mã, không thấp hơn mặc định ' + P.stress + '%).') + '<input id="cpy-ed-st" type="text" inputmode="decimal" value="' + esc(tc.stress == null ? '' : tc.stress) + '" style="' + tf + 'min-height:44px">', 10);
-    o += '<div style="display:flex;gap:8px">' + btn('Lưu', 'cpySaveTicker(\'' + ma + '\')', true) + btn('Hủy', 'cpyGo(\'detail\',\'' + ma + '\')', false) + '</div><div id="cpy-savemsg" style="font-size:12px;color:' + C.mute + ';min-height:16px"></div>';
+    o += '</div><div style="display:flex;gap:8px;max-width:520px">' + btn('Lưu', 'cpySaveTicker(\'' + ma + '\')', true) + btn('Hủy', 'cpyGo(\'detail\',\'' + ma + '\')', false) + '</div><div id="cpy-savemsg" style="font-size:12px;color:' + C.mute + ';min-height:16px"></div>';
     return wrap(o);
   }
 
