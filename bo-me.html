@@ -6613,7 +6613,8 @@ function aiExportCSV(){
       var dps = rowDps ? rowDps[i] : null, eps = rowEps ? rowEps[i] : null, fcf = rowFcf ? rowFcf[i] : null;
       return { year: ctx.periods[i], eps: eps, dps: dps,
         payout: (isNum(dps) && eps > 0) ? dps / eps : null,
-        fcfRatio: (isNum(dps) && r.shares > 0 && fcf > 0) ? dps * r.shares / fcf / 1000 : null };
+        fcf: isNum(fcf) ? fcf : null, fcfNeg: isNum(fcf) && fcf <= 0 && isNum(dps) && dps > 0,
+        fcfRatio: (isNum(dps) && r.shares > 0 && isNum(fcf) && fcf !== 0) ? dps * r.shares / fcf / 1000 : null };
     });
     var prev = null, prevYear = null; r.worst = null;
     r.series.forEach(function (s) {
@@ -6623,7 +6624,7 @@ function aiExportCSV(){
     });
     r.worstYoy = r.worst ? r.worst.pct : null;
     var lastS = r.series.slice().reverse().filter(function (s) { return isNum(s.fcfRatio); })[0];
-    r.fcfRatio = lastS ? lastS.fcfRatio : null; r.fcfYear = lastS ? lastS.year : null;
+    r.fcfRatio = lastS ? lastS.fcfRatio : null; r.fcfYear = lastS ? lastS.year : null; r.fcfNeg = !!(lastS && lastS.fcfNeg);
 
     // stress áp dụng: ghi đè riêng > mức giảm xấu nhất của chính mã (không thấp hơn mặc định)
     var worstDrop = (r.worst && r.worst.pct < 0) ? -r.worst.pct * 100 : 0;
@@ -6895,17 +6896,25 @@ function aiExportCSV(){
     });
     grid += '</div>';
     var over = c.series.filter(function (s) { return isNum(s.payout) && s.payout > 1; }).map(function (s) { return s.year; });
-    var bars = c.series.map(function (s) {
-      var hgt = isNum(s.fcfRatio) ? Math.max(4, Math.min(130, s.fcfRatio * 100 * 0.913)) : 0;
-      return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:12px;font-weight:600">' + (isNum(s.fcfRatio) ? fmt(s.fcfRatio * 100, 1) : '—') + '</span><div style="width:40px;height:' + hgt + 'px;background:' + C.mute + ';border-radius:4px 4px 0 0"></div><span style="font-size:11px;color:' + C.mute + '">' + esc(s.year) + '</span></div>';
+    var hasNeg = c.series.some(function (s) { return isNum(s.fcfRatio) && s.fcfRatio < 0; }), K = 0.913, HP = 130, HN = hasNeg ? 100 : 0;
+    var colw = function (inner) { return '<div style="flex:1;display:flex;flex-direction:column;align-items:center">' + inner + '</div>'; };
+    var topRow = c.series.map(function (s) {
+      var v = s.fcfRatio, up = isNum(v) && v > 0, h = up ? Math.max(4, Math.min(HP - 18, v * 100 * K)) : 0;
+      return colw('<div style="height:' + HP + 'px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px"><span style="font-size:12px;font-weight:600">' + (up ? fmt(v * 100, 1) : (isNum(v) ? '' : '—')) + '</span>' + (up ? '<div style="width:40px;height:' + h + 'px;background:' + C.mute + ';border-radius:4px 4px 0 0"></div>' : '') + '</div>');
     }).join('');
+    var botRow = hasNeg ? c.series.map(function (s) {
+      var v = s.fcfRatio, dn = isNum(v) && v < 0, h = dn ? Math.max(4, Math.min(HN - 18, -v * 100 * K)) : 0;
+      return colw('<div style="height:' + HN + 'px;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;gap:4px">' + (dn ? '<div style="width:40px;height:' + h + 'px;background:#9A4A3A;border-radius:0 0 4px 4px"></div><span style="font-size:12px;font-weight:600;color:#9A4A3A">−' + fmt(-v * 100, 1) + '</span>' : '') + '</div>');
+    }).join('') : '';
+    var yrRow = c.series.map(function (s) { return colw('<span style="font-size:11px;color:' + C.mute + ';padding-top:6px">' + esc(s.year) + '</span>'); }).join('');
+    var bars = '<div style="padding:0 8px"><div style="display:flex">' + topRow + '</div><div style="border-top:1px solid ' + C.mute + '"></div>' + (hasNeg ? '<div style="display:flex">' + botRow + '</div>' : '') + '<div style="display:flex">' + yrRow + '</div></div>';
     o += card(cap('HIỆN TẠI · TỪ LỢI NHUẬN ĐẾN CỔ TỨC')
       + note('Chuỗi: lợi nhuận (EPS) → tiền thực nhận (FCF tổng) → cổ tức (DPS). Payout = DPS ÷ EPS, đo phần lợi nhuận kế toán đem chia. Cổ tức/FCF tổng đo phần tiền thực nhận đem chia.')
       + grid
       + note((over.length ? 'Payout trên 100% (' + over.join(', ') + ') nghĩa là cổ tức chi vượt lợi nhuận kế toán của năm đó. ' : '') + 'Ngưỡng tham khảo: dưới 100%.')
       + cap('CỔ TỨC / FCF TỔNG (%)', ';padding-top:6px')
-      + '<div style="display:flex;align-items:flex-end;justify-content:space-between;height:150px;padding:0 8px">' + bars + '</div>'
-      + note('Ngưỡng: dưới ' + P.fcfMax + '%, tức cổ tức chi không vượt dòng tiền thực nhận. FCF tổng = CFO + lãi đầu tư và cổ tức − Capex. Với công ty nắm giữ, cổ tức nhận từ liên doanh nằm trong dòng tiền đầu tư nên phải tính vào.')
+      + bars
+      + note('Ngưỡng: dưới ' + P.fcfMax + '%, tức cổ tức chi không vượt dòng tiền thực nhận. FCF tổng = CFO + lãi đầu tư và cổ tức − Capex. Với công ty nắm giữ, cổ tức nhận từ liên doanh nằm trong dòng tiền đầu tư nên phải tính vào. FCF tổng âm thì tỷ lệ âm, cột đi xuống dưới đường 0; dấu — là năm thiếu dữ liệu.')
       + '<div style="display:flex;flex-direction:column;border-top:1px solid ' + C.line2 + ';padding-top:6px">'
       + lineRow('Nợ vay', thr(fmt(c.debt) + ' tỷ', 'tiền và đầu tư NH ' + fmt(c.cash) + ' tỷ'))
       + lineRow('Thanh toán hiện hành', thr(fmt(c.cr, 2) + ' lần', 'ngưỡng ≥ ' + String(P.cr).replace('.', ',') + ' lần')) + '</div>'
