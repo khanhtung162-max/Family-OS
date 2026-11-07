@@ -616,6 +616,7 @@
             <button class="trd-nav-item" data-trdkey="quymo" onclick="selectTrdTab('quymo')"><span class="ic">🏦</span>Chứng chỉ quỹ</button>
             <button class="trd-nav-item" data-trdkey="gap" onclick="selectTrdTab('gap')"><span class="ic">⚖️</span>Gap</button>
             <button class="trd-nav-item" data-trdkey="camben" onclick="selectTrdTab('camben')"><span class="ic">🎯</span>Cảm biến</button>
+            <button class="trd-nav-item" data-trdkey="cpyield" onclick="selectTrdTab('cpyield')"><span class="ic">💰</span>CP yield</button>
           </div>
           <div class="trd-sidebar-foot">
             <button id="trdModeToggleBtn" class="trd-nav-item trd-nav-ghost" onclick="toggleTrdMode()"><span class="ic">⊞</span>Chế độ Tổng hợp</button>
@@ -1030,6 +1031,9 @@
         </div>
 
         <!-- Cảm biến NAV core + sức khỏe quỹ (nguồn: tab NAV daily) -->
+        <!-- CP yield — nội dung do cp-yield.js vẽ -->
+        <div class="trd-subpanel" id="trd-panel-cpyield"></div>
+
         <div class="trd-subpanel" id="trd-panel-camben">
           <section class="trd-section">
             <div id="trd-camben-root"></div>
@@ -1656,6 +1660,7 @@ const MACRO_CTX_CSV = trjSheetCsvUrl('Context');
 function selectTrdTab(key){
   if (key === 'gap' && typeof renderGap === 'function') renderGap();
   if (key === 'camben' && typeof snxRefresh === 'function') snxRefresh();
+  if (key === 'cpyield' && typeof cpyOpen === 'function') cpyOpen();
   document.querySelectorAll('#trd-subtabs .trd-nav-item').forEach(b => b.classList.toggle('active', b.dataset.trdkey === key));
   document.querySelectorAll('.trd-subpanel').forEach(p => p.classList.remove('active'));
   const panel = document.getElementById('trd-panel-' + key);
@@ -6489,5 +6494,6 @@ function aiExportCSV(){
   URL.revokeObjectURL(url);
 }
 </script>
+<script src="cp-yield.js"></script>
 </body>
 </html>
